@@ -40,7 +40,7 @@ export type CreateProductPayload = {
 
 export type UpdateProductPayload = {
   product: ProductFieldsPayload & { expectedUpdatedAt: string };
-  /** Desired product-level barcodes; the action adds/removes the difference. */
+  /** Desired product-level barcodes (first = primary); the action adds/removes the difference. */
   barcodes: string[];
   variants: VariantDraftPayload[];
 };

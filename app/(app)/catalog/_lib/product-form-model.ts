@@ -5,7 +5,7 @@
  */
 import type { CurrencyCode } from "@/lib/money";
 import type { ProductDetail, VatCategory } from "@/modules/catalog/schemas";
-import { minorToInput, parseMoneyField } from "./form-helpers";
+import { minorToInput, parseMoneyField, primaryFirstCodes } from "./form-helpers";
 import type { CreateProductPayload, UpdateProductPayload, VariantDraftPayload } from "./payloads";
 
 export type VariantRow = {
@@ -61,7 +61,7 @@ export function formStateFromProduct(product: ProductDetail, currency: CurrencyC
     vatCategory: product.vatCategory,
     price: minorToInput(product.priceMinor, currency),
     cost: minorToInput(product.costMinor, currency),
-    barcodes: product.barcodes.filter((b) => b.variantId === null).map((b) => b.code),
+    barcodes: primaryFirstCodes(product.barcodes.filter((b) => b.variantId === null)),
     variants: product.variants.map((v) => ({
       key: v.id,
       id: v.id,
@@ -72,7 +72,7 @@ export function formStateFromProduct(product: ProductDetail, currency: CurrencyC
       nameAr: v.nameAr ?? "",
       price: minorToInput(v.priceMinor, currency),
       cost: minorToInput(v.costMinor, currency),
-      barcodes: product.barcodes.filter((b) => b.variantId === v.id).map((b) => b.code),
+      barcodes: primaryFirstCodes(product.barcodes.filter((b) => b.variantId === v.id)),
     })),
   };
 }

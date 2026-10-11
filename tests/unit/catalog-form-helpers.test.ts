@@ -7,8 +7,10 @@ import {
   exactMatchId,
   formShortcut,
   listShortcut,
+  makePrimaryChip,
   minorToInput,
   parseMoneyField,
+  primaryFirstCodes,
   removeBarcodeChip,
 } from "@/app/(app)/catalog/_lib/form-helpers";
 
@@ -48,6 +50,23 @@ describe("barcode chips", () => {
   it("removes a chip and finds cross-list duplicates", () => {
     expect(removeBarcodeChip(["1", "2"], "1")).toEqual(["2"]);
     expect([...duplicateCodes([["1", "2"], ["2"], ["3"]])]).toEqual(["2"]);
+  });
+
+  it("makes a chip primary by moving it to the front", () => {
+    expect(makePrimaryChip(["1", "2", "3"], "3")).toEqual(["3", "1", "2"]);
+    expect(makePrimaryChip(["1", "2"], "1")).toEqual(["1", "2"]);
+    expect(makePrimaryChip(["1", "2"], "9")).toEqual(["1", "2"]);
+  });
+
+  it("orders stored barcodes primary first, the rest as stored", () => {
+    const rows = [
+      { code: "a", isPrimary: false },
+      { code: "b", isPrimary: false },
+      { code: "c", isPrimary: true },
+    ];
+    expect(primaryFirstCodes(rows)).toEqual(["c", "a", "b"]);
+    expect(primaryFirstCodes(rows.map((r) => ({ ...r, isPrimary: false })))).toEqual(["a", "b", "c"]);
+    expect(primaryFirstCodes([])).toEqual([]);
   });
 });
 

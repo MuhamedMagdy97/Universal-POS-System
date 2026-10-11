@@ -216,6 +216,8 @@ describe("updateProductAggregate", () => {
         "catalog.variant.created",
         "catalog.barcode.added",
         "catalog.barcode.added",
+        // Green's first barcode becomes its primary.
+        "catalog.barcode.primary_changed",
       ].sort(),
     );
   });

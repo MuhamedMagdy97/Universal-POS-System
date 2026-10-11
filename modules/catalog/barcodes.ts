@@ -12,6 +12,7 @@ import { invalid } from "./errors";
 import {
   audit,
   inTx,
+  lockKey,
   parseId,
   requirePermission,
   toBarcode,
@@ -52,9 +53,50 @@ export async function assertBarcodeTarget(
   }
 }
 
+type BarcodeItem = { productId: string; variantId: string | null };
+
+/**
+ * Serialises primary-barcode bookkeeping per item (product-level or one
+ * variant) for the rest of `tx`, so concurrent adds/removes on the same item
+ * never race on the `Barcode_one_primary_per_item` partial unique index.
+ */
+async function lockItem(tx: Tx, ctx: TenantContext, item: BarcodeItem): Promise<void> {
+  await lockKey(tx, "catalog.barcode.item", `${ctx.orgId}:${item.productId}:${item.variantId ?? ""}`);
+}
+
+function primaryOf(tx: Tx, ctx: TenantContext, item: BarcodeItem) {
+  return tx.barcode.findFirst({
+    where: { orgId: ctx.orgId, productId: item.productId, variantId: item.variantId, isPrimary: true },
+    select: { id: true, code: true },
+  });
+}
+
+type PrimaryReason = "first" | "explicit" | "promoted";
+
+async function auditPrimaryChange(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  item: BarcodeItem,
+  next: { id: string; code: string },
+  previous: { id: string; code: string } | null,
+  reason: PrimaryReason,
+): Promise<void> {
+  await audit(tx, ctx, meta, "catalog.barcode.primary_changed", "Barcode", next.id, {
+    productId: item.productId,
+    variantId: item.variantId,
+    code: next.code,
+    previousId: previous?.id ?? null,
+    previousCode: previous?.code ?? null,
+    reason,
+  });
+}
+
 /**
  * Inserts one barcode (already validated) with its `catalog.barcode.added`
- * audit row. `isPrimary` demotes the item's previous primary barcode first.
+ * audit row. "First barcode is primary": the item's first barcode becomes its
+ * primary automatically; `isPrimary` moves the primary to the new code (the
+ * old one is demoted first). Both write `catalog.barcode.primary_changed`.
  * Unique violations surface as raw P2002 for the caller to map.
  */
 export async function insertBarcode(
@@ -63,11 +105,12 @@ export async function insertBarcode(
   meta: CatalogMeta,
   data: { code: string; productId: string; variantId: string | null; isPrimary: boolean },
 ): Promise<BarcodeRecord> {
-  if (data.isPrimary) {
-    await tx.barcode.updateMany({
-      where: { orgId: ctx.orgId, productId: data.productId, variantId: data.variantId, isPrimary: true },
-      data: { isPrimary: false },
-    });
+  const item = { productId: data.productId, variantId: data.variantId };
+  await lockItem(tx, ctx, item);
+  const previous = await primaryOf(tx, ctx, item);
+  const makePrimary = data.isPrimary || previous === null;
+  if (makePrimary && previous) {
+    await tx.barcode.update({ where: { id: previous.id }, data: { isPrimary: false } });
   }
   const barcode = await tx.barcode.create({
     data: {
@@ -75,7 +118,7 @@ export async function insertBarcode(
       code: data.code,
       productId: data.productId,
       variantId: data.variantId,
-      isPrimary: data.isPrimary,
+      isPrimary: makePrimary,
     },
   });
   await audit(tx, ctx, meta, "catalog.barcode.added", "Barcode", barcode.id, {
@@ -84,29 +127,71 @@ export async function insertBarcode(
     variantId: barcode.variantId,
     isPrimary: barcode.isPrimary,
   });
+  if (makePrimary) {
+    await auditPrimaryChange(tx, ctx, meta, item, barcode, previous, previous ? "explicit" : "first");
+  }
   return barcode;
 }
 
-/** Hard-deletes one barcode row (already loaded in `tx`) with its `catalog.barcode.removed` audit row. */
+/**
+ * Hard-deletes one barcode row with its `catalog.barcode.removed` audit row.
+ * When it was the item's primary, the item's next barcode (oldest `createdAt`,
+ * then `id`) is promoted in the same transaction.
+ */
 export async function deleteBarcode(
   tx: Tx,
   ctx: TenantContext,
   meta: CatalogMeta,
   barcode: Pick<BarcodeRecord, "id" | "code" | "productId" | "variantId">,
 ): Promise<void> {
-  await tx.barcode.delete({ where: { id: barcode.id } });
+  const item = { productId: barcode.productId, variantId: barcode.variantId };
+  await lockItem(tx, ctx, item);
+  // The returned row has `isPrimary` as of now (after the lock), not as first loaded.
+  const deleted = await tx.barcode.delete({ where: { id: barcode.id } });
   await audit(tx, ctx, meta, "catalog.barcode.removed", "Barcode", barcode.id, {
     code: barcode.code,
     productId: barcode.productId,
     variantId: barcode.variantId,
   });
+  if (!deleted.isPrimary) return;
+  const next = await tx.barcode.findFirst({
+    where: { orgId: ctx.orgId, productId: item.productId, variantId: item.variantId },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, code: true },
+  });
+  if (!next) return;
+  await tx.barcode.update({ where: { id: next.id }, data: { isPrimary: true } });
+  await auditPrimaryChange(tx, ctx, meta, item, next, { id: deleted.id, code: deleted.code }, "promoted");
+}
+
+/**
+ * Makes the existing barcode `code` of `item` its primary (demoting the old
+ * one first). No-op when it already is, or when the item has no such code.
+ */
+export async function makePrimaryBarcode(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  item: BarcodeItem,
+  code: string,
+): Promise<void> {
+  await lockItem(tx, ctx, item);
+  const target = await tx.barcode.findFirst({
+    where: { orgId: ctx.orgId, productId: item.productId, variantId: item.variantId, code },
+    select: { id: true, code: true, isPrimary: true },
+  });
+  if (!target || target.isPrimary) return;
+  const previous = await primaryOf(tx, ctx, item);
+  if (previous) await tx.barcode.update({ where: { id: previous.id }, data: { isPrimary: false } });
+  await tx.barcode.update({ where: { id: target.id }, data: { isPrimary: true } });
+  await auditPrimaryChange(tx, ctx, meta, item, target, previous, "explicit");
 }
 
 /**
  * Attach a code to a product or one of its variants. A product with variants
  * needs a `variantId` (422 VARIANT_REQUIRED); a variant of another product is
- * 422 VARIANT_PRODUCT_MISMATCH. `isPrimary` demotes the item's previous primary
- * barcode in the same transaction.
+ * 422 VARIANT_PRODUCT_MISMATCH. The item's first barcode becomes its primary;
+ * `isPrimary` moves the primary to this code (same transaction).
  */
 export async function addBarcode(
   ctx: TenantContext,
@@ -124,7 +209,7 @@ export async function addBarcode(
   );
 }
 
-/** Hard delete (audited). The code becomes reusable. */
+/** Hard delete (audited). The code becomes reusable; a removed primary passes to the item's next barcode. */
 export async function removeBarcode(ctx: TenantContext, barcodeId: string, meta?: CatalogMeta): Promise<void> {
   await requirePermission(ctx, "products.update", { entityType: "Barcode", operation: "remove", meta });
   const id = parseId(barcodeId, "Barcode");

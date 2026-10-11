@@ -214,12 +214,14 @@ describe("primary barcode in the list", () => {
     const primaryCode = uniqueCode();
     await catalog.addBarcode(ctx, { code: uniqueCode(), productId: withPrimary.id });
     await catalog.addBarcode(ctx, { code: primaryCode, productId: withPrimary.id, isPrimary: true });
-    const nonPrimary = await catalog.createProduct(ctx, {
+    const firstCode = uniqueCode();
+    const firstIsPrimary = await catalog.createProduct(ctx, {
       sku: `${p}-B`,
       name: "B",
       priceMinor: 1,
-      barcodes: [uniqueCode()],
+      barcodes: [firstCode, uniqueCode()],
     });
+    const noBarcode = await catalog.createProduct(ctx, { sku: `${p}-D`, name: "D", priceMinor: 1 });
     const variantOnly = await catalog.createProductAggregate(ctx, {
       sku: `${p}-C`,
       name: "C",
@@ -238,7 +240,8 @@ describe("primary barcode in the list", () => {
     const page = await catalog.listProducts(ctx, { q: p });
     const byId = new Map(page.items.map((i) => [i.id, i.primaryBarcode]));
     expect(byId.get(withPrimary.id)).toBe(primaryCode);
-    expect(byId.get(nonPrimary.id)).toBeNull();
+    expect(byId.get(firstIsPrimary.id)).toBe(firstCode);
+    expect(byId.get(noBarcode.id)).toBeNull();
     expect(byId.get(variantOnly.id)).toBeNull();
     // The exact-barcode hit (prepended on page 1) carries it too.
     const hit = await catalog.listProducts(ctx, { q: primaryCode });

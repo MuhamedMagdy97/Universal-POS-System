@@ -32,6 +32,19 @@ export function removeBarcodeChip(codes: readonly string[], code: string): strin
   return codes.filter((c) => c !== code);
 }
 
+/** "First barcode is primary": moves `code` to the front of the list (no-op when absent). */
+export function makePrimaryChip(codes: readonly string[], code: string): string[] {
+  if (!codes.includes(code)) return [...codes];
+  return [code, ...codes.filter((c) => c !== code)];
+}
+
+/** Codes of one item with its primary first, the rest in their stored order. */
+export function primaryFirstCodes(barcodes: readonly { code: string; isPrimary: boolean }[]): string[] {
+  const primary = barcodes.find((b) => b.isPrimary);
+  const codes = barcodes.map((b) => b.code);
+  return primary ? makePrimaryChip(codes, primary.code) : codes;
+}
+
 /** Codes that appear more than once across all lists. */
 export function duplicateCodes(lists: readonly (readonly string[])[]): Set<string> {
   const seen = new Set<string>();
