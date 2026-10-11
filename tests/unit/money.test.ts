@@ -3,8 +3,10 @@ import {
   MoneyError,
   assertStorable,
   divideRoundHalfUp,
+  formatMinor,
   formatMoney,
   multiply,
+  normalizeDigits,
   parseMajor,
   percentOfBp,
   sum,
@@ -113,5 +115,71 @@ describe("known sale example (EG, 14%)", () => {
     const vatPerLine = lines.map((line) => vatOnNet(multiply(line.unit, line.qty), 1400));
     expect(vatPerLine).toEqual([47, 47, 47]);
     expect(sum(vatPerLine)).toBe(141); // per-line rounding, not 999 × 14% = 139.86 → 140
+  });
+});
+
+// Intl emits bidi marks (Arabic) and a no-break space after the code; normalised so assertions read clearly.
+const BIDI = new RegExp(`[${String.fromCharCode(0x061c, 0x200e, 0x200f)}]`, "g");
+const NBSP = String.fromCharCode(0x00a0);
+const plain = (value: string) => value.replace(BIDI, "").replaceAll(NBSP, " ");
+
+describe.each([
+  { currency: "EGP" as const, symbolAr: "ج.م." },
+  { currency: "SAR" as const, symbolAr: "ر.س." },
+])("formatMinor for $currency", ({ currency, symbolAr }) => {
+  it("formats English with the currency code and grouping", () => {
+    expect(plain(formatMinor(123_456_789, currency, "en"))).toBe(`${currency} 1,234,567.89`);
+    expect(plain(formatMinor(-1250, currency, "en"))).toBe(`-${currency} 12.50`);
+    expect(plain(formatMinor(5, currency, "en"))).toBe(`${currency} 0.05`);
+  });
+
+  it.each(["ar", "ar-EG", "ar-SA"])("uses Latin digits in %s by default (Q12)", (locale) => {
+    const out = plain(formatMinor(123_456_789, currency, locale));
+    expect(out).toContain("1,234,567.89");
+    expect(out).toContain(symbolAr);
+    expect(out).not.toMatch(/[٠-٩]/);
+  });
+
+  it("keeps Arabic-Indic digits when the locale asks for them explicitly", () => {
+    expect(plain(formatMinor(1250, currency, "ar-EG-u-nu-arab"))).toContain("١٢٫٥٠");
+  });
+
+  it("never rounds through floats", () => {
+    // 0.1 + 0.2 territory and the integer-column ceiling both stay exact.
+    expect(plain(formatMinor(30, currency, "en"))).toBe(`${currency} 0.30`);
+    expect(plain(formatMinor(2_147_483_647, currency, "en"))).toBe(`${currency} 21,474,836.47`);
+  });
+
+  it("rejects non-integer minor units", () => {
+    expect(() => formatMinor(12.5, currency, "en")).toThrow(MoneyError);
+  });
+
+  it("parses Arabic-Indic input after normalisation", () => {
+    expect(parseMajor("١٢٫٥٠", currency)).toBe(1250);
+    expect(parseMajor("۱۲.۵", currency)).toBe(1250);
+    expect(parseMajor("-٠٫٠٥", currency)).toBe(-5);
+    expect(() => parseMajor("١٬٢٣٤", currency)).toThrow(MoneyError);
+  });
+
+  it("round-trips its own Arabic-Indic output", () => {
+    const shown = plain(formatMinor(1250, currency, "ar-EG-u-nu-arab"))
+      .replace(symbolAr, "")
+      .trim();
+    expect(parseMajor(shown, currency)).toBe(1250);
+  });
+});
+
+describe("normalizeDigits", () => {
+  it("maps both Arabic digit sets and the Arabic decimal separator", () => {
+    expect(normalizeDigits("٠١٢٣٤٥٦٧٨٩")).toBe("0123456789");
+    expect(normalizeDigits("۰۱۲۳۴۵۶۷۸۹")).toBe("0123456789");
+    expect(normalizeDigits("١٢٫٥٠")).toBe("12.50");
+  });
+
+  it("drops bidi marks and leaves other characters for validation", () => {
+    const [rlm, lrm] = [String.fromCharCode(0x200f), String.fromCharCode(0x200e)];
+    expect(normalizeDigits(`${rlm}١٢${lrm}`)).toBe("12");
+    expect(normalizeDigits("12.50")).toBe("12.50");
+    expect(normalizeDigits("abc ٬")).toBe("abc ٬");
   });
 });
