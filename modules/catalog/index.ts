@@ -40,5 +40,15 @@ export {
   type CategoryDetail,
 } from "./categories";
 export { addBarcode, removeBarcode } from "./barcodes";
+// Cross-module seam (T3.5). The tx-aware functions skip permission checks: callers authorise first.
+export {
+  lookupCode,
+  searchSellable,
+  getSellableItems,
+  getItemsForHistory,
+  assertStockable,
+  type CatalogClient,
+} from "./seam";
+export type { ItemRefViolation } from "./sellable";
 export type { CatalogConflictReason, CatalogValidationReason } from "./errors";
 export { MAX_CATEGORY_DEPTH, type CatalogWarning } from "./rules";

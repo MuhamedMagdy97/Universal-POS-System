@@ -236,6 +236,14 @@ export type AddBarcode = z.infer<typeof AddBarcode>;
 export const LookupQuery = z.strictObject({ code: BarcodeCode });
 export type LookupQuery = z.infer<typeof LookupQuery>;
 
+/** POS quick search (`searchSellable`): active items only, at most 50 rows. */
+export const SearchSellableQuery = z.strictObject({
+  q: z.string().trim().min(1).max(64),
+  limit: z.coerce.number<string | number>().int().min(1).max(50).default(20),
+});
+export type SearchSellableQueryInput = z.input<typeof SearchSellableQuery>;
+export type SearchSellableQuery = z.infer<typeof SearchSellableQuery>;
+
 // ---------------------------------------------------------------------------
 // Cursor codec — opaque base64url JSON of (sortKey, id)
 // ---------------------------------------------------------------------------
@@ -366,7 +374,25 @@ export type SellableItem = CatalogItemRef & {
   vatApplicable: boolean;
 };
 
-export type LookupNotSellableReason = "PRODUCT_ARCHIVED" | "VARIANT_ARCHIVED";
+/** A sellable row without cost: what POS search/scan screens may show. */
+export type SellableSummary = Omit<SellableItem, "costMinor">;
+
+/**
+ * Why a resolved code cannot be sold as-is. `VARIANT_REQUIRED`: the code points
+ * at a product with variants and no variant was chosen; the POS shows a picker
+ * built from `LookupResult.variants`.
+ */
+export type LookupNotSellableReason = "PRODUCT_ARCHIVED" | "VARIANT_ARCHIVED" | "VARIANT_REQUIRED";
+
+/** One choice in the `VARIANT_REQUIRED` picker. Never carries cost or stock. */
+export type LookupVariantOption = {
+  variantId: string;
+  sku: string;
+  name: string;
+  nameAr: string | null;
+  unitPriceMinor: number;
+  sellable: boolean;
+};
 
 /** Scanner lookup result. Never carries cost or stock. */
 export type LookupResult = CatalogItemRef & {
@@ -379,4 +405,6 @@ export type LookupResult = CatalogItemRef & {
   vatApplicable: boolean;
   sellable: boolean;
   reason?: LookupNotSellableReason;
+  /** Only with `reason: "VARIANT_REQUIRED"`: active variants first, then by sortOrder, name. */
+  variants?: LookupVariantOption[];
 };
