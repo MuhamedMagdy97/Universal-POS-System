@@ -88,10 +88,7 @@ export const ExpectedUpdatedAt = z.iso.datetime();
 
 /**
  * Form price field (major units, e.g. "12.50") → integer minor units for `currency`.
- *
- * TODO(T3.2): Arabic-Indic digit normalisation ("١٢٫٥٠" → "12.50") is being added
- * to lib/money.ts by T3.2. Once it lands, normalise here before `parseMajor`
- * (or rely on parseMajor if it normalises internally) — see C-28.
+ * Arabic-Indic digits ("١٢٫٥٠") are accepted: `parseMajor` normalises them (C-28).
  */
 export function majorPrice(currency: CurrencyCode) {
   return z

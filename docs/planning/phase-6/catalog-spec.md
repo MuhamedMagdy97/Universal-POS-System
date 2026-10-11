@@ -1,6 +1,6 @@
 # Phase 6 / T3 — Catalog Specification (merged)
 
-Status: **built 2026-10-11** (T3.0–T3.7 merged on `phase-6/catalog`; T3.8 e2e in progress). Approved 2026-10-11:
+Status: **built 2026-10-11**, T3.0–T3.9 merged to `main` (PR #3). Approved 2026-10-11:
 Q1–Q4 accepted by the owner as recommended; Q5–Q13 take their defaults.
 
 ## As built — deviations from the plan
@@ -24,7 +24,8 @@ The code is the source of truth; the contract as built is in
   `ProductSummary`, `VARIANT_REQUIRED` lookup reason with a variant picker, 409 `PRIMARY_BARCODE_TAKEN`.
 - **`vatApplicable`** is derived from `vatCategory` and is not an input field (Q3).
 - **`UNIT_IMMUTABLE`** is never raised: `unitType` is not an accepted PATCH key, so it fails the strict schema (422).
-- **E2E (T3.8)** specs and `E2E_DATABASE_URL` are being added.
+- **E2E (T3.8)** runs against a dedicated `E2E_DATABASE_URL` database, migrated and seeded by Playwright's global
+  setup. Specs: `catalog-admin`, `catalog-conflicts`, `catalog-access`, `catalog-rtl`, plus `catalog-isolation`.
 
 This is the entry point for T3 "Catalog CRUD + constraints" (`docs/planning/task-breakdown.md`).
 The detail lives in three parts; where they disagree, **this file wins** (see §3).
