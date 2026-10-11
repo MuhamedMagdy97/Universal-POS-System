@@ -150,3 +150,14 @@ export function normalizeQty(input: string): number | null {
   const value = Number(digits);
   return Qty.safeParse(value).success ? value : null;
 }
+
+export const LedgerQuery = z
+  .object({
+    branchId: Uuid,
+    productId: Uuid,
+    variantId: Uuid.nullish().transform((value) => value ?? null),
+    cursor: z.string().max(512).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+  })
+  .strict();
+export type LedgerQuery = z.input<typeof LedgerQuery>;

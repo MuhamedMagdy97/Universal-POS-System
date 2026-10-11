@@ -10,3 +10,10 @@ export { getOnHand, hasUnvariantedStock, type InventoryClient } from "./queries"
 export { reconcile, type Mismatch } from "./reconcile";
 export { type ItemRef } from "./types";
 export { insufficientStock, type InsufficientLine } from "./errors";
+
+// Back-office services (inventory.read / inventory.adjust / inventory.transfer).
+export { listStock, getItemLedger, type StockRow, type StockPage, type LedgerRow, type LedgerPage } from "./stock";
+export { recordOpeningBalances } from "./opening";
+export { adjustStock } from "./adjust";
+export { transferStock } from "./transfer";
+export { OpeningInput, AdjustInput, TransferInput, StockQuery, LedgerQuery } from "./schemas";
