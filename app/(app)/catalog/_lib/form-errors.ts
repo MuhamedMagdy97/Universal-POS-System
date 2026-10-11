@@ -7,7 +7,7 @@ import type { ErrorBody } from "@/lib/errors";
 import type { MessageKey, translator } from "@/lib/i18n";
 
 /** Server Action result: `{ ok, data } | { ok: false, error }` (catalog-api-and-rules.md §1.4). */
-export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody; createdId?: string };
+export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody };
 
 /** "barcodes[0]" → "barcodes.0"; "variants[1].sku" → "variants.1.sku". */
 export function normalizeFieldPath(field: string): string {
@@ -83,6 +83,7 @@ function lastSegment(path: string): string {
 function issueMessage(issue: ZodIssueDetail, tr: Translate): string {
   const field = lastSegment(issue.path);
   if (issue.message === "Duplicate barcode in request") return tr("catalog.conflict.barcodeDuplicateInForm");
+  if (issue.message === "Duplicate SKU in request") return tr("catalog.conflict.skuDuplicateInForm");
   if (issue.message === "UNIT_NOT_SUPPORTED") return tr("catalog.form.error.unitNotSupported");
   switch (issue.code) {
     case "too_small":

@@ -21,11 +21,24 @@ import {
   type CatalogMeta,
   type Tx,
 } from "./internal";
+import { insertBarcode } from "./barcodes";
 import { diffFields, nextUpdatedAt, priceWarnings, type CatalogWarning } from "./rules";
-import { ArchiveInput, CreateVariant, UpdateVariant, type CreateVariantInput, type VariantDetail } from "./schemas";
+import {
+  ArchiveInput,
+  CreateVariant,
+  UpdateVariant,
+  type CreateVariant as CreateVariantData,
+  type CreateVariantInput,
+  type UpdateVariant as UpdateVariantData,
+  type VariantDetail,
+} from "./schemas";
 
 export type VariantWriteResult = VariantDetail & { warnings: CatalogWarning[] };
 export type UpdateVariantInput = z.input<typeof UpdateVariant>;
+
+type ProductRecord = NonNullable<Awaited<ReturnType<Tx["product"]["findFirst"]>>>;
+export type VariantRecord = NonNullable<Awaited<ReturnType<Tx["productVariant"]["findFirst"]>>>;
+export type VariantPatch = Omit<UpdateVariantData, "expectedUpdatedAt">;
 
 async function loadProduct(tx: Tx, ctx: TenantContext, productId: string) {
   const product = await tx.product.findFirst({ where: { id: productId, orgId: ctx.orgId } });
@@ -33,7 +46,7 @@ async function loadProduct(tx: Tx, ctx: TenantContext, productId: string) {
   return product;
 }
 
-async function loadVariant(tx: Tx, ctx: TenantContext, productId: string, variantId: string) {
+export async function loadVariant(tx: Tx, ctx: TenantContext, productId: string, variantId: string) {
   const variant = await tx.productVariant.findFirst({ where: { id: variantId, orgId: ctx.orgId, productId } });
   if (!variant) throw notFound("Variant");
   return variant;
@@ -43,6 +56,131 @@ async function variantOrThrow(ctx: TenantContext, productId: string, variantId: 
   const row = await db().productVariant.findFirst({ where: { id: variantId, orgId: ctx.orgId, productId } });
   if (!row) throw notFound("Variant");
   return toVariant(row, canSeeCost(ctx));
+}
+
+/**
+ * Inserts a variant and its barcodes inside `tx` (sets `product.hasVariants`),
+ * with the `catalog.variant.created` / `catalog.barcode.added` audit rows.
+ * Shared by `createVariant` and the aggregate save. Returns the price warnings
+ * resolved against the product. Unique violations surface as raw P2002.
+ */
+export async function insertVariant(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  product: Pick<ProductRecord, "id" | "hasVariants" | "priceMinor" | "costMinor">,
+  data: CreateVariantData,
+): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
+  if (!product.hasVariants) {
+    // TODO(T4): before switching a product to variants, ask inventory (and later
+    // sales) through their module seam whether stock/sale rows with
+    // variantId = NULL exist for it, and reject if so. Catalog must not query
+    // those tables directly (seam rule, docs/architecture/system-architecture.md).
+    await tx.product.update({ where: { id: product.id }, data: { hasVariants: true } });
+  }
+  const variant = await tx.productVariant.create({
+    data: {
+      orgId: ctx.orgId,
+      productId: product.id,
+      sku: data.sku,
+      name: data.name,
+      nameAr: data.nameAr ?? null,
+      priceMinor: data.priceMinor,
+      costMinor: data.costMinor,
+    },
+  });
+  await audit(tx, ctx, meta, "catalog.variant.created", "ProductVariant", variant.id, {
+    productId: product.id,
+    sku: variant.sku,
+    name: variant.name,
+    priceMinor: variant.priceMinor,
+    costMinor: variant.costMinor,
+  });
+  for (const code of data.barcodes) {
+    await insertBarcode(tx, ctx, meta, { code, productId: product.id, variantId: variant.id, isPrimary: false });
+  }
+  return {
+    variant,
+    warnings: priceWarnings(variant.priceMinor ?? product.priceMinor, variant.costMinor ?? product.costMinor),
+  };
+}
+
+/**
+ * Applies a variant PATCH to `current` (loaded and freshness-checked in `tx`).
+ * Price/cost changes write `catalog.variant.price_changed`; other fields
+ * `catalog.variant.updated`. Returns the (possibly unchanged) row and warnings
+ * resolved against `product`.
+ */
+export async function applyVariantUpdate(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  product: Pick<ProductRecord, "priceMinor" | "costMinor">,
+  current: VariantRecord,
+  patch: VariantPatch,
+): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
+  const { priceMinor, costMinor, ...rest } = patch;
+  const priceChanges = diffFields(
+    { priceMinor: current.priceMinor, costMinor: current.costMinor },
+    { priceMinor, costMinor },
+  );
+  const otherChanges = diffFields({ sku: current.sku, name: current.name, nameAr: current.nameAr }, rest);
+  const finalPrice = priceMinor !== undefined ? priceMinor : current.priceMinor;
+  const finalCost = costMinor !== undefined ? costMinor : current.costMinor;
+  const warnings = priceWarnings(finalPrice ?? product.priceMinor, finalCost ?? product.costMinor);
+  if (Object.keys(priceChanges).length === 0 && Object.keys(otherChanges).length === 0) {
+    return { variant: current, warnings };
+  }
+
+  const where = { id: current.id, orgId: ctx.orgId, productId: current.productId };
+  const updated = await tx.productVariant.updateMany({
+    where: { ...where, updatedAt: current.updatedAt },
+    data: { ...rest, priceMinor: finalPrice, costMinor: finalCost, updatedAt: nextUpdatedAt(current.updatedAt) },
+  });
+  if (updated.count !== 1) throw conflict("STALE_WRITE");
+
+  if (Object.keys(otherChanges).length > 0) {
+    await audit(tx, ctx, meta, "catalog.variant.updated", "ProductVariant", current.id, {
+      productId: current.productId,
+      changes: otherChanges,
+    });
+  }
+  if (Object.keys(priceChanges).length > 0) {
+    await audit(tx, ctx, meta, "catalog.variant.price_changed", "ProductVariant", current.id, {
+      productId: current.productId,
+      ...priceChanges,
+    });
+  }
+  return { variant: await loadVariant(tx, ctx, current.productId, current.id), warnings };
+}
+
+/**
+ * Archives/restores `current` (loaded and freshness-checked in `tx`) with its
+ * audit row. 409 ALREADY_ARCHIVED / NOT_ARCHIVED when it already has that state.
+ * `hasVariants` stays true even when the last variant is archived (resolution R10).
+ */
+export async function applyVariantActive(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  current: VariantRecord,
+  active: boolean,
+): Promise<void> {
+  if (current.isActive === active) throw conflict(active ? "NOT_ARCHIVED" : "ALREADY_ARCHIVED");
+  const updated = await tx.productVariant.updateMany({
+    where: { id: current.id, orgId: ctx.orgId, productId: current.productId, updatedAt: current.updatedAt },
+    data: { isActive: active, updatedAt: nextUpdatedAt(current.updatedAt) },
+  });
+  if (updated.count !== 1) throw conflict("STALE_WRITE");
+  await audit(
+    tx,
+    ctx,
+    meta,
+    active ? "catalog.variant.restored" : "catalog.variant.archived",
+    "ProductVariant",
+    current.id,
+    { productId: current.productId, sku: current.sku },
+  );
 }
 
 /**
@@ -60,48 +198,7 @@ export async function createVariant(
   const data = CreateVariant.parse(input);
 
   const result = await withUniqueMapping(ctx, { sku: data.sku, codes: data.barcodes }, () =>
-    inTx(async (tx) => {
-      const product = await loadProduct(tx, ctx, pid);
-      if (!product.hasVariants) {
-        // TODO(T4): before switching a product to variants, ask inventory (and later
-        // sales) through their module seam whether stock/sale rows with
-        // variantId = NULL exist for it, and reject if so. Catalog must not query
-        // those tables directly (seam rule, docs/architecture/system-architecture.md).
-        await tx.product.update({ where: { id: product.id }, data: { hasVariants: true } });
-      }
-      const variant = await tx.productVariant.create({
-        data: {
-          orgId: ctx.orgId,
-          productId: product.id,
-          sku: data.sku,
-          name: data.name,
-          nameAr: data.nameAr ?? null,
-          priceMinor: data.priceMinor,
-          costMinor: data.costMinor,
-        },
-      });
-      await audit(tx, ctx, meta, "catalog.variant.created", "ProductVariant", variant.id, {
-        productId: product.id,
-        sku: variant.sku,
-        name: variant.name,
-        priceMinor: variant.priceMinor,
-        costMinor: variant.costMinor,
-      });
-      for (const code of data.barcodes) {
-        const barcode = await tx.barcode.create({
-          data: { orgId: ctx.orgId, code, productId: product.id, variantId: variant.id },
-        });
-        await audit(tx, ctx, meta, "catalog.barcode.added", "Barcode", barcode.id, {
-          code,
-          productId: product.id,
-          variantId: variant.id,
-        });
-      }
-      return {
-        variant,
-        warnings: priceWarnings(variant.priceMinor ?? product.priceMinor, variant.costMinor ?? product.costMinor),
-      };
-    }),
+    inTx(async (tx) => insertVariant(tx, ctx, meta, await loadProduct(tx, ctx, pid), data)),
   );
 
   return { ...toVariant(result.variant, canSeeCost(ctx)), warnings: visibleWarnings(ctx, result.warnings) };
@@ -125,39 +222,7 @@ export async function updateVariant(
       const product = await loadProduct(tx, ctx, pid);
       const current = await loadVariant(tx, ctx, pid, vid);
       assertFresh(current.updatedAt, expectedUpdatedAt);
-
-      const { priceMinor, costMinor, ...rest } = patch;
-      const priceChanges = diffFields(
-        { priceMinor: current.priceMinor, costMinor: current.costMinor },
-        { priceMinor, costMinor },
-      );
-      const otherChanges = diffFields({ sku: current.sku, name: current.name, nameAr: current.nameAr }, rest);
-      const finalPrice = priceMinor !== undefined ? priceMinor : current.priceMinor;
-      const finalCost = costMinor !== undefined ? costMinor : current.costMinor;
-      const warnings = priceWarnings(finalPrice ?? product.priceMinor, finalCost ?? product.costMinor);
-      if (Object.keys(priceChanges).length === 0 && Object.keys(otherChanges).length === 0) {
-        return { variant: current, warnings };
-      }
-
-      const updated = await tx.productVariant.updateMany({
-        where: { id: vid, orgId: ctx.orgId, productId: pid, updatedAt: current.updatedAt },
-        data: { ...rest, priceMinor: finalPrice, costMinor: finalCost, updatedAt: nextUpdatedAt(current.updatedAt) },
-      });
-      if (updated.count !== 1) throw conflict("STALE_WRITE");
-
-      if (Object.keys(otherChanges).length > 0) {
-        await audit(tx, ctx, meta, "catalog.variant.updated", "ProductVariant", vid, {
-          productId: pid,
-          changes: otherChanges,
-        });
-      }
-      if (Object.keys(priceChanges).length > 0) {
-        await audit(tx, ctx, meta, "catalog.variant.price_changed", "ProductVariant", vid, {
-          productId: pid,
-          ...priceChanges,
-        });
-      }
-      return { variant: await loadVariant(tx, ctx, pid, vid), warnings };
+      return applyVariantUpdate(tx, ctx, meta, product, current, patch);
     }),
   );
 
@@ -185,21 +250,7 @@ async function setVariantActive(
     const current = await loadVariant(tx, ctx, pid, vid);
     if (current.isActive === active) throw conflict(active ? "NOT_ARCHIVED" : "ALREADY_ARCHIVED");
     assertFresh(current.updatedAt, expectedUpdatedAt);
-    const updated = await tx.productVariant.updateMany({
-      where: { id: vid, orgId: ctx.orgId, productId: pid, updatedAt: current.updatedAt },
-      data: { isActive: active, updatedAt: nextUpdatedAt(current.updatedAt) },
-    });
-    if (updated.count !== 1) throw conflict("STALE_WRITE");
-    // hasVariants stays true even when the last variant is archived (resolution R10).
-    await audit(
-      tx,
-      ctx,
-      meta,
-      active ? "catalog.variant.restored" : "catalog.variant.archived",
-      "ProductVariant",
-      vid,
-      { productId: pid, sku: current.sku },
-    );
+    await applyVariantActive(tx, ctx, meta, current, active);
   });
   return variantOrThrow(ctx, pid, vid);
 }

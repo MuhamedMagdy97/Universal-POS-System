@@ -42,6 +42,7 @@ export type ProductSort = z.infer<typeof ProductSort>;
 /** Reasons carried in `details.reason` / zod issue params for catalog-specific 422s. */
 export const UNIT_NOT_SUPPORTED = "UNIT_NOT_SUPPORTED";
 export const DUPLICATE_BARCODE = "DUPLICATE_BARCODE";
+export const DUPLICATE_SKU = "DUPLICATE_SKU";
 export const INVALID_CURSOR = "INVALID_CURSOR";
 export const INVALID_PRICE = "INVALID_PRICE";
 
@@ -197,6 +198,106 @@ export const UpdateVariant = z.strictObject({
   expectedUpdatedAt: ExpectedUpdatedAt,
 });
 export type UpdateVariant = z.infer<typeof UpdateVariant>;
+
+// ---------------------------------------------------------------------------
+// Aggregate save (product + variants + barcodes in one transaction)
+// ---------------------------------------------------------------------------
+
+/** Most variants one aggregate save may carry. */
+export const MAX_VARIANTS_PER_SAVE = 50;
+
+/**
+ * One variant row of an aggregate update. With `id`: edit that variant
+ * (`expectedUpdatedAt` required; omitted fields stay as they are; `barcodes`
+ * is the desired list, omitted = untouched; `isActive` archives/restores).
+ * Without `id`: create it (`null`/omitted price or cost = inherit).
+ */
+export const VariantUpsert = z
+  .strictObject({
+    id: Uuid.optional(),
+    expectedUpdatedAt: ExpectedUpdatedAt.optional(),
+    sku: Sku,
+    name: Name,
+    nameAr: Name.nullable().optional(),
+    priceMinor: Minor.nullable().optional(),
+    costMinor: Minor.nullable().optional(),
+    isActive: z.boolean().optional(),
+    barcodes: BarcodeList.optional(),
+  })
+  .superRefine((row, ctx) => {
+    if (row.id && !row.expectedUpdatedAt) {
+      ctx.addIssue({ code: "custom", path: ["expectedUpdatedAt"], message: "Required for an existing variant" });
+    }
+    if (!row.id && row.isActive === false) {
+      ctx.addIssue({ code: "custom", path: ["isActive"], message: "A new variant cannot be archived" });
+    }
+  });
+export type VariantUpsert = z.infer<typeof VariantUpsert>;
+
+type AggregateShape = {
+  sku?: string;
+  barcodes?: string[];
+  variants?: { id?: string; sku: string; barcodes?: string[] }[];
+};
+
+/**
+ * Cross-row checks for an aggregate save: a barcode or SKU may appear only
+ * once across the product and all its variant rows (C-19), and a variant id
+ * only once. Issue paths point at the repeated entry (e.g. `variants.1.sku`).
+ */
+function refineAggregate(value: AggregateShape, ctx: z.RefinementCtx): void {
+  // Repeats inside one list are already reported by BarcodeList; only cross-list repeats are reported here.
+  const codes = new Set<string>(value.barcodes ?? []);
+  const skus = new Set<string>(value.sku ? [value.sku] : []);
+  const ids = new Set<string>();
+  value.variants?.forEach((variant, i) => {
+    if (skus.has(variant.sku)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["variants", i, "sku"],
+        message: "Duplicate SKU in request",
+        params: { reason: DUPLICATE_SKU },
+      });
+    }
+    skus.add(variant.sku);
+    if (variant.id) {
+      if (ids.has(variant.id)) {
+        ctx.addIssue({ code: "custom", path: ["variants", i, "id"], message: "Duplicate variant in request" });
+      }
+      ids.add(variant.id);
+    }
+    variant.barcodes?.forEach((code, index) => {
+      if (codes.has(code)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["variants", i, "barcodes", index],
+          message: "Duplicate barcode in request",
+          params: { reason: DUPLICATE_BARCODE },
+        });
+      }
+    });
+    variant.barcodes?.forEach((code) => codes.add(code));
+  });
+}
+
+/** Create a product with its barcodes and variants (each with barcodes) atomically. */
+export const CreateProductAggregate = CreateProduct.extend({
+  variants: z.array(CreateVariant).max(MAX_VARIANTS_PER_SAVE).default([]),
+}).superRefine(refineAggregate);
+export type CreateProductAggregateInput = z.input<typeof CreateProductAggregate>;
+export type CreateProductAggregate = z.infer<typeof CreateProductAggregate>;
+
+/**
+ * Update a product, its product-level barcodes (desired list; omitted =
+ * untouched) and its variants (rows with `id` = edit, without = create;
+ * variants not listed are untouched) atomically.
+ */
+export const UpdateProductAggregate = UpdateProduct.extend({
+  barcodes: BarcodeList.optional(),
+  variants: z.array(VariantUpsert).max(MAX_VARIANTS_PER_SAVE).optional(),
+}).superRefine(refineAggregate);
+export type UpdateProductAggregateInput = z.input<typeof UpdateProductAggregate>;
+export type UpdateProductAggregate = z.infer<typeof UpdateProductAggregate>;
 
 // ---------------------------------------------------------------------------
 // Categories

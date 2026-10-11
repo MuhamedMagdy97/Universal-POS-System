@@ -35,7 +35,7 @@ type Props = {
   /** Absent on /catalog/products/new. */
   product?: ProductDetail;
   /** Notices carried over from a redirect (create → edit). */
-  initialNotice?: { saved?: boolean; partial?: boolean; priceBelowCost?: boolean };
+  initialNotice?: { saved?: boolean; priceBelowCost?: boolean };
 };
 
 const inputClass = "rounded-md border border-border px-3 py-2 disabled:opacity-70";
@@ -115,10 +115,6 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         ? await updateProductAction(current.id, built.payload)
         : await createProductAction(built.payload);
       if (!result.ok) {
-        if (result.createdId) {
-          router.push(`/catalog/products/${result.createdId}?partial=1`);
-          return;
-        }
         showErrors(mapErrorBody(result.error, tr));
         return;
       }
@@ -187,11 +183,6 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
       {current && !current.isActive ? (
         <p className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
           {tr("catalog.archive.archivedNotice")}
-        </p>
-      ) : null}
-      {initialNotice?.partial ? (
-        <p role="status" className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
-          {tr("catalog.form.partialSave")}
         </p>
       ) : null}
 

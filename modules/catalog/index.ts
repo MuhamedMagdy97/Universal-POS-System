@@ -22,6 +22,7 @@ export {
   type ProductWriteResult,
   type UpdateProductInput,
 } from "./products";
+export { createProductAggregate, updateProductAggregate } from "./aggregate";
 export {
   createVariant,
   updateVariant,
