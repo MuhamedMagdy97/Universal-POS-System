@@ -400,6 +400,7 @@ export function decodeCursor(cursor: string): DecodedCursor {
 export const ListProductsQuery = z.strictObject({
   q: z.string().trim().min(1).max(64).optional(),
   categoryId: Uuid.optional(),
+  vatCategory: VatCategory.optional(),
   status: ProductStatus.default("active"),
   limit: z.coerce.number<string | number>().int().min(1).max(100).default(25),
   cursor: Cursor.optional(),

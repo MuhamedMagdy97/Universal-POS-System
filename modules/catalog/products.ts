@@ -85,6 +85,7 @@ export async function listProducts(
   if (query.status === "active") base.isActive = true;
   if (query.status === "archived") base.isActive = false;
   if (query.categoryId) base.categoryId = query.categoryId;
+  if (query.vatCategory) base.vatCategory = query.vatCategory;
 
   // Exact barcode match (case-sensitive, like the scanner lookup).
   let barcodeHit: string | null = null;

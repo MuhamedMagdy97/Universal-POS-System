@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Cursor, listCategories, listProducts, Uuid, type ProductStatus } from "@/modules/catalog";
+import { Cursor, listCategories, listProducts, Uuid, VatCategory, type ProductStatus } from "@/modules/catalog";
 import { formatMinor } from "@/lib/money";
 import { translator } from "@/lib/i18n";
 import { isForbidden, loadCatalogContext } from "../_lib/context";
@@ -37,11 +37,13 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
   // Malformed URL values are dropped rather than turned into a 422 error page.
   const q = one(params.q)?.trim().slice(0, 64);
   const categoryId = Uuid.safeParse(one(params.categoryId)).data;
+  const vatCategory = VatCategory.safeParse(one(params.vatCategory)).data;
   const status = toStatus(one(params.status));
   const cursor = Cursor.safeParse(one(params.cursor)).success ? one(params.cursor) : undefined;
 
   const query = new URLSearchParams();
-  for (const [key, value] of Object.entries({ q, categoryId, status: status === "active" ? undefined : status })) {
+  const filters = { q, categoryId, vatCategory, status: status === "active" ? undefined : status };
+  for (const [key, value] of Object.entries(filters)) {
     if (value) query.set(key, value);
   }
   const listPath = `/catalog/products${query.size ? `?${query}` : ""}`;
@@ -55,7 +57,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
   let categories;
   try {
     [result, categories] = await Promise.all([
-      listProducts(ctx, { q, categoryId, status, cursor, limit: PAGE_SIZE }),
+      listProducts(ctx, { q, categoryId, vatCategory, status, cursor, limit: PAGE_SIZE }),
       listCategories(ctx, { status: "all" }),
     ]);
   } catch (err) {
@@ -71,7 +73,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
 
   const allCategories = flattenCategories(categories);
   const categoryName = new Map(allCategories.map((c) => [c.id, displayName(locale, c)]));
-  const filtered = Boolean(q || categoryId || status !== "active");
+  const filtered = Boolean(q || categoryId || vatCategory || status !== "active");
   const nextHref = result.nextCursor
     ? `/catalog/products?${new URLSearchParams([...query, ["cursor", result.nextCursor]])}`
     : null;
@@ -94,6 +96,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
         locale={locale}
         q={q ?? ""}
         categoryId={categoryId ?? ""}
+        vatCategory={vatCategory ?? ""}
         status={status}
         canCreate={can.create}
         categories={allCategories

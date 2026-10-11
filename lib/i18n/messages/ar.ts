@@ -20,7 +20,7 @@ export const ar: Messages = {
   "catalog.products.column.status": "الحالة",
   "catalog.products.filter.category": "التصنيف",
   "catalog.products.filter.status": "الحالة",
-  "catalog.products.filter.vat": "خاضع لضريبة القيمة المضافة",
+  "catalog.products.filter.vatCategory": "فئة ضريبة القيمة المضافة",
   "catalog.products.filter.all": "الكل",
   "catalog.products.loadMore": "عرض المزيد",
 

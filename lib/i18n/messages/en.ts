@@ -22,7 +22,7 @@ export const en = {
   "catalog.products.column.status": "Status",
   "catalog.products.filter.category": "Category",
   "catalog.products.filter.status": "Status",
-  "catalog.products.filter.vat": "VAT applicable",
+  "catalog.products.filter.vatCategory": "VAT category",
   "catalog.products.filter.all": "All",
   "catalog.products.loadMore": "Load more",
 
