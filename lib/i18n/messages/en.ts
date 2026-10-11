@@ -8,6 +8,7 @@ export const en = {
   "catalog.nav": "Catalog",
   "catalog.nav.products": "Products",
   "catalog.nav.categories": "Categories",
+  "inventory.nav": "Inventory",
 
   // Product list
   "catalog.products.title": "Products",

@@ -6,6 +6,7 @@ export const ar: Messages = {
   "catalog.nav": "الكتالوج",
   "catalog.nav.products": "المنتجات",
   "catalog.nav.categories": "التصنيفات",
+  "inventory.nav": "المخزون",
 
   // Product list
   "catalog.products.title": "المنتجات",
