@@ -201,6 +201,8 @@ model Organization {
   blockNegativeStock Boolean      @default(true)
   // Shelf prices include VAT (EG and SA consumer pricing). Read by checkout (T6).
   pricesIncludeVat   Boolean      @default(true)
+  // Last issued sale number (checkout): bumped in the sale transaction, gap-free on rollback.
+  lastSaleNo         Int          @default(0)
   // Receipt fields
   legalName          String?
   taxNumber          String?
@@ -450,23 +452,23 @@ model StockBalance {
 
 // Append-only ledger (UPDATE/DELETE rejected by trigger).
 model InventoryMovement {
-  id              String         @id @default(uuid()) @db.Uuid
-  orgId           String         @db.Uuid
-  branchId        String         @db.Uuid
-  productId       String         @db.Uuid
-  variantId       String?        @db.Uuid
-  qtyDelta        Int
-  reason          MovementReason
+  id               String            @id @default(uuid()) @db.Uuid
+  orgId            String            @db.Uuid
+  branchId         String            @db.Uuid
+  productId        String            @db.Uuid
+  variantId        String?           @db.Uuid
+  qtyDelta         Int
+  reason           MovementReason
   // Set only for ADJUSTMENT rows (DB CHECK); drives the direction rules.
   adjustmentReason AdjustmentReason?
   // Source document, e.g. ("Sale", saleId) or ("GoodsReceipt", receiptId).
-  refType         String?
-  refId           String?        @db.Uuid
+  refType          String?
+  refId            String?           @db.Uuid
   // Pairs the OUT and IN rows of a branch transfer.
-  transferGroupId String?        @db.Uuid
-  note            String?
-  actorUserId     String         @db.Uuid
-  createdAt       DateTime       @default(now())
+  transferGroupId  String?           @db.Uuid
+  note             String?
+  actorUserId      String            @db.Uuid
+  createdAt        DateTime          @default(now())
 
   org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch  Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
@@ -591,6 +593,10 @@ model Sale {
   discountMinor  Int        @default(0)
   vatMinor       Int
   totalMinor     Int
+  // Cash handed back to the customer (tendered cash minus the cash applied to the sale).
+  changeMinor    Int        @default(0)
+  // SHA-256 of the canonical request body; a replayed Idempotency-Key must match it.
+  requestHash    String?
   createdAt      DateTime   @default(now())
   voidedAt       DateTime?
   voidedById     String?    @db.Uuid

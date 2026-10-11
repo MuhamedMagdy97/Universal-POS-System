@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { lockProducts } from "@/modules/catalog/seam";
 
 /**
  * Balance-row locking (inventory D7). Every write locks its StockBalance rows in one global
@@ -39,6 +40,12 @@ export async function lockBalances(
   orgId: string,
   keys: readonly LockKey[],
 ): Promise<Map<string, LockedBalance>> {
+  // Product rows first, so every writer takes its locks in the same order (checkout R1).
+  await lockProducts(
+    tx,
+    orgId,
+    keys.map((k) => k.productId),
+  );
   const locked = new Map<string, LockedBalance>();
   for (const k of lockOrder(keys)) {
     await tx.$executeRaw`

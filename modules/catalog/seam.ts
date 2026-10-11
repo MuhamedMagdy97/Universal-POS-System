@@ -307,3 +307,14 @@ export function getItemsForHistory(
 export async function assertStockable(client: CatalogClient, orgId: string, ref: CatalogItemRef): Promise<void> {
   await resolveRefs(client, orgId, [ref], true);
 }
+
+/**
+ * Locks the product rows (`SELECT … FOR UPDATE`, in id order) for the rest of `client`'s
+ * transaction. Every stock write takes these before its balance rows, and the variant switch
+ * takes them before it checks stock, so a sale and a switch serialize (checkout R1).
+ */
+export async function lockProducts(client: Tx, orgId: string, productIds: readonly string[]): Promise<void> {
+  for (const id of [...new Set(productIds)].sort()) {
+    await client.$queryRaw`SELECT "id" FROM "Product" WHERE "orgId" = ${orgId}::uuid AND "id" = ${id}::uuid FOR UPDATE`;
+  }
+}

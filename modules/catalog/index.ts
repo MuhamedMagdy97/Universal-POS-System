@@ -48,6 +48,7 @@ export {
   getSellableItems,
   getItemsForHistory,
   assertStockable,
+  lockProducts,
   type CatalogClient,
 } from "./seam";
 export type { ItemRefViolation } from "./sellable";
