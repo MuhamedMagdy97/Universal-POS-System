@@ -10,8 +10,14 @@ import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { toErrorBody, type ErrorBody } from "@/lib/errors";
 import { getRequestId } from "@/lib/http";
-import { openShift, type ShiftSummary } from "@/modules/registers";
-import { createSale, type OpenShiftInput, type SaleDetail, type SaleInput } from "@/modules/sales";
+import { closeShift, openShift, type ShiftCloseSummary, type ShiftSummary } from "@/modules/registers";
+import {
+  createSale,
+  type CloseShiftInput,
+  type OpenShiftInput,
+  type SaleDetail,
+  type SaleInput,
+} from "@/modules/sales";
 
 export type PosActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody };
 
@@ -39,4 +45,12 @@ export async function openShiftAction(input: z.input<typeof OpenShiftInput>): Pr
   const result = await run((ctx, meta) => openShift(ctx, input, meta));
   if (result.ok) revalidatePath("/pos");
   return result;
+}
+
+/** Closes the shift on screen. The server computes the expected cash; the page reloads only after the cashier leaves the summary. */
+export async function closeShiftAction(
+  shiftId: string,
+  input: z.input<typeof CloseShiftInput>,
+): Promise<PosActionResult<ShiftCloseSummary>> {
+  return run((ctx, meta) => closeShift(ctx, shiftId, input, meta));
 }

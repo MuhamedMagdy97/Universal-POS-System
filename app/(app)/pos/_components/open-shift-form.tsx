@@ -15,7 +15,7 @@ type Props = {
   currency: CurrencyCode;
 };
 
-/** Opens a shift on the current register (Q1: open only; closing is T7). */
+/** Opens a shift on the current register (T6, Q1). Closing is `close-shift.tsx` (T7). */
 export function OpenShiftForm({ locale, branchId, registerId, currency }: Props) {
   const tr = translator(locale);
   const router = useRouter();

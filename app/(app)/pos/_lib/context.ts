@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { prismaTenantRepository, requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { getLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
+import { previewShiftCash, type CashBreakdown } from "@/modules/registers";
 import type { TillSettings } from "./till";
 
 /**
@@ -29,8 +30,11 @@ export type PosPageContext =
       registers: RegisterOption[];
       register: RegisterOption | null;
       shift: OpenShift | null;
+      /** Expected cash for the open shift, shown before the count. Null unless the caller can close. */
+      shiftCash: CashBreakdown | null;
       settings: TillSettings;
       canOpenShift: boolean;
+      canCloseShift: boolean;
     }
   | { kind: "denied"; locale: Locale }
   | { kind: "notFound"; locale: Locale; branches: BranchOption[] };
@@ -85,6 +89,9 @@ export async function loadPosContext(
       })
     : null;
 
+  const canCloseShift = hasPermission(ctx.role, "registers.close");
+  const shiftCash = open && canCloseShift ? await previewShiftCash(ctx, open.id) : null;
+
   return {
     kind: "ok",
     ctx,
@@ -96,7 +103,9 @@ export async function loadPosContext(
     shift: open
       ? { id: open.id, openedAt: open.openedAt.toISOString(), openingFloatMinor: open.openingFloatMinor }
       : null,
+    shiftCash,
     settings: { currency: org.currency, vatRateBp: org.vatRateBp, pricesIncludeVat: org.pricesIncludeVat },
     canOpenShift: hasPermission(ctx.role, "registers.open"),
+    canCloseShift,
   };
 }
