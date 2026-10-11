@@ -18,6 +18,23 @@ export function isLocale(value: unknown): value is Locale {
   return value === "en" || value === "ar";
 }
 
+/** Cookie holding the UI locale chosen with the EN/AR toggle (not sensitive; readable by JS). */
+export const LOCALE_COOKIE = "pos_locale";
+
+/** Any cookie/header value → a supported locale (default English). */
+export function toLocale(value: unknown): Locale {
+  return isLocale(value) ? value : DEFAULT_LOCALE;
+}
+
+/** Reads the locale cookie out of a `document.cookie`-style string. */
+export function localeFromCookieString(cookieString: string): Locale {
+  for (const part of cookieString.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === LOCALE_COOKIE) return toLocale(rest.join("="));
+  }
+  return DEFAULT_LOCALE;
+}
+
 export function dirOf(locale: Locale): "ltr" | "rtl" {
   return locale === "ar" ? "rtl" : "ltr";
 }
