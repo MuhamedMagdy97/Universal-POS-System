@@ -70,6 +70,10 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
     inStock: Prisma.sql`qty > 0`,
     zero: Prisma.sql`qty = 0`,
     negative: Prisma.sql`qty < 0`,
+    unopened: Prisma.sql`NOT EXISTS (
+      SELECT 1 FROM "InventoryMovement" m
+      WHERE m."orgId" = ${ctx.orgId}::uuid AND m."branchId" = ${parsed.branchId}::uuid
+        AND m."productId" = items."productId" AND m."variantId" IS NOT DISTINCT FROM items."variantId")`,
   }[parsed.filter];
   const cursorSql = cursor
     ? Prisma.sql`AND (name, "productId", COALESCE("variantId"::text, '')) > (${cursor.n}, ${cursor.p}::uuid, ${cursor.v})`

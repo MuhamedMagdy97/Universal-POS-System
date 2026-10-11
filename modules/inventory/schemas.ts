@@ -97,7 +97,8 @@ export const TransferInput = z
   .strict();
 export type TransferInput = z.infer<typeof TransferInput>;
 
-export const STOCK_FILTER_VALUES = ["all", "inStock", "zero", "negative"] as const;
+/** `unopened`: no ledger rows at the branch yet (the opening-stock grid's list). */
+export const STOCK_FILTER_VALUES = ["all", "inStock", "zero", "negative", "unopened"] as const;
 export const StockFilter = z.enum(STOCK_FILTER_VALUES);
 
 export const StockQuery = z

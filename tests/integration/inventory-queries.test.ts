@@ -63,6 +63,18 @@ describe("listStock", () => {
     expect(page.rows).toEqual([expect.objectContaining({ productId: product.id, qty: -2, archived: true })]);
   });
 
+  it("lists items with no movements at the branch under the unopened filter (opening grid)", async () => {
+    const tag = `UNO${uniqueCode().slice(-5)}`;
+    const fresh = await createProduct(db, orgId, `${tag}-A`);
+    const used = await createProduct(db, orgId, `${tag}-B`);
+    await inventory.recordOpeningBalances(admin, {
+      branchId,
+      lines: [{ ref: ref(used.id), qty: 1 }],
+    });
+    const page = await inventory.listStock(admin, { branchId, q: tag, filter: "unopened", limit: 25 });
+    expect(page.rows.map((row) => row.productId)).toEqual([fresh.id]);
+  });
+
   it("matches a barcode exactly", async () => {
     const product = await createProduct(db, orgId, `BC-${uniqueCode().slice(-6)}`);
     const code = uniqueCode();
