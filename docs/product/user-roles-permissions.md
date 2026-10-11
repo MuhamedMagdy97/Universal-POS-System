@@ -14,8 +14,14 @@ Gate on action grants, never role-name string checks in business logic:
 ## Matrix (MVP default)
 - Owner: all.
 - Admin: users.manage, settings.manage, products.*, inventory.*, purchases.*, reports.view.
-- Manager: inventory.*, sales.void, refunds, discounts.override, reports.view.
-- Cashier: sales.create, registers.open/close (+ discounts.apply only if granted).
+- Manager: products.read, inventory.*, sales.void, refunds, discounts.override, reports.view.
+- Cashier: products.read, sales.create, registers.open/close (+ discounts.apply only if granted).
 - Reporting: reports.view only.
 
 Branch scoping enforced alongside role checks, server-side.
+
+## Catalog notes (Phase 6, `lib/auth/permissions.ts`)
+- Manager and Cashier have `products.read` so they can search and scan at the POS (decision Q1). Cost fields are
+  hidden from them: `costMinor` needs `products.update`.
+- Catalog writes need `products.create` (create product/variant/category, add barcode) or `products.update` (edit,
+  price change, archive/restore, remove barcode). Denied write attempts are audit-logged (`catalog.permission.denied`).
