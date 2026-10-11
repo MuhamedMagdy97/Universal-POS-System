@@ -72,7 +72,7 @@ export const en = {
   "inventory.transfer.to": "To branch",
   "inventory.transfer.addItem": "Add item",
   "inventory.transfer.submit": "Transfer stock",
-  "inventory.transfer.success": "Transferred {count} items",
+  "inventory.transfer.success": "Transfer saved. Items moved: {count}",
   "inventory.transfer.lineOnHand": "On hand here: {onHand}",
   "inventory.transfer.overSource": "Not enough stock here for the quantity entered",
   "inventory.transfer.empty": "Add at least one item.",
@@ -82,7 +82,7 @@ export const en = {
   "inventory.opening.help":
     "Enter quantities for items that have never had stock at this branch. Each item can be opened once.",
   "inventory.opening.save": "Save opening stock",
-  "inventory.opening.success": "Opening stock saved for {count} items",
+  "inventory.opening.success": "Opening stock saved. Items: {count}",
   "inventory.opening.taken": "Stock already recorded",
   "inventory.opening.invalid": "Enter a whole number from 1.",
   "inventory.opening.empty": "Every item already has opening stock at this branch.",

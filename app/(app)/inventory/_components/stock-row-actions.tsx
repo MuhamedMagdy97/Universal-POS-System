@@ -15,6 +15,7 @@ type Props = {
   canAdjust: boolean;
   canTransfer: boolean;
   historyHref: string;
+  archived?: boolean;
   transferHref: string;
 };
 
@@ -46,6 +47,7 @@ export function StockRowActions(props: Props) {
           itemRef={props.itemRef}
           itemLabel={props.itemLabel}
           onHand={props.onHand}
+          archived={props.archived}
         />
       ) : null}
     </div>

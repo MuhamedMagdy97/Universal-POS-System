@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
-import { ADJUSTMENT_REASON_VALUES, normalizeQty, type AdjustmentReasonValue } from "@/modules/inventory/schemas";
+import { normalizeQty, type AdjustmentReasonValue } from "@/modules/inventory/schemas";
 import { adjustStockAction } from "../actions";
 import {
+  adjustReasonsFor,
   directionOf,
   errorMessageKey,
-  plain,
   needsNote,
   normalizeCount,
+  plain,
   previewAfter,
+  safeAction,
   signedDelta,
   type ItemRef,
 } from "../_lib/form";
@@ -24,17 +26,23 @@ type Props = {
   itemRef: ItemRef;
   itemLabel: string;
   onHand: number;
+  /** Archived items may only lose stock: increase reasons are hidden and the sign is fixed to "remove". */
+  archived?: boolean;
 };
+
+const DEFAULT_REASON: AdjustmentReasonValue = "COUNT_CORRECTION";
 
 /**
  * Adjust dialog (UX §2.3). Sends `expectedOnHand`; a stale answer updates the preview and asks
  * the user to confirm again. The sign is fixed by the reason, except for reasons that allow both.
+ * The form starts empty every time it opens, so a second open cannot repeat the last adjustment.
  */
-export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLabel, onHand }: Props) {
+export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLabel, onHand, archived = false }: Props) {
   const tr = translator(locale);
   const router = useRouter();
+  const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [reason, setReason] = useState<AdjustmentReasonValue>("COUNT_CORRECTION");
+  const [reason, setReason] = useState<AdjustmentReasonValue>(DEFAULT_REASON);
   const [mode, setMode] = useState<"delta" | "counted">("counted");
   const [qty, setQty] = useState("");
   const [sign, setSign] = useState<"+" | "-">("+");
@@ -47,17 +55,23 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
+      setReason(DEFAULT_REASON);
+      setMode("counted");
+      setQty("");
+      setSign(archived ? "-" : "+");
+      setNote("");
       setCurrent(onHand);
       setError(null);
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
-  }, [open, onHand]);
+  }, [open, onHand, archived]);
 
   const reasonLabel = (value: AdjustmentReasonValue) => plain(locale, `inventory.reason.${value}` as MessageKey);
   const isCount = reason === "COUNT_CORRECTION";
   const effectiveMode = isCount ? mode : "delta";
-  // Counted quantities may be 0; a change must be at least 1. Arabic-Indic digits are read by normalizeQty.
+  const effectiveSign = archived ? "-" : sign;
+  // Counted quantities may be 0; a change must be at least 1. Arabic-Indic digits are read by the parsers.
   const counted = qty.trim() === "" ? null : normalizeCount(qty);
   const amount = normalizeQty(qty);
   const delta =
@@ -67,7 +81,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
         : counted - current
       : amount === null
         ? null
-        : signedDelta({ reason, qty: amount, sign });
+        : signedDelta({ reason, qty: amount, sign: effectiveSign });
   const after = delta === null ? null : previewAfter(current, delta);
 
   async function submit(event: FormEvent) {
@@ -88,7 +102,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
     setPending(true);
     const base = { branchId, ref: itemRef, adjustmentReason: reason, note: note || undefined, expectedOnHand: current };
     const payload = effectiveMode === "counted" ? { ...base, countedQty: counted ?? 0 } : { ...base, qtyDelta: delta };
-    const result = await adjustStockAction(payload);
+    const result = await safeAction(() => adjustStockAction(payload));
     setPending(false);
     if (result.ok) {
       onClose();
@@ -104,12 +118,12 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
     setError(plain(locale, errorMessageKey(result.error)));
   }
 
-  const directionHint = directionOf(reason);
+  const showSign = effectiveMode === "delta" && directionOf(reason) === "either" && !archived;
 
   return (
     <dialog
       ref={dialogRef}
-      aria-labelledby="adjust-title"
+      aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -117,7 +131,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
       className="w-full max-w-md rounded-md border border-border bg-background p-6 text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={submit} className="flex flex-col gap-3">
-        <h2 id="adjust-title" className="text-lg font-semibold">
+        <h2 id={titleId} className="text-lg font-semibold">
           {tr("inventory.adjust.title")}: {itemLabel}
         </h2>
 
@@ -128,7 +142,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
             onChange={(e) => setReason(e.target.value as AdjustmentReasonValue)}
             className="rounded-md border border-border bg-background px-3 py-2"
           >
-            {ADJUSTMENT_REASON_VALUES.map((value) => (
+            {adjustReasonsFor(archived).map((value) => (
               <option key={value} value={value}>
                 {reasonLabel(value)}
               </option>
@@ -150,9 +164,9 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
         ) : null}
 
         <div className="flex gap-2">
-          {effectiveMode === "delta" && directionHint === "either" ? (
+          {showSign ? (
             <select
-              aria-label={tr("inventory.adjust.sign.plus")}
+              aria-label={`${tr("inventory.adjust.sign.plus")} / ${tr("inventory.adjust.sign.minus")}`}
               value={sign}
               onChange={(e) => setSign(e.target.value as "+" | "-")}
               className="rounded-md border border-border bg-background px-3 py-2"

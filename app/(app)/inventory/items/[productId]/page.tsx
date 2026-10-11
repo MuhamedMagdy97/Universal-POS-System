@@ -97,6 +97,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
           itemRef={{ productId: rawProductId, variantId: variantId }}
           itemLabel={displayName}
           onHand={history.qty}
+          archived={label.archived}
           canAdjust={can.adjust}
           canTransfer={can.transfer}
           historyHref={`/inventory/items/${rawProductId}?branch=${branch.id}${variantId ? `&variant=${variantId}` : ""}`}

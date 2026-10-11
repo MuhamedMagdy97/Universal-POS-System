@@ -6,7 +6,7 @@ import { translator, type Locale } from "@/lib/i18n";
 import type { StockPage, StockRow } from "@/modules/inventory";
 import { transferStockAction } from "../actions";
 import { normalizeQty } from "@/modules/inventory/schemas";
-import { overSourceLines, type ItemRef, type Line } from "../_lib/form";
+import { overSourceLines, plain, safeAction, transferErrorKey, type ItemRef, type Line } from "../_lib/form";
 
 type BranchChoice = { id: string; name: string };
 
@@ -46,13 +46,17 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
     const term = search.trim();
     if (!term) return;
     const params = new URLSearchParams({ branchId: fromBranch.id, q: term, limit: "10" });
-    const response = await fetch(`/api/inventory/stock?${params}`, { headers: { accept: "application/json" } });
-    if (!response.ok) {
+    let page: StockPage;
+    try {
+      const response = await fetch(`/api/inventory/stock?${params}`, { headers: { accept: "application/json" } });
+      if (!response.ok) throw new Error(`search failed: ${response.status}`);
+      page = (await response.json()) as StockPage;
+    } catch {
       setMessage({ kind: "error", text: tr("inventory.state.error") });
       return;
     }
-    const page = (await response.json()) as StockPage;
-    setResults(page.rows.filter((row) => !row.archived));
+    // An archived item can still be moved out while it holds stock; with none left there is nothing to move.
+    setResults(page.rows.filter((row) => !row.archived || row.qty > 0));
   }
 
   /** Adds one unit of a scanned or searched item, or increments the line that already holds it. */
@@ -87,13 +91,15 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
       return;
     }
     setPending(true);
-    const result = await transferStockAction({
-      transferId,
-      fromBranchId: fromBranch.id,
-      toBranchId,
-      lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
-      note: note.trim() || undefined,
-    });
+    const result = await safeAction(() =>
+      transferStockAction({
+        transferId,
+        fromBranchId: fromBranch.id,
+        toBranchId,
+        lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
+        note: note.trim() || undefined,
+      }),
+    );
     setPending(false);
     if (result.ok) {
       setMessage({ kind: "ok", text: tr("inventory.transfer.success", { count: lines.length }) });
@@ -103,12 +109,7 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
       router.refresh();
       return;
     }
-    const reason = (result.error.details as { reason?: string } | null)?.reason;
-    if (reason === "INSUFFICIENT_STOCK") {
-      setMessage({ kind: "error", text: tr("inventory.transfer.overSource") });
-      return;
-    }
-    setMessage({ kind: "error", text: tr("inventory.error.generic") });
+    setMessage({ kind: "error", text: plain(locale, transferErrorKey(result.error)) });
   }
 
   return (

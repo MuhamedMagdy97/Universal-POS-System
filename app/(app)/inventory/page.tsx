@@ -171,6 +171,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                         itemRef={{ productId: row.productId, variantId: row.variantId }}
                         itemLabel={label}
                         onHand={row.qty}
+                        archived={row.archived}
                         canAdjust={can.adjust}
                         canTransfer={can.transfer}
                         historyHref={historyHref}

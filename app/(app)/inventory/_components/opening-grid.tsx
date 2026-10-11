@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { recordOpeningAction } from "../actions";
-import { errorMessageKey, openingRowsToSave, plain, type ItemRef } from "../_lib/form";
+import { errorMessageKey, openingRowsToSave, plain, safeAction, type ItemRef } from "../_lib/form";
 
 export type OpeningRow = { ref: ItemRef; name: string; variantName: string | null; sku: string };
 
@@ -40,7 +40,7 @@ export function OpeningGrid({ locale, branchId, rows, truncated }: Props) {
       return;
     }
     setPending(true);
-    const result = await recordOpeningAction({ branchId, lines });
+    const result = await safeAction(() => recordOpeningAction({ branchId, lines }));
     setPending(false);
     if (result.ok) {
       setMessage({ kind: "ok", text: tr("inventory.opening.success", { count: lines.length }) });

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  adjustReasonsFor,
   directionOf,
   normalizeCount,
   needsNote,
   openingRowsToSave,
   overSourceLines,
   previewAfter,
+  safeAction,
   signedDelta,
+  transferErrorKey,
 } from "@/app/(app)/inventory/_lib/form";
 
 const ref = (productId: string) => ({ productId, variantId: null });
@@ -89,5 +92,50 @@ describe("openingRowsToSave", () => {
       { ref: ref("b"), raw: "0" },
     ];
     expect(openingRowsToSave(rows)).toEqual({ lines: [], invalid: [ref("a"), ref("b")] });
+  });
+});
+
+describe("adjustReasonsFor (archived change)", () => {
+  it("offers every reason for an active item", () => {
+    expect(adjustReasonsFor(false)).toEqual([
+      "DAMAGED",
+      "EXPIRED",
+      "LOST_OR_STOLEN",
+      "COUNT_CORRECTION",
+      "FOUND",
+      "OTHER",
+    ]);
+  });
+
+  it("offers only reasons that can remove stock for an archived item", () => {
+    expect(adjustReasonsFor(true)).not.toContain("FOUND");
+    expect(adjustReasonsFor(true)).toContain("COUNT_CORRECTION");
+  });
+});
+
+describe("transferErrorKey", () => {
+  const error = (reason: string) => ({ code: "CONFLICT" as const, message: "x", details: { reason } });
+
+  it("explains a shortfall at the source", () => {
+    expect(transferErrorKey(error("INSUFFICIENT_STOCK"))).toBe("inventory.transfer.overSource");
+  });
+
+  it("uses the specific message for other known reasons", () => {
+    expect(transferErrorKey(error("SAME_BRANCH"))).toBe("inventory.error.sameBranch");
+    expect(transferErrorKey(error("IDEMPOTENCY_CONFLICT"))).toBe("inventory.error.idempotency");
+    expect(transferErrorKey(error("ITEM_NOT_SELLABLE"))).toBe("inventory.error.itemNotSellable");
+  });
+});
+
+describe("safeAction", () => {
+  it("passes a result through", async () => {
+    await expect(safeAction(async () => ({ ok: true as const, data: 1 }))).resolves.toEqual({ ok: true, data: 1 });
+  });
+
+  it("turns a thrown request (network failure) into an error result instead of rejecting", async () => {
+    const result = await safeAction<number>(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(result).toEqual({ ok: false, error: { code: "INTERNAL", message: "Request failed", details: null } });
   });
 });

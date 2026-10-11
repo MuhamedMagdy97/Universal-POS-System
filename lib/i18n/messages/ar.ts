@@ -70,7 +70,7 @@ export const ar: Messages = {
   "inventory.transfer.to": "إلى الفرع",
   "inventory.transfer.addItem": "إضافة صنف",
   "inventory.transfer.submit": "تحويل المخزون",
-  "inventory.transfer.success": "تم تحويل {count} أصناف",
+  "inventory.transfer.success": "تم حفظ التحويل. عدد الأصناف المحولة: {count}",
   "inventory.transfer.lineOnHand": "المتاح هنا: {onHand}",
   "inventory.transfer.overSource": "لا يوجد مخزون كافٍ هنا للكمية المدخلة",
   "inventory.transfer.empty": "أضف صنفًا واحدًا على الأقل.",
@@ -80,7 +80,7 @@ export const ar: Messages = {
   "inventory.opening.help":
     "أدخل الكميات للأصناف التي لم يكن لها مخزون في هذا الفرع من قبل. يُسجَّل الرصيد الافتتاحي مرة واحدة لكل صنف.",
   "inventory.opening.save": "حفظ الرصيد الافتتاحي",
-  "inventory.opening.success": "تم حفظ الرصيد الافتتاحي لـ {count} أصناف",
+  "inventory.opening.success": "تم حفظ الرصيد الافتتاحي. عدد الأصناف: {count}",
   "inventory.opening.taken": "المخزون مسجل بالفعل",
   "inventory.opening.invalid": "أدخل عددًا صحيحًا من 1 فأكثر.",
   "inventory.opening.empty": "كل الأصناف لديها رصيد افتتاحي في هذا الفرع.",

@@ -5,7 +5,12 @@
 import type { ErrorBody } from "@/lib/errors";
 import { MESSAGES, interpolate, type Locale, type MessageKey } from "@/lib/i18n";
 import { normalizeDigits } from "@/lib/money";
-import { MAX_QTY, normalizeQty, type AdjustmentReasonValue } from "@/modules/inventory/schemas";
+import {
+  ADJUSTMENT_REASON_VALUES,
+  MAX_QTY,
+  normalizeQty,
+  type AdjustmentReasonValue,
+} from "@/modules/inventory/schemas";
 
 export type ItemRef = { productId: string; variantId: string | null };
 export type Line = { ref: ItemRef; qty: number };
@@ -100,4 +105,32 @@ export function errorMessageKey(error: ErrorBody): MessageKey {
  */
 export function plain(locale: Locale, key: MessageKey): string {
   return interpolate(MESSAGES[locale][key]);
+}
+
+/**
+ * Reasons the adjust dialog offers. An archived item may only lose stock (write-offs and
+ * downward counts), so reasons that can only add stock are left out.
+ */
+export function adjustReasonsFor(archived: boolean): AdjustmentReasonValue[] {
+  return ADJUSTMENT_REASON_VALUES.filter((reason) => !archived || directionOf(reason) !== "up");
+}
+
+/** Transfer form messages: a source shortfall has its own wording, everything else is shared. */
+export function transferErrorKey(error: ErrorBody): MessageKey {
+  const reason = (error.details as { reason?: string } | null)?.reason;
+  return reason === "INSUFFICIENT_STOCK" ? "inventory.transfer.overSource" : errorMessageKey(error);
+}
+
+export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody };
+
+/**
+ * Runs a Server Action and never rejects: a request that fails before the server answers (offline,
+ * a dropped connection) becomes an error result, so the form can re-enable its button.
+ */
+export async function safeAction<T>(run: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
+  try {
+    return await run();
+  } catch {
+    return { ok: false, error: { code: "INTERNAL", message: "Request failed", details: null } };
+  }
 }

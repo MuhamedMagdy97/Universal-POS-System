@@ -78,18 +78,23 @@ export async function itemLabel(
   orgId: string,
   productId: string,
   variantId: string | null,
-): Promise<{ name: string; variantName: string | null; sku: string } | null> {
+): Promise<{ name: string; variantName: string | null; sku: string; archived: boolean } | null> {
   const db = getDb();
   const product = await db.product.findFirst({
     where: { id: productId, orgId },
-    select: { name: true, sku: true },
+    select: { name: true, sku: true, isActive: true },
   });
   if (!product) return null;
-  if (!variantId) return { name: product.name, variantName: null, sku: product.sku };
+  if (!variantId) return { name: product.name, variantName: null, sku: product.sku, archived: !product.isActive };
   const variant = await db.productVariant.findFirst({
     where: { id: variantId, orgId, productId },
-    select: { name: true, sku: true },
+    select: { name: true, sku: true, isActive: true },
   });
   if (!variant) return null;
-  return { name: product.name, variantName: variant.name, sku: variant.sku };
+  return {
+    name: product.name,
+    variantName: variant.name,
+    sku: variant.sku,
+    archived: !product.isActive || !variant.isActive,
+  };
 }
