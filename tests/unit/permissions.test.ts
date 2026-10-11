@@ -32,6 +32,23 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
     expect(hasPermission("MANAGER", "users.manage")).toBe(false);
   });
 
+  it("lets managers and cashiers read the catalog but not edit it (catalog Q1)", () => {
+    for (const role of ["MANAGER", "CASHIER"] as const) {
+      expect(hasPermission(role, "products.read")).toBe(true);
+      expect(hasPermission(role, "products.create")).toBe(false);
+      expect(hasPermission(role, "products.update")).toBe(false);
+    }
+    expect(hasPermission("REPORTING", "products.read")).toBe(false);
+  });
+
+  it("has no separate price permission; price changes ride on products.update (catalog Q10)", () => {
+    expect(PERMISSIONS.filter((permission) => permission.startsWith("products."))).toEqual([
+      "products.read",
+      "products.create",
+      "products.update",
+    ]);
+  });
+
   it("gives admins settings and catalog but not sales voids", () => {
     expect(hasPermission("ADMIN", "settings.manage")).toBe(true);
     expect(hasPermission("ADMIN", "products.create")).toBe(true);
