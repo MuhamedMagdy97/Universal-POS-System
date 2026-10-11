@@ -1,0 +1,727 @@
+// Universal POS System — MVP schema.
+// Source of truth for the design: docs/architecture/database-design.md
+//
+// Conventions
+// - Every tenant-scoped table carries `orgId`. Child rows reference their
+//   parents through composite foreign keys `(orgId, parentId)`, so the
+//   database itself rejects a row that points at another tenant's data.
+// - Money is integer minor units (piastres / halalas) in `*Minor` columns.
+//   No floats or decimals anywhere in finance.
+// - Quantities are integers in the product's base unit (EACH = 1 piece,
+//   KG = 1 gram). See lib/money.ts and modules/catalog for scaling.
+// - VAT rates are basis points (1400 = 14%, 1500 = 15%).
+// - InventoryMovement and AuditEvent are append-only; closed RegisterShifts
+//   are immutable. Both are enforced by triggers in the init migration.
+// - The User/Session/Account/Verification/RateLimit models follow the field
+//   layout Better-Auth expects (lib/auth/auth.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum BusinessType {
+  RETAIL
+  GROCERY
+  FRUIT_VEG
+  BAKERY_BUTCHER
+  RESTAURANT_CAFE
+  SALON
+}
+
+enum Currency {
+  EGP
+  SAR
+}
+
+enum CountryCode {
+  EG
+  SA
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MANAGER
+  CASHIER
+  REPORTING
+}
+
+enum UnitType {
+  EACH
+  KG
+}
+
+enum MovementReason {
+  OPENING_BALANCE
+  SALE
+  SALE_VOID
+  REFUND
+  PURCHASE_RECEIPT
+  ADJUSTMENT
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD_MANUAL
+  WALLET
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  PAY_IN
+  PAY_OUT
+  DROP
+}
+
+// ─────────────────────── Auth (Better-Auth) ───────────────────────
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships Membership[]
+}
+
+model Session {
+  id                   String   @id @default(uuid()) @db.Uuid
+  token                String   @unique
+  expiresAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  userId               String   @db.Uuid
+  // Tenant context chosen server-side after login; never accepted from the client.
+  activeOrganizationId String?  @db.Uuid
+  activeBranchId       String?  @db.Uuid
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// Login rate-limit counters (Better-Auth `rateLimit.storage = "database"`).
+model RateLimit {
+  id          String @id @default(uuid()) @db.Uuid
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+// ───────────────────── Tenancy: org / branch ─────────────────────
+
+model Organization {
+  id                 String       @id @default(uuid()) @db.Uuid
+  name               String
+  businessType       BusinessType
+  countryCode        CountryCode
+  currency           Currency
+  vatRateBp          Int
+  blockNegativeStock Boolean      @default(true)
+  // Receipt fields
+  legalName          String?
+  taxNumber          String?
+  receiptHeader      String?
+  receiptFooter      String?
+  receiptAddress     String?
+  receiptPhone       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  branches           Branch[]
+  registers          Register[]
+  memberships        Membership[]
+  membershipBranches MembershipBranch[]
+  categories         Category[]
+  products           Product[]
+  variants           ProductVariant[]
+  barcodes           Barcode[]
+  stockBalances      StockBalance[]
+  movements          InventoryMovement[]
+  suppliers          Supplier[]
+  purchaseOrders     PurchaseOrder[]
+  poItems            POItem[]
+  goodsReceipts      GoodsReceipt[]
+  goodsReceiptItems  GoodsReceiptItem[]
+  sales              Sale[]
+  saleItems          SaleItem[]
+  payments           Payment[]
+  refunds            Refund[]
+  refundItems        RefundItem[]
+  shifts             RegisterShift[]
+  cashMovements      CashMovement[]
+  auditEvents        AuditEvent[]
+}
+
+model Branch {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  code      String
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org                Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  registers          Register[]
+  membershipBranches MembershipBranch[]
+  stockBalances      StockBalance[]
+  movements          InventoryMovement[]
+  purchaseOrders     PurchaseOrder[]
+  goodsReceipts      GoodsReceipt[]
+  sales              Sale[]
+  refunds            Refund[]
+  shifts             RegisterShift[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, code])
+}
+
+model Register {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  branchId  String   @db.Uuid
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  shifts RegisterShift[]
+  sales  Sale[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, branchId, id])
+  @@unique([orgId, branchId, name])
+}
+
+model Membership {
+  id          String         @id @default(uuid()) @db.Uuid
+  orgId       String         @db.Uuid
+  userId      String         @db.Uuid
+  role        MembershipRole
+  // Owners/admins typically see all branches; others are scoped via MembershipBranch.
+  allBranches Boolean        @default(false)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org      Organization       @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  branches MembershipBranch[]
+
+  @@unique([orgId, userId])
+  @@unique([orgId, id])
+  @@index([userId])
+}
+
+model MembershipBranch {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  membershipId String   @db.Uuid
+  branchId     String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  membership Membership   @relation(fields: [orgId, membershipId], references: [orgId, id], onDelete: Cascade)
+  branch     Branch       @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([membershipId, branchId])
+}
+
+// ─────────────────────────── Catalog ───────────────────────────
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  parentId  String?  @db.Uuid
+  name      String
+  nameAr    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  parent   Category?    @relation("CategoryTree", fields: [orgId, parentId], references: [orgId, id], onDelete: Restrict)
+  children Category[]   @relation("CategoryTree")
+  products Product[]
+
+  @@unique([orgId, id])
+  @@index([orgId, parentId])
+}
+
+model Product {
+  id            String   @id @default(uuid()) @db.Uuid
+  orgId         String   @db.Uuid
+  categoryId    String?  @db.Uuid
+  sku           String
+  name          String
+  nameAr        String?
+  unitType      UnitType @default(EACH)
+  priceMinor    Int
+  costMinor     Int      @default(0)
+  vatApplicable Boolean  @default(true)
+  // Deactivate instead of delete once referenced (business rule 8).
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  category      Category?           @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  variants      ProductVariant[]
+  barcodes      Barcode[]
+  stockBalances StockBalance[]
+  movements     InventoryMovement[]
+  poItems       POItem[]
+  receiptItems  GoodsReceiptItem[]
+  saleItems     SaleItem[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, sku])
+  @@index([orgId, categoryId])
+}
+
+model ProductVariant {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @db.Uuid
+  productId  String   @db.Uuid
+  sku        String
+  name       String
+  nameAr     String?
+  // Null means "inherit the product price/cost".
+  priceMinor Int?
+  costMinor  Int?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product       Product             @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  barcodes      Barcode[]
+  stockBalances StockBalance[]
+  movements     InventoryMovement[]
+  poItems       POItem[]
+  receiptItems  GoodsReceiptItem[]
+  saleItems     SaleItem[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, sku])
+  @@index([orgId, productId])
+}
+
+model Barcode {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  code      String
+  productId String   @db.Uuid
+  variantId String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, code])
+}
+
+// ────────────────────────── Inventory ──────────────────────────
+
+// Cache of on-hand quantity, reconciled against the InventoryMovement ledger.
+// The unique key treats a NULL variantId as a value (NULLS NOT DISTINCT, see migration).
+model StockBalance {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  branchId  String   @db.Uuid
+  productId String   @db.Uuid
+  variantId String?  @db.Uuid
+  qty       Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch  Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  product Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, branchId, productId, variantId])
+}
+
+// Append-only ledger (UPDATE/DELETE rejected by trigger).
+model InventoryMovement {
+  id              String         @id @default(uuid()) @db.Uuid
+  orgId           String         @db.Uuid
+  branchId        String         @db.Uuid
+  productId       String         @db.Uuid
+  variantId       String?        @db.Uuid
+  qtyDelta        Int
+  reason          MovementReason
+  // Source document, e.g. ("Sale", saleId) or ("GoodsReceipt", receiptId).
+  refType         String?
+  refId           String?        @db.Uuid
+  // Pairs the OUT and IN rows of a branch transfer.
+  transferGroupId String?        @db.Uuid
+  note            String?
+  actorUserId     String         @db.Uuid
+  createdAt       DateTime       @default(now())
+
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch  Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  product Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, branchId, productId, variantId, createdAt])
+  @@index([orgId, refType, refId])
+  @@index([orgId, transferGroupId])
+}
+
+// ────────────────────────── Purchasing ──────────────────────────
+
+model Supplier {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  taxNumber String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org            Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([orgId, id])
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid()) @db.Uuid
+  orgId       String              @db.Uuid
+  branchId    String              @db.Uuid
+  supplierId  String              @db.Uuid
+  number      String
+  status      PurchaseOrderStatus @default(DRAFT)
+  createdById String              @db.Uuid
+  note        String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  org      Organization   @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch   Branch         @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  supplier Supplier       @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  items    POItem[]
+  receipts GoodsReceipt[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, number])
+}
+
+model POItem {
+  id              String  @id @default(uuid()) @db.Uuid
+  orgId           String  @db.Uuid
+  purchaseOrderId String  @db.Uuid
+  productId       String  @db.Uuid
+  variantId       String? @db.Uuid
+  qtyOrdered      Int
+  qtyReceived     Int     @default(0)
+  unitCostMinor   Int
+
+  org           Organization       @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder      @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Cascade)
+  product       Product            @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant       ProductVariant?    @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  receiptItems  GoodsReceiptItem[]
+
+  @@unique([orgId, id])
+}
+
+model GoodsReceipt {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  branchId        String   @db.Uuid
+  purchaseOrderId String   @db.Uuid
+  idempotencyKey  String
+  receivedById    String   @db.Uuid
+  note            String?
+  receivedAt      DateTime @default(now())
+
+  org           Organization       @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch        Branch             @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder      @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  items         GoodsReceiptItem[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+}
+
+model GoodsReceiptItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  orgId          String  @db.Uuid
+  goodsReceiptId String  @db.Uuid
+  poItemId       String  @db.Uuid
+  productId      String  @db.Uuid
+  variantId      String? @db.Uuid
+  qtyReceived    Int
+  unitCostMinor  Int
+
+  org          Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  goodsReceipt GoodsReceipt    @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
+  poItem       POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
+  product      Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant      ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+}
+
+// ──────────────────────────── Sales ────────────────────────────
+
+model Sale {
+  id             String     @id @default(uuid()) @db.Uuid
+  orgId          String     @db.Uuid
+  branchId       String     @db.Uuid
+  registerId     String     @db.Uuid
+  shiftId        String     @db.Uuid
+  cashierId      String     @db.Uuid
+  number         String
+  idempotencyKey String
+  status         SaleStatus @default(COMPLETED)
+  currency       Currency
+  subtotalMinor  Int
+  discountMinor  Int        @default(0)
+  vatMinor       Int
+  totalMinor     Int
+  createdAt      DateTime   @default(now())
+  voidedAt       DateTime?
+  voidedById     String?    @db.Uuid
+  voidReason     String?
+
+  org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  register Register      @relation(fields: [orgId, branchId, registerId], references: [orgId, branchId, id], onDelete: Restrict)
+  shift    RegisterShift @relation(fields: [orgId, shiftId], references: [orgId, id], onDelete: Restrict)
+  items    SaleItem[]
+  payments Payment[]
+  refunds  Refund[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+  @@unique([orgId, number])
+  @@index([orgId, branchId, createdAt])
+  @@index([orgId, shiftId])
+}
+
+// Snapshot of product data at sale time; later price edits never touch it.
+model SaleItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  saleId         String   @db.Uuid
+  productId      String   @db.Uuid
+  variantId      String?  @db.Uuid
+  skuSnapshot    String
+  nameSnapshot   String
+  nameArSnapshot String?
+  unitType       UnitType
+  qty            Int
+  unitPriceMinor Int
+  discountMinor  Int      @default(0)
+  vatRateBp      Int
+  vatMinor       Int
+  lineTotalMinor Int
+
+  org         Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  sale        Sale            @relation(fields: [orgId, saleId], references: [orgId, id], onDelete: Restrict)
+  product     Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant     ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  refundItems RefundItem[]
+
+  @@unique([orgId, id])
+  @@index([orgId, saleId])
+}
+
+// Split tender: one row per payment method used on a sale.
+model Payment {
+  id          String        @id @default(uuid()) @db.Uuid
+  orgId       String        @db.Uuid
+  saleId      String        @db.Uuid
+  method      PaymentMethod
+  amountMinor Int
+  // Manual reference (card slip / wallet transaction id). Never raw card data.
+  reference   String?
+  createdAt   DateTime      @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  sale Sale         @relation(fields: [orgId, saleId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, saleId])
+}
+
+model Refund {
+  id             String        @id @default(uuid()) @db.Uuid
+  orgId          String        @db.Uuid
+  branchId       String        @db.Uuid
+  saleId         String        @db.Uuid
+  shiftId        String?       @db.Uuid
+  processedById  String        @db.Uuid
+  idempotencyKey String
+  method         PaymentMethod
+  reason         String
+  totalMinor     Int
+  vatMinor       Int
+  createdAt      DateTime      @default(now())
+
+  org    Organization   @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch Branch         @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  sale   Sale           @relation(fields: [orgId, saleId], references: [orgId, id], onDelete: Restrict)
+  shift  RegisterShift? @relation(fields: [orgId, shiftId], references: [orgId, id], onDelete: Restrict)
+  items  RefundItem[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId, saleId])
+}
+
+model RefundItem {
+  id          String @id @default(uuid()) @db.Uuid
+  orgId       String @db.Uuid
+  refundId    String @db.Uuid
+  saleItemId  String @db.Uuid
+  qty         Int
+  amountMinor Int
+  vatMinor    Int
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  refund   Refund       @relation(fields: [orgId, refundId], references: [orgId, id], onDelete: Restrict)
+  saleItem SaleItem     @relation(fields: [orgId, saleItemId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, saleItemId])
+}
+
+// ─────────────────────── Registers / shifts ───────────────────────
+
+// OPEN → CLOSED; a CLOSED shift is immutable (trigger). At most one OPEN
+// shift per register (partial unique index in the migration).
+model RegisterShift {
+  id                String      @id @default(uuid()) @db.Uuid
+  orgId             String      @db.Uuid
+  branchId          String      @db.Uuid
+  registerId        String      @db.Uuid
+  status            ShiftStatus @default(OPEN)
+  openedById        String      @db.Uuid
+  openedAt          DateTime    @default(now())
+  openingFloatMinor Int
+  closedById        String?     @db.Uuid
+  closedAt          DateTime?
+  expectedCashMinor Int?
+  countedCashMinor  Int?
+  discrepancyMinor  Int?
+  discrepancyNote   String?
+
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch        Branch         @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  register      Register       @relation(fields: [orgId, branchId, registerId], references: [orgId, branchId, id], onDelete: Restrict)
+  sales         Sale[]
+  refunds       Refund[]
+  cashMovements CashMovement[]
+
+  @@unique([orgId, id])
+  @@index([orgId, registerId, status])
+}
+
+model CashMovement {
+  id          String           @id @default(uuid()) @db.Uuid
+  orgId       String           @db.Uuid
+  shiftId     String           @db.Uuid
+  type        CashMovementType
+  amountMinor Int
+  reason      String
+  actorUserId String           @db.Uuid
+  createdAt   DateTime         @default(now())
+
+  org   Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  shift RegisterShift @relation(fields: [orgId, shiftId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, shiftId])
+}
+
+// ──────────────────────────── Audit ────────────────────────────
+
+// Append-only (UPDATE/DELETE rejected by trigger). `metadata` must never hold secrets.
+model AuditEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String?  @db.Uuid
+  branchId    String?  @db.Uuid
+  actorUserId String?  @db.Uuid
+  action      String
+  entityType  String
+  entityId    String?
+  requestId   String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, entityType, entityId])
+}

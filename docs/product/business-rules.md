@@ -1,0 +1,13 @@
+# Business Rules (must hold across DB, API, POS, reports, tests)
+
+1. Money in integer minor units (qirsh/halala). No float arithmetic.
+2. Server recomputes all sale totals; client totals are preview only.
+3. VAT rate comes from org at sale time and is snapshotted per line (round-half-up per line, summed).
+4. Price edits never rewrite historical SaleItems (snapshots preserved).
+5. Inventory changes only via append-only InventoryMovement rows with reason + ref; StockBalance is a cache reconciled against the ledger.
+6. Negative stock blocked by default.
+7. Refund per line ≤ sold − already-refunded; refunds reference the original sale; voids retain the original with compensating movements + audit.
+8. `UNIQUE(orgId, sku)`, `UNIQUE(orgId, barcode)`; deactivation instead of delete for referenced products.
+9. Closed shifts immutable; corrections via new audit-logged entries.
+10. Every tenant-scoped query enforces orgId (+ branch where applicable) server-side.
+11. Audit events append-only; no user delete; never log secrets.
