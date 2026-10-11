@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { createDb, type Db } from "@/lib/db";
+import { AppError } from "@/lib/errors";
+import type { Role } from "@/lib/auth/permissions";
+import type { TenantContext } from "@/lib/auth/tenant";
 
 export function testDb(): Db {
   const url = process.env.TEST_DATABASE_URL;
@@ -34,4 +37,49 @@ export async function createUser(db: Db, name = "Test User") {
 
 export async function createProduct(db: Db, orgId: string, sku = `SKU-${shortUpper()}`) {
   return db.product.create({ data: { orgId, sku, name: `Product ${sku}`, priceMinor: 1000 } });
+}
+
+/** Creates a user + membership with `role` in `orgId` and returns the matching tenant context. */
+export async function createMember(
+  db: Db,
+  orgId: string,
+  role: Role,
+  opts: { branchId?: string | null } = {},
+): Promise<TenantContext> {
+  const user = await createUser(db, `${role} ${short()}`);
+  const membership = await db.membership.create({ data: { orgId, userId: user.id, role, allBranches: true } });
+  return { userId: user.id, orgId, membershipId: membership.id, role, branchId: opts.branchId ?? null };
+}
+
+export async function createCategory(db: Db, orgId: string, name = `Cat ${short()}`, parentId: string | null = null) {
+  return db.category.create({ data: { orgId, name, parentId } });
+}
+
+/** Inserts a variant directly (and sets hasVariants, as the service would). */
+export async function createVariant(db: Db, orgId: string, productId: string, sku = `VAR-${shortUpper()}`) {
+  await db.product.update({ where: { id: productId }, data: { hasVariants: true } });
+  return db.productVariant.create({ data: { orgId, productId, sku, name: `Variant ${sku}` } });
+}
+
+/** Unique printable-ASCII barcode. */
+export const uniqueCode = () => `${Date.now()}${shortUpper()}`;
+
+/** Awaits a rejection and checks it is an AppError with `status` (and `details.reason` when given). */
+export async function expectAppError(promise: Promise<unknown>, status: number, reason?: string): Promise<AppError> {
+  const err = await promise.then(
+    () => null,
+    (e: unknown) => e,
+  );
+  if (!(err instanceof AppError)) throw new Error(`Expected AppError ${status}, got ${String(err)}`);
+  if (err.status !== status) throw new Error(`Expected status ${status}, got ${err.status} (${err.message})`);
+  if (reason !== undefined) {
+    const actual = (err.details as { reason?: string } | null)?.reason;
+    if (actual !== reason) throw new Error(`Expected reason ${reason}, got ${String(actual)}`);
+  }
+  return err;
+}
+
+/** Details of a catalog AppError, typed loosely for assertions. */
+export function detailsOf(err: AppError): Record<string, unknown> {
+  return (err.details ?? {}) as Record<string, unknown>;
 }
