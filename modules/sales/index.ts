@@ -5,4 +5,4 @@
  * table writes. See docs/architecture/system-architecture.md.
  */
 export { createSale, loadSale, requestHashOf, type CreateSaleResult, type SaleDetail } from "./create";
-export { SaleInput, IdempotencyKey, OpenShiftInput } from "./schemas";
+export { SaleInput, IdempotencyKey, OpenShiftInput, CloseShiftInput, CashMovementInput } from "./schemas";

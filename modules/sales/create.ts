@@ -6,6 +6,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getSellableItems } from "@/modules/catalog";
 import { recordMovements } from "@/modules/inventory";
+import { lockShift } from "@/modules/registers";
 import { requireBranch, requirePermission, requireRegister, isUniqueViolation } from "./access";
 import { salesConflict } from "./errors";
 import { IdempotencyKey, SaleInput } from "./schemas";
@@ -133,8 +134,16 @@ async function writeSale(
   meta: AuditRequestMeta | undefined,
 ): Promise<CreateSaleResult> {
   await requireRegister(tx, ctx.orgId, input.branchId, input.registerId);
-  const shift = await tx.registerShift.findFirst({
+  // Lock the shift, then re-read its status: a close that committed while we waited must refuse
+  // this sale (T7 spec S4).
+  const open = await tx.registerShift.findFirst({
     where: { orgId: ctx.orgId, branchId: input.branchId, registerId: input.registerId, status: "OPEN" },
+    select: { id: true },
+  });
+  if (!open) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
+  await lockShift(tx, ctx.orgId, open.id);
+  const shift = await tx.registerShift.findFirst({
+    where: { id: open.id, orgId: ctx.orgId, status: "OPEN" },
     select: { id: true },
   });
   if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");

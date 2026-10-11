@@ -57,3 +57,28 @@ export const OpenShiftInput = z
   })
   .strict();
 export type OpenShiftInput = z.infer<typeof OpenShiftInput>;
+
+/** Shift close (T7 spec S1–S2). The expected cash is computed on the server, never sent by the client. */
+export const CloseShiftInput = z
+  .object({
+    countedCashMinor: z.number().int().min(0).max(MAX_STORABLE_MINOR),
+    discrepancyNote: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .nullish()
+      .transform((value) => value ?? null),
+  })
+  .strict();
+export type CloseShiftInput = z.infer<typeof CloseShiftInput>;
+
+/** Cash pay-in, pay-out or drop during a shift (T7 spec S5). Amounts are always positive. */
+export const CashMovementInput = z
+  .object({
+    type: z.enum(["PAY_IN", "PAY_OUT", "DROP"]),
+    amountMinor: z.number().int().min(1).max(MAX_STORABLE_MINOR),
+    reason: z.string().trim().min(1).max(200),
+  })
+  .strict();
+export type CashMovementInput = z.infer<typeof CashMovementInput>;
