@@ -1,6 +1,30 @@
 # Phase 6 / T3 — Catalog Specification (merged)
 
-Status: **approved 2026-10-11.** Q1–Q4 accepted by the owner as recommended; Q5–Q13 take their defaults. Ready for T3.1–T3.3.
+Status: **built 2026-10-11** (T3.0–T3.7 merged on `phase-6/catalog`; T3.8 e2e in progress). Approved 2026-10-11:
+Q1–Q4 accepted by the owner as recommended; Q5–Q13 take their defaults.
+
+## As built — deviations from the plan
+
+The code is the source of truth; the contract as built is in
+[api-contracts.md](../../architecture/api-contracts.md#catalog-built-in-phase-6--t3) and
+[database-design.md](../../architecture/database-design.md#catalog-hardening-phase-6-migration-_catalog_hardening).
+
+- **Aggregate atomic save.** The product form saves product + variants + barcodes in one transaction
+  (`createProductAggregate` / `updateProductAggregate`, Server Actions only, no Route Handler).
+- **Route write order.** Write routes skip the route-level permission check; the service checks the permission,
+  audit-logs a denial (C-14), then validates the body. An unauthorised caller gets 403 whatever it sends.
+- **403 in the UI** is rendered in-page with HTTP status 200 (a page cannot set a 403 status); the API returns a real 403.
+- **Root `lang`/`dir`** follow the `pos_locale` cookie through an inline script in `app/layout.tsx` (per the Next docs),
+  so routes stay static/prerenderable.
+- **`UNIT_TYPES`** (`{en, ar}` labels) is not exported from `modules/catalog`; `UNIT_TYPE_VALUES` /
+  `SUPPORTED_UNIT_TYPES` are, and labels live in the i18n dictionary.
+- **`TODO(T4)` in `createVariant`:** switching a product to variants does not yet ask inventory whether
+  `variantId = NULL` stock rows exist; T4 must add that seam check.
+- **Extra API surface:** `GET /api/catalog/search` (`searchSellable`), `vatCategory` list filter, `primaryBarcode` on
+  `ProductSummary`, `VARIANT_REQUIRED` lookup reason with a variant picker, 409 `PRIMARY_BARCODE_TAKEN`.
+- **`vatApplicable`** is derived from `vatCategory` and is not an input field (Q3).
+- **`UNIT_IMMUTABLE`** is never raised: `unitType` is not an accepted PATCH key, so it fails the strict schema (422).
+- **E2E (T3.8)** specs and `E2E_DATABASE_URL` are being added.
 
 This is the entry point for T3 "Catalog CRUD + constraints" (`docs/planning/task-breakdown.md`).
 The detail lives in three parts; where they disagree, **this file wins** (see §3).

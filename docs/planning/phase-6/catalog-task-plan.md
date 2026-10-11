@@ -1,5 +1,8 @@
 # Phase 6 / T3 — Catalog Task Plan
 
+Status (2026-10-11): **T3.0–T3.7 done** (incl. T3.7b atomic save / primary barcode / VAT filter / locale dir);
+**T3.8 in progress**; T3.9 docs done with this change.
+
 Source spec: [catalog-spec.md](catalog-spec.md). Each task ends with lint, tsc and the relevant tests green, plus one commit.
 Tasks in the same **lane** have no dependency on each other and can be built in parallel (separate worktrees).
 
