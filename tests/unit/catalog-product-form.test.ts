@@ -64,6 +64,24 @@ describe("product form model", () => {
     expect(otherCodesThan(state, "barcodes")).toEqual(["222"]);
   });
 
+  it("puts each item's primary barcode first (first chip = primary)", () => {
+    const pid = product.id;
+    const state = formStateFromProduct(
+      {
+        ...product,
+        barcodes: [
+          { id: "b1", code: "111", productId: pid, variantId: null, isPrimary: false },
+          { id: "b3", code: "333", productId: pid, variantId: null, isPrimary: true },
+          { id: "b4", code: "444", productId: pid, variantId: null, isPrimary: false },
+        ],
+      },
+      "EGP",
+    );
+    expect(state.barcodes).toEqual(["333", "111", "444"]);
+    const result = buildUpdatePayload(state, product.updatedAt, withCost);
+    expect(result.ok && result.payload.barcodes[0]).toBe("333");
+  });
+
   it("requires name, SKU and price before calling the server", () => {
     const result = buildCreatePayload(emptyFormState(), withCost);
     expect(result).toEqual({ ok: false, fields: { name: "REQ", sku: "REQ", priceMinor: "REQ" } });

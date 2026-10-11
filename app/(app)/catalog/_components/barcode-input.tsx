@@ -2,7 +2,7 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { translator, type Locale } from "@/lib/i18n";
-import { addBarcodeChip, removeBarcodeChip } from "../_lib/form-helpers";
+import { addBarcodeChip, makePrimaryChip, removeBarcodeChip } from "../_lib/form-helpers";
 
 type Props = {
   locale: Locale;
@@ -57,16 +57,32 @@ export function BarcodeInput({ locale, path, codes, otherCodes, errors, disabled
         <ul className="flex flex-wrap gap-2" aria-label={tr("catalog.form.barcodes")}>
           {codes.map((code, index) => {
             const invalid = Boolean(errors[`${path}.${index}`]);
+            // "First barcode is primary": the first chip is the item's primary barcode.
+            const primary = index === 0;
             return (
               <li
                 key={code}
                 className={`flex items-center gap-1 rounded-full border px-3 py-1 text-sm ${
-                  invalid ? "border-red-600 text-red-700" : "border-border"
+                  invalid ? "border-red-600 text-red-700" : primary ? "border-foreground" : "border-border"
                 }`}
               >
                 <bdi dir="ltr" className="font-mono">
                   {code}
                 </bdi>
+                {primary ? (
+                  <span className="ms-1 rounded-full bg-foreground/10 px-2 text-xs font-medium">
+                    {tr("catalog.form.barcodePrimary")}
+                  </span>
+                ) : disabled ? null : (
+                  <button
+                    type="button"
+                    onClick={() => onChange(makePrimaryChip(codes, code))}
+                    aria-label={tr("catalog.form.barcodeMakePrimaryLabel", { code })}
+                    className="ms-1 rounded-full px-2 text-xs underline"
+                  >
+                    {tr("catalog.form.barcodeMakePrimary")}
+                  </button>
+                )}
                 {disabled ? null : (
                   <button
                     type="button"

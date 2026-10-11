@@ -288,8 +288,8 @@ export type CreateProductAggregateInput = z.input<typeof CreateProductAggregate>
 export type CreateProductAggregate = z.infer<typeof CreateProductAggregate>;
 
 /**
- * Update a product, its product-level barcodes (desired list; omitted =
- * untouched) and its variants (rows with `id` = edit, without = create;
+ * Update a product, its product-level barcodes (desired list, first = primary;
+ * omitted = untouched) and its variants (rows with `id` = edit, without = create;
  * variants not listed are untouched) atomically.
  */
 export const UpdateProductAggregate = UpdateProduct.extend({

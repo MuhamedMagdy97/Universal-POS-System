@@ -19,7 +19,7 @@ import {
   type CatalogMeta,
   type UniqueHints,
 } from "./internal";
-import { assertBarcodeTarget, deleteBarcode, insertBarcode } from "./barcodes";
+import { assertBarcodeTarget, deleteBarcode, insertBarcode, makePrimaryBarcode } from "./barcodes";
 import {
   applyProductUpdate,
   detailOrThrow,
@@ -126,7 +126,7 @@ type BarcodePlan = {
   /** Field path of the list, e.g. `barcodes` or `variants[1].barcodes`. */
   path: string;
   desired: string[];
-  current: { id: string; code: string; productId: string; variantId: string | null }[];
+  current: { id: string; code: string; productId: string; variantId: string | null; isPrimary: boolean }[];
 };
 
 function variantChanged(edit: VariantEdit): boolean {
@@ -149,7 +149,8 @@ function variantChanged(edit: VariantEdit): boolean {
  * (`expectedUpdatedAt`), product-level barcodes (desired list), variant edits
  * (each with its own `expectedUpdatedAt`; `isActive` archives/restores),
  * variant barcodes and new variants. Needs `products.update`, plus
- * `products.create` when it adds a variant or barcode.
+ * `products.create` when it adds a variant or barcode. The first code of each
+ * barcode list is that item's primary barcode.
  *
  * Order: product → barcode removals → barcode additions → variant edits →
  * new variants, so a code can move between items in one save. Any change
@@ -216,6 +217,11 @@ export async function updateProductAggregate(
           plan.current.some((b) => b.code === code) ? [] : [{ plan, code, index }],
         ),
       );
+      // The first code of each list is the item's primary barcode.
+      const promotions = plans.flatMap((plan) => {
+        const first = plan.current.find((b) => b.code === plan.desired[0]);
+        return first && !first.isPrimary ? [{ plan, code: first.code }] : [];
+      });
       const changedEdits = edits.filter(variantChanged);
 
       if (additions.length > 0 || creates.length > 0) {
@@ -223,11 +229,22 @@ export async function updateProductAggregate(
       }
 
       track({ prefix: "", hints: { sku: patch.sku } });
-      const touch = removals.length > 0 || additions.length > 0 || changedEdits.length > 0 || creates.length > 0;
+      const touch =
+        removals.length > 0 ||
+        additions.length > 0 ||
+        promotions.length > 0 ||
+        changedEdits.length > 0 ||
+        creates.length > 0;
       const { finalPrice, finalCost } = await applyProductUpdate(tx, ctx, meta, current, patch, { touch });
       priceWarnings(finalPrice, finalCost).forEach((w) => warnings.add(w));
       const priced = { priceMinor: finalPrice, costMinor: finalCost };
 
+      // An existing first code is promoted before removals, so removing the
+      // old primary does not promote some other code first.
+      for (const { plan, code } of promotions) {
+        track({ prefix: "", field: `${plan.path}[0]`, hints: {} });
+        await makePrimaryBarcode(tx, ctx, meta, { productId: id, variantId: plan.variantId }, code);
+      }
       for (const { plan, barcode } of removals) {
         track({ prefix: plan.path, hints: {} });
         await deleteBarcode(tx, ctx, meta, barcode);
@@ -235,7 +252,12 @@ export async function updateProductAggregate(
       for (const { plan, code, index } of additions) {
         track({ prefix: "", field: `${plan.path}[${index}]`, hints: { codes: [code], barcodeField: "code" } });
         await assertBarcodeTarget(tx, ctx, id, plan.variantId);
-        await insertBarcode(tx, ctx, meta, { code, productId: id, variantId: plan.variantId, isPrimary: false });
+        await insertBarcode(tx, ctx, meta, {
+          code,
+          productId: id,
+          variantId: plan.variantId,
+          isPrimary: index === 0,
+        });
       }
 
       for (const edit of changedEdits) {

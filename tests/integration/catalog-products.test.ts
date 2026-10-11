@@ -352,12 +352,13 @@ describe("barcodes (C-4)", () => {
     const product = await catalog.createProduct(admin, { sku: sku(), name: "Soap", priceMinor: 100 });
     const code = uniqueCode();
     const barcode = await catalog.addBarcode(admin, { code, productId: product.id });
-    expect(barcode).toMatchObject({ code, productId: product.id, variantId: null, isPrimary: false });
+    // The item's first barcode is its primary.
+    expect(barcode).toMatchObject({ code, productId: product.id, variantId: null, isPrimary: true });
 
     await catalog.removeBarcode(admin, barcode.id);
     expect(await db.barcode.findUnique({ where: { id: barcode.id } })).toBeNull();
     const actions = (await auditFor(barcode.id)).map((e) => e.action);
-    expect(actions).toEqual(["catalog.barcode.added", "catalog.barcode.removed"]);
+    expect(actions).toEqual(["catalog.barcode.added", "catalog.barcode.primary_changed", "catalog.barcode.removed"]);
 
     // The code is reusable after removal.
     await expect(catalog.addBarcode(admin, { code, productId: product.id })).resolves.toMatchObject({ code });
