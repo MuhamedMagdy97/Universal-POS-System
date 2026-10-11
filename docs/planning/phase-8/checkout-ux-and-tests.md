@@ -52,5 +52,5 @@ an open shift.
 
 ## 3. Deferred
 
-Split tenders on screen, shift close and cash count (T7), void/refund (T8), receipt print layout (T10), on-hand shown at
+Split tenders on screen, void/refund (T8), receipt print layout (T10), on-hand shown at
 the till, keyboard shortcuts beyond Enter.

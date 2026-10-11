@@ -5,6 +5,8 @@ import type { Role } from "@/lib/auth/permissions";
 import { getAuth } from "@/lib/auth/auth";
 import * as sales from "@/app/api/sales/route";
 import * as shifts from "@/app/api/shifts/open/route";
+import * as close from "@/app/api/shifts/[shiftId]/close/route";
+import * as movements from "@/app/api/shifts/[shiftId]/cash-movements/route";
 import * as inventory from "@/modules/inventory";
 import { createMember, createProduct, createTenant, expectReconciled, testDb } from "./helpers";
 
@@ -154,6 +156,104 @@ describe("checkout routes", () => {
     await expectEnvelope(
       await call(sales.POST, "/sales", { cookie: cashierA, body: saleBody(productB.id), key: `x-${randomUUID()}` }),
       404,
+    );
+  });
+});
+
+describe("shift close routes", () => {
+  /** A fresh register with an open shift in `tenant`, written directly so it never meets the checkout tests. */
+  async function openShiftIn(tenant: typeof a, openingFloatMinor = 0) {
+    const register = await db.register.create({
+      data: { orgId: tenant.org.id, branchId: tenant.branchA.id, name: `Route Till ${randomUUID().slice(0, 8)}` },
+    });
+    const opener = await createMember(db, tenant.org.id, "CASHIER");
+    const shift = await db.registerShift.create({
+      data: {
+        orgId: tenant.org.id,
+        branchId: tenant.branchA.id,
+        registerId: register.id,
+        openedById: opener.userId,
+        openingFloatMinor,
+      },
+    });
+    return shift.id;
+  }
+
+  const closeAt = (shiftId: string, opts: Call) =>
+    close.POST(
+      new Request(`${BASE}/api/shifts/${shiftId}/close`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(opts.cookie ? { cookie: opts.cookie } : {}) },
+        body: JSON.stringify(opts.body ?? {}),
+      }),
+      { params: Promise.resolve({ shiftId }) },
+    );
+  const moveAt = (shiftId: string, opts: Call) =>
+    movements.POST(
+      new Request(`${BASE}/api/shifts/${shiftId}/cash-movements`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(opts.cookie ? { cookie: opts.cookie } : {}) },
+        body: JSON.stringify(opts.body ?? {}),
+      }),
+      { params: Promise.resolve({ shiftId }) },
+    );
+
+  it("answer 401 without a session and 403 without the permission", async () => {
+    const shiftId = await openShiftIn(a);
+    await expectEnvelope(await closeAt(shiftId, { body: { countedCashMinor: 0 } }), 401);
+    await expectEnvelope(await moveAt(shiftId, { body: { type: "DROP", amountMinor: 1, reason: "x" } }), 401);
+    await expectEnvelope(await closeAt(shiftId, { cookie: reportingA, body: { countedCashMinor: 0 } }), 403);
+  });
+
+  it("answer 404 for a malformed id, an unknown id and another org's shift", async () => {
+    const otherOrgShift = await openShiftIn(b);
+    for (const shiftId of ["not-a-uuid", randomUUID(), otherOrgShift]) {
+      await expectEnvelope(await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: 0 } }), 404);
+      await expectEnvelope(
+        await moveAt(shiftId, { cookie: cashierA, body: { type: "PAY_IN", amountMinor: 1, reason: "x" } }),
+        404,
+      );
+    }
+  });
+
+  it("answer 422 for a bad body and for a difference without a note", async () => {
+    const shiftId = await openShiftIn(a, 1000);
+    await expectEnvelope(
+      await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: -1 } }),
+      422,
+      "VALIDATION_FAILED",
+    );
+    const body = await expectEnvelope(
+      await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: 900 } }),
+      422,
+      "VALIDATION_FAILED",
+    );
+    expect(body.details).toMatchObject({ reason: "DISCREPANCY_NOTE_REQUIRED" });
+  });
+
+  it("records a movement (201), closes (200), replays (200) and refuses a different close (409)", async () => {
+    const shiftId = await openShiftIn(a, 1000);
+    const moved = await moveAt(shiftId, {
+      cookie: cashierA,
+      body: { type: "PAY_IN", amountMinor: 500, reason: "Top-up" },
+    });
+    expect(moved.status).toBe(201);
+
+    const closed = await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: 1500 } });
+    expect(closed.status).toBe(200);
+    expect(closed.headers.get("cache-control")).toBe("no-store");
+    expect(await closed.json()).toMatchObject({ status: "CLOSED", expectedCashMinor: 1500, discrepancyMinor: 0 });
+
+    expect((await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: 1500 } })).status).toBe(200);
+    await expectEnvelope(
+      await closeAt(shiftId, { cookie: cashierA, body: { countedCashMinor: 1400 } }),
+      409,
+      "CONFLICT",
+    );
+    await expectEnvelope(
+      await moveAt(shiftId, { cookie: cashierA, body: { type: "DROP", amountMinor: 1, reason: "Late" } }),
+      409,
+      "CONFLICT",
     );
   });
 });

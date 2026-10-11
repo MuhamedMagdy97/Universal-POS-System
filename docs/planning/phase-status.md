@@ -24,7 +24,14 @@
   on `phase-8/checkout`. See [phase-8/checkout-spec.md](phase-8/checkout-spec.md),
   [phase-8/checkout-data-model-and-api.md](phase-8/checkout-data-model-and-api.md) and
   [phase-8/checkout-ux-and-tests.md](phase-8/checkout-ux-and-tests.md). Deferred: split tenders on screen, receipt print
-  layout (T10); shift close (T7); void/refund (T8).
+  layout (T10); void/refund (T8). Shift close (T7) is built, below.
+
+- Phase 8 / T7: shift close and cash count. Spec approved by the owner (2026-10-12):
+  [phase-8/shift-close-spec.md](phase-8/shift-close-spec.md). BUILT on `phase-8/checkout` (2026-10-12): close and cash
+  movement services and routes, shift row lock shared with sales, and the till close screen (expected cash before the
+  count, note for a difference, summary). No migration. Deviations (state-based close replay, no `/api/shifts/current`)
+  and the screen are in [phase-8/shift-close-data-model-and-api.md](phase-8/shift-close-data-model-and-api.md). Not
+  built: pay-in/pay-out/drop screen (API only), shift list (T9).
 
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

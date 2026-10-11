@@ -114,3 +114,11 @@ rule are the same as catalog.
 
 - The server computes every total; the response carries no cost. Same key with a different body → 409
   `IDEMPOTENCY_CONFLICT`. Rules, errors and audit: `docs/planning/phase-8/checkout-data-model-and-api.md`.
+
+## Shift close (T7)
+| Method + path | Permission | Body | Success |
+|---|---|---|---|
+| `POST /api/shifts/{shiftId}/close` | `registers.close` | `{ countedCashMinor, discrepancyNote? }` | 200 `ShiftCloseSummary` |
+| `POST /api/shifts/{shiftId}/cash-movements` | `sales.create` (PAY_IN) / `registers.close` (PAY_OUT, DROP) | `{ type, amountMinor, reason }` | 201 `CashMovementSummary` |
+
+Details and error codes: `docs/planning/phase-8/shift-close-data-model-and-api.md`.

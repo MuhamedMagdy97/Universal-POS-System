@@ -130,6 +130,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setPending(false);
     if (result.ok) {
       setReceipt(result.data);
+      // The shift's expected cash changed: refresh the server data the close screen reads.
+      router.refresh();
       return;
     }
     if (!keepKeyAfter(result.error)) setSaleKey(crypto.randomUUID());

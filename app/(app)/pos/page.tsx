@@ -4,6 +4,7 @@ import { loadPosContext } from "./_lib/context";
 import { RegisterPicker } from "./_components/register-picker";
 import { OpenShiftForm } from "./_components/open-shift-form";
 import { Till } from "./_components/till";
+import { CloseShift } from "./_components/close-shift";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -44,7 +45,8 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
     );
   }
 
-  const { locale, branches, branch, registers, register, shift, settings, canOpenShift } = page;
+  const { locale, branches, branch, registers, register, shift, shiftCash, settings, canOpenShift, canCloseShift } =
+    page;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -86,9 +88,20 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
         </section>
       ) : (
         <>
-          <p className="text-sm text-muted">
-            {tr("pos.shift.openSince", { time: new Date(shift.openedAt).toLocaleString(locale) })}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted">
+              {tr("pos.shift.openSince", { time: new Date(shift.openedAt).toLocaleString(locale) })}
+            </p>
+            {canCloseShift && shiftCash ? (
+              <CloseShift
+                key={shift.id}
+                locale={locale}
+                shiftId={shift.id}
+                currency={settings.currency}
+                cash={shiftCash}
+              />
+            ) : null}
+          </div>
           <Till key={register.id} locale={locale} branchId={branch.id} registerId={register.id} settings={settings} />
         </>
       )}
