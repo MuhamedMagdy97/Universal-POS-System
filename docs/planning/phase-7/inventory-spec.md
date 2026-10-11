@@ -41,6 +41,7 @@ seam (`recordMovements`, `getOnHand`) so they never touch inventory tables.
 | D5 | Read access | New permission `inventory.read` → Owner, Admin, Manager, Reporting. Cashier gets no back-office stock screens; T6 shows "in stock" through the seam. |
 | D6 | Transfer scope | Caller needs access to the **source** branch only; the destination must be an active branch of the same org. |
 | D7 | Balance maintenance | Services write ledger + balance in one tx with `SELECT … FOR UPDATE` row locks taken in a fixed key order; a `reconcile()` function checks cache vs ledger. (Chosen over a DB trigger and over no cache.) |
+| D8 | Archived items with stock (owner, after review) | Archived stock can always leave: decreasing adjustments (incl. a downward count) and transfers are allowed; opening stock, increases and sales are refused. The adjust dialog offers only removal reasons for archived items. |
 
 ## 4. Refinements made while writing the spec
 

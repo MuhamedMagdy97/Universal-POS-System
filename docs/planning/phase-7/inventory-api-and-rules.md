@@ -27,7 +27,9 @@ Every stock change — back office and seam — goes through one internal functi
 
 1. **Normalise.** Reject duplicate refs in one call (`DUPLICATE_LINE`, 422).
 2. **Catalog check.** `assertStockable(tx, orgId, ref)` per line for `OPENING_BALANCE`, `ADJUSTMENT`, `TRANSFER_*`,
-   `SALE`, `PURCHASE_RECEIPT`. Skipped for `SALE_VOID` and `REFUND` (archived items must still come back).
+   `SALE`, `PURCHASE_RECEIPT`, and increasing adjustments. Archived items pass (existence and the variant rule only)
+   for `SALE_VOID`, `REFUND`, `TRANSFER_*` and decreasing adjustments (D8). Services check that every ref exists
+   before taking row locks, so an unknown or other-org ref answers 404.
 3. **Lock.** For every `(branchId, ref)` touched — both branches for a transfer — run
    `INSERT INTO "StockBalance" … ON CONFLICT DO NOTHING`, then `SELECT id, qty … FOR UPDATE`, **sorted by
    `(branchId, productId, variantId NULLS FIRST)`** across the whole call. One global order ⇒ no deadlocks.

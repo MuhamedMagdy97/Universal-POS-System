@@ -89,7 +89,10 @@ rule are the same as catalog.
   or any balance field → 422.
 - `StockRow`: `{ productId, variantId, name, nameAr, variantName, sku, primaryBarcode, qty, archived, updatedAt }`.
   `LedgerRow`: `{ id, createdAt, reason, adjustmentReason, qtyDelta, balanceAfter, actor, note, refType, refId, transfer }`.
-  Neither carries cost.
+  Neither carries cost. `variantName` is `null` for a product without variants; `primaryBarcode` is the row's own
+  (the variant's, or the product's for a product without variants). A variant's barcode in `q` finds only that variant.
+- Archived items (D8): decreasing adjustments and transfers are allowed; opening, increases and sales answer 422
+  `ITEM_NOT_SELLABLE`.
 - Branch scope: a branch outside the caller's membership, or in another org, answers 404 on every route.
 - Denied writes are audited as `inventory.permission.denied`. Adjust, opening and transfer audit their own actions
   (`inventory.adjusted`, `inventory.opening.recorded`, `inventory.transferred`).

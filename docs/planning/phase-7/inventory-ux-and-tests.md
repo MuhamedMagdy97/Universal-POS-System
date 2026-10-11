@@ -71,7 +71,7 @@ Latin digits displayed, Arabic-Indic digits accepted in inputs.
 | I-10 | Adding the first variant to a product with `variantId = NULL` movements ⇒ 409 `PRODUCT_HAS_STOCK`; nothing written. |
 | I-11 | `COUNT_CORRECTION` with `countedQty` computes the delta under the lock; `countedQty` equal to on-hand ⇒ 422 `NO_CHANGE`. |
 | I-12 | `expectedOnHand` mismatch ⇒ 409 `STALE_STOCK` with the current `onHand`; the dialog shows it and allows re-confirm. |
-| I-13 | Archived item: adjust/transfer/opening ⇒ 422 `ITEM_NOT_SELLABLE`; `REFUND`/`SALE_VOID` through the seam still succeed; the list still shows it if qty ≠ 0. |
+| I-13 | Archived item (D8): opening, increases and sales ⇒ 422 `ITEM_NOT_SELLABLE`; decreasing adjustments, transfers and `REFUND`/`SALE_VOID` succeed, so its stock can always be written off or moved; the list still shows it if qty ≠ 0. |
 | I-14 | Product with variants: ref without `variantId` ⇒ 422 `VARIANT_REQUIRED`. |
 | I-15 | Crossing concurrent transfers (A→B and B→A, multiple items) complete without deadlock. |
 | I-16 | Ledger rows cannot be updated or deleted (existing trigger) — regression test kept. |

@@ -40,6 +40,25 @@ of truth; where it differs from the spec, this file records why.
    check because the new column is NULL on every existing row.
 10. **Reporting** holds `inventory.read` (spec D5). The existing permission test that asserted "reports.view only" was
     updated to match.
+11. **Archived items (D8, decided after review).** Archived stock can be written off (decreasing adjustments, including
+    a downward count) and transferred; opening stock, increases and sales stay refused. This replaces the original
+    I-13 ("adjust/transfer refused"), which left archived stock stuck.
+
+## Fixed after the post-build review
+
+Each fix has a test that failed first (UI fixes: the E2E was checked by re-introducing the old code).
+
+- Unknown or other-org items on adjust, opening, transfer and refunds answered 500 (raw lock INSERT hit a foreign key);
+  services now check items exist before locking, so they answer 404.
+- The stock list showed another variant's primary barcode on variant rows, and a variant's barcode found every variant
+  of the product; both now match the variant.
+- `variantName` is `null` (not `""`) for products without variants.
+- A forged history cursor answered 500; the cursor date is validated (422 `INVALID_CURSOR`).
+- The adjust dialog kept the last reason and quantity when reopened (a second Save repeated the adjustment); it now
+  starts empty. Each dialog has its own title id (they all shared `adjust-title`).
+- The transfer form now shows specific messages for same branch, reused transfer number and unstockable items.
+- A request that fails before the server answers no longer leaves a form's button disabled (`safeAction`).
+- Success messages no longer say "1 items".
 
 ## Open risks (carried into T6)
 
@@ -56,11 +75,12 @@ of truth; where it differs from the spec, this file records why.
 - The opening grid is limited to one page of 100 items per save. A branch with more unopened items saves in batches
   after search narrows the list.
 - The transfer form has no keyboard shortcut for "add by scan" beyond Enter in the search box.
-- The adjust dialog's sign select is hidden for reasons with a fixed direction; the preview still shows the result.
+- The adjust dialog's sign select is hidden for reasons with a fixed direction (and always for archived items); the
+  preview still shows the result.
 
-## Verification (at T4.8)
+## Verification (after the review fixes)
 
-- Vitest: 478/478 across 39 files (includes 15 constraint tests, the seam, concurrency runs, transfer deadlock test,
+- Vitest: 496/496 across 39 files (includes 15 constraint tests, the seam, concurrency runs, transfer deadlock test,
   isolation matrix and unit tests).
 - Concurrency: the oversell test was run five times in isolation; the crossing-transfer test three times.
 - Playwright: 30/30 for the full suite (six of them are inventory tests: four access, one admin flow, one Arabic RTL).
