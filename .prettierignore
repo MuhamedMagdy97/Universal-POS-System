@@ -8,3 +8,4 @@ prisma/migrations/
 package-lock.json
 next-env.d.ts
 docs/
+.claude/
