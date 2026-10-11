@@ -22,6 +22,7 @@ import {
   type Tx,
 } from "./internal";
 import { insertBarcode } from "./barcodes";
+import { hasUnvariantedStock } from "@/modules/inventory/queries";
 import { diffFields, nextUpdatedAt, priceWarnings, type CatalogWarning } from "./rules";
 import {
   ArchiveInput,
@@ -72,10 +73,8 @@ export async function insertVariant(
   data: CreateVariantData,
 ): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
   if (!product.hasVariants) {
-    // TODO(T4): before switching a product to variants, ask inventory (and later
-    // sales) through their module seam whether stock/sale rows with
-    // variantId = NULL exist for it, and reject if so. Catalog must not query
-    // those tables directly (seam rule, docs/architecture/system-architecture.md).
+    // Stock and ledger rows recorded without a variant would be orphaned by the switch (T4, I-10).
+    if (await hasUnvariantedStock(tx, ctx.orgId, product.id)) throw conflict("PRODUCT_HAS_STOCK");
     await tx.product.update({ where: { id: product.id }, data: { hasVariants: true } });
   }
   const variant = await tx.productVariant.create({
