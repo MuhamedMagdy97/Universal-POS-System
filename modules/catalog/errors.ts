@@ -12,7 +12,8 @@ export type CatalogConflictReason =
   | "CATEGORY_HAS_ACTIVE_CHILDREN"
   | "ALREADY_ARCHIVED"
   | "NOT_ARCHIVED"
-  | "PRIMARY_BARCODE_TAKEN";
+  | "PRIMARY_BARCODE_TAKEN"
+  | "PRODUCT_HAS_STOCK";
 
 export type CatalogValidationReason =
   | "CATEGORY_INACTIVE"
@@ -33,6 +34,7 @@ const CONFLICT_MESSAGES: Record<CatalogConflictReason, string> = {
   ALREADY_ARCHIVED: "This record is already archived",
   NOT_ARCHIVED: "This record is not archived",
   PRIMARY_BARCODE_TAKEN: "Another primary barcode was set at the same time. Reload and try again",
+  PRODUCT_HAS_STOCK: "This product already has stock recorded without variants",
 };
 
 const VALIDATION_MESSAGES: Record<CatalogValidationReason, string> = {

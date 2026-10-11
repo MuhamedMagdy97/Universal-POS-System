@@ -70,3 +70,38 @@ barcodes in one transaction) through Server Actions; there is no Route Handler f
 | 422 VALIDATION_FAILED | zod issues (some carry `UNIT_NOT_SUPPORTED`, `DUPLICATE_BARCODE`, `DUPLICATE_SKU`, `INVALID_CURSOR`, `INVALID_PRICE`); `CATEGORY_INACTIVE`, `CATEGORY_CYCLE`, `CATEGORY_TOO_DEEP`, `VARIANT_PRODUCT_MISMATCH`, `VARIANT_REQUIRED`, `ITEM_NOT_SELLABLE` (seam only) |
 
 `UNIT_IMMUTABLE` is declared but not raised: `unitType` is simply not an accepted PATCH key, so sending it is a strict-schema 422.
+
+## Inventory (built in Phase 7 / T4)
+
+Design: [inventory-api-and-rules.md](../planning/phase-7/inventory-api-and-rules.md). This section is the contract as
+built (`app/api/inventory/**`, `modules/inventory/schemas.ts`). Pipeline, `no-store` and the write-route permission
+rule are the same as catalog.
+
+| Method + path | Permission | Body / query | Success |
+|---|---|---|---|
+| `GET /api/inventory/stock` | `inventory.read` | `branchId`, `q` (≤ 100), `filter=all\|inStock\|zero\|negative\|unopened`, `cursor`, `limit` 1–100 (default 25) | 200 `{ rows: StockRow[], nextCursor }` |
+| `GET /api/inventory/ledger` | `inventory.read` | `branchId`, `productId`, `variantId?`, `cursor`, `limit` | 200 `{ qty, rows: LedgerRow[], nextCursor }` |
+| `POST /api/inventory/opening` | `inventory.adjust` | `{ branchId, lines: [{ ref, qty }] }` (1–500) | 201 `{ lines }` |
+| `POST /api/inventory/adjust` | `inventory.adjust` | `{ branchId, ref, adjustmentReason, note?, qtyDelta? \| countedQty?, expectedOnHand }` | 201 `{ qty }` |
+| `POST /api/inventory/transfer` | `inventory.transfer` | `{ transferId, fromBranchId, toBranchId, lines: [{ ref, qty }] (1–200), note? }` | 201 new · 200 replay |
+
+- `ref` is `{ productId, variantId? }`; quantities are whole numbers 1–1,000,000 per line. Bodies are strict: `orgId`
+  or any balance field → 422.
+- `StockRow`: `{ productId, variantId, name, nameAr, variantName, sku, primaryBarcode, qty, archived, updatedAt }`.
+  `LedgerRow`: `{ id, createdAt, reason, adjustmentReason, qtyDelta, balanceAfter, actor, note, refType, refId, transfer }`.
+  Neither carries cost. `variantName` is `null` for a product without variants; `primaryBarcode` is the row's own
+  (the variant's, or the product's for a product without variants). A variant's barcode in `q` finds only that variant.
+- Archived items (D8): decreasing adjustments and transfers are allowed; opening, increases and sales answer 422
+  `ITEM_NOT_SELLABLE`.
+- Branch scope: a branch outside the caller's membership, or in another org, answers 404 on every route.
+- Denied writes are audited as `inventory.permission.denied`. Adjust, opening and transfer audit their own actions
+  (`inventory.adjusted`, `inventory.opening.recorded`, `inventory.transferred`).
+
+### Error reasons (`details.reason`)
+
+| HTTP / code | Reasons |
+|---|---|
+| 404 NOT_FOUND | branch not in scope / other tenant; unknown item; inactive destination branch |
+| 409 CONFLICT | `INSUFFICIENT_STOCK` (`details.lines` with `onHand`, `requested`), `OPENING_BALANCE_EXISTS` (`details.refs`), `STALE_STOCK` (`details.onHand`), `PRODUCT_HAS_STOCK` (catalog, when switching to variants) |
+| 409 IDEMPOTENCY_CONFLICT | `transferId` reused with different content |
+| 422 VALIDATION_FAILED | `ADJUSTMENT_DIRECTION`, `NOTE_REQUIRED` (zod issue on `note`), `NO_CHANGE`, `SAME_BRANCH`, `DUPLICATE_LINE`, `INVALID_CURSOR`; seam: `ITEM_NOT_SELLABLE` with `details.cause` (`PRODUCT_ARCHIVED`, `VARIANT_ARCHIVED`, `VARIANT_REQUIRED`, `VARIANT_NOT_ALLOWED`, `VARIANT_PRODUCT_MISMATCH`) |

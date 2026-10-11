@@ -14,9 +14,9 @@ Gate on action grants, never role-name string checks in business logic:
 ## Matrix (MVP default)
 - Owner: all.
 - Admin: users.manage, settings.manage, products.*, inventory.*, purchases.*, reports.view.
-- Manager: products.read, inventory.*, sales.void, refunds, discounts.override, reports.view.
+- Manager: products.read, inventory.* (read included), sales.void, refunds, discounts.override, reports.view.
 - Cashier: products.read, sales.create, registers.open/close (+ discounts.apply only if granted).
-- Reporting: reports.view only.
+- Reporting: reports.view, inventory.read (read-only stock; D5).
 
 Branch scoping enforced alongside role checks, server-side.
 

@@ -6,9 +6,16 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
     for (const permission of PERMISSIONS) expect(hasPermission("OWNER", permission)).toBe(true);
   });
 
-  it("limits reporting users to reports.view", () => {
+  it("limits reporting users to reports.view and read-only stock (inventory D5)", () => {
     const granted = PERMISSIONS.filter((permission) => hasPermission("REPORTING", permission));
-    expect(granted).toEqual(["reports.view"]);
+    expect(granted).toEqual(["inventory.read", "reports.view"]);
+  });
+
+  it("lets managers, admins and owners read stock; cashiers get no stock screens (inventory D5)", () => {
+    for (const role of ["OWNER", "ADMIN", "MANAGER", "REPORTING"] as const) {
+      expect(hasPermission(role, "inventory.read")).toBe(true);
+    }
+    expect(hasPermission("CASHIER", "inventory.read")).toBe(false);
   });
 
   it("does not let cashiers void, refund, override discounts or manage users", () => {

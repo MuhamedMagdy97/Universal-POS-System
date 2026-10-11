@@ -5,6 +5,7 @@ import { TenantBadge } from "./_components/tenant-badge";
 import { LocaleToggle } from "./_components/locale-toggle";
 import { SignOutButton } from "./_components/sign-out-button";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
+import { InventoryNavLink } from "./_components/inventory-nav-link";
 
 /**
  * Authenticated app shell. Static chrome prerenders; anything that reads the
@@ -23,6 +24,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <nav aria-label="Main" className="flex items-center gap-3">
           <Suspense fallback={null}>
             <CatalogNavLink />
+          </Suspense>
+          <Suspense fallback={null}>
+            <InventoryNavLink />
           </Suspense>
         </nav>
         <div className="ms-auto flex items-center gap-3">

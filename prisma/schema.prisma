@@ -107,6 +107,15 @@ enum CashMovementType {
   DROP
 }
 
+enum AdjustmentReason {
+  DAMAGED
+  EXPIRED
+  LOST_OR_STOLEN
+  COUNT_CORRECTION
+  FOUND
+  OTHER
+}
+
 // ─────────────────────── Auth (Better-Auth) ───────────────────────
 
 model User {
@@ -436,6 +445,7 @@ model StockBalance {
   variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
 
   @@unique([orgId, branchId, productId, variantId])
+  @@index([orgId, branchId])
 }
 
 // Append-only ledger (UPDATE/DELETE rejected by trigger).
@@ -447,6 +457,8 @@ model InventoryMovement {
   variantId       String?        @db.Uuid
   qtyDelta        Int
   reason          MovementReason
+  // Set only for ADJUSTMENT rows (DB CHECK); drives the direction rules.
+  adjustmentReason AdjustmentReason?
   // Source document, e.g. ("Sale", saleId) or ("GoodsReceipt", receiptId).
   refType         String?
   refId           String?        @db.Uuid

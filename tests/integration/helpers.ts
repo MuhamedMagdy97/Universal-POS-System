@@ -3,6 +3,7 @@ import { createDb, type Db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import type { Role } from "@/lib/auth/permissions";
 import type { TenantContext } from "@/lib/auth/tenant";
+import { reconcile } from "@/modules/inventory";
 
 export function testDb(): Db {
   const url = process.env.TEST_DATABASE_URL;
@@ -82,4 +83,10 @@ export async function expectAppError(promise: Promise<unknown>, status: number, 
 /** Details of a catalog AppError, typed loosely for assertions. */
 export function detailsOf(err: AppError): Record<string, unknown> {
   return (err.details ?? {}) as Record<string, unknown>;
+}
+
+/** Asserts that every StockBalance row matches the sum of its ledger rows (inventory I-1). */
+export async function expectReconciled(db: Db, orgId: string): Promise<void> {
+  const mismatches = await reconcile(db, orgId);
+  if (mismatches.length > 0) throw new Error(`stock ledger mismatch: ${JSON.stringify(mismatches)}`);
 }

@@ -18,6 +18,13 @@ import { hashPassword } from "../lib/auth/password";
 type Role = "OWNER" | "ADMIN" | "MANAGER" | "CASHIER" | "REPORTING";
 type OrgKey = "A" | "B";
 
+/** Second branch of org A, for inventory transfers (T4.8). Org A's admin has access to both. */
+export const E2E_SECOND_BRANCH_A = {
+  id: "e2e0a000-0000-4000-8000-0000000000b2",
+  name: "Second",
+  code: "SECOND",
+} as const;
+
 export const E2E_ORGS = {
   A: {
     id: "e2e0a000-0000-4000-8000-000000000001",
@@ -332,6 +339,12 @@ export async function seedE2E(connectionString: string): Promise<void> {
         [org.branchId, org.id],
       );
     }
+    await client.query(
+      `INSERT INTO "Branch" ("id", "orgId", "name", "code", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, now(), now())
+       ON CONFLICT ("id") DO UPDATE SET "isActive" = true, "updatedAt" = now()`,
+      [E2E_SECOND_BRANCH_A.id, E2E_ORGS.A.id, E2E_SECOND_BRANCH_A.name, E2E_SECOND_BRANCH_A.code],
+    );
 
     for (const user of Object.values(E2E_USERS)) {
       const { rows } = await client.query<{ id: string }>(

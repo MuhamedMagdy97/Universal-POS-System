@@ -6,6 +6,7 @@ export const PERMISSIONS = [
   "products.read",
   "products.create",
   "products.update",
+  "inventory.read",
   "inventory.adjust",
   "inventory.transfer",
   "sales.create",
@@ -34,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "users.manage",
     "settings.manage",
     ...PRODUCTS,
+    "inventory.read",
     ...INVENTORY,
     "purchases.receive",
     "reports.view",
@@ -42,6 +44,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   // Cost fields stay hidden from them: they require products.update.
   MANAGER: new Set<Permission>([
     "products.read",
+    "inventory.read",
     ...INVENTORY,
     "sales.void",
     "sales.refund",
@@ -50,7 +53,8 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   ]),
   // discounts.apply is granted per cashier later (T6); not part of the default.
   CASHIER: new Set<Permission>(["products.read", "sales.create", "registers.open", "registers.close"]),
-  REPORTING: new Set<Permission>(["reports.view"]),
+  // Reporting reads stock (D5) but cannot change it.
+  REPORTING: new Set<Permission>(["reports.view", "inventory.read"]),
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
