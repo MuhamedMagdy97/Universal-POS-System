@@ -8,6 +8,8 @@ export function testDb(): Db {
 }
 
 const short = () => randomUUID().slice(0, 8);
+/** Upper-case unique suffix: SKUs must satisfy the DB CHECK sku = upper(btrim(sku)). */
+export const shortUpper = () => short().toUpperCase();
 
 /** Creates an isolated tenant (org + 2 branches + register). Unique per call, so tests never collide. */
 export async function createTenant(db: Db, label = "Org") {
@@ -30,6 +32,6 @@ export async function createUser(db: Db, name = "Test User") {
   return db.user.create({ data: { name, email: `user-${randomUUID()}@example.test` } });
 }
 
-export async function createProduct(db: Db, orgId: string, sku = `SKU-${short()}`) {
+export async function createProduct(db: Db, orgId: string, sku = `SKU-${shortUpper()}`) {
   return db.product.create({ data: { orgId, sku, name: `Product ${sku}`, priceMinor: 1000 } });
 }
