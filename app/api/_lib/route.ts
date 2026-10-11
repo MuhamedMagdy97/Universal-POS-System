@@ -75,13 +75,16 @@ export function validInput<S extends z.ZodType>(schema: S, raw: unknown): z.inpu
   return raw as z.input<S>;
 }
 
-/** JSON body validated against `schema` (bad JSON or schema → 422), returned untransformed. */
-export async function bodyOf<S extends z.ZodType>(request: Request, schema: S): Promise<z.input<S>> {
-  let raw: unknown;
+/**
+ * JSON body for a catalog write (bad JSON → 422). It is deliberately not
+ * validated here: the service checks the permission first (403, audit-logged
+ * per C-14) and only then parses with the same strict schema `S` (422), so an
+ * unauthorised caller always gets 403 whatever it sends.
+ */
+export async function bodyFor<S extends z.ZodType>(request: Request): Promise<z.input<S>> {
   try {
-    raw = await request.json();
+    return (await request.json()) as z.input<S>;
   } catch {
     throw new AppError("VALIDATION_FAILED", "Request body must be valid JSON");
   }
-  return validInput(schema, raw);
 }

@@ -1,5 +1,5 @@
-import { getProduct, updateProduct, UpdateProduct } from "@/modules/catalog";
-import { apiRoute, bodyOf, json, type Params } from "../../_lib/route";
+import { getProduct, updateProduct, type UpdateProduct } from "@/modules/catalog";
+import { apiRoute, bodyFor, json, type Params } from "../../_lib/route";
 
 type Ctx = Params<"productId">;
 
@@ -12,6 +12,6 @@ export const GET = apiRoute({ permission: "products.read" }, async (_request, { 
 /** PATCH /api/products/{productId} → ProductDetail (+ warnings). */
 export const PATCH = apiRoute({}, async (request, { params }: Ctx, { tenant, requestId }) => {
   const { productId } = await params;
-  const input = await bodyOf(request, UpdateProduct);
+  const input = await bodyFor<typeof UpdateProduct>(request);
   return json(await updateProduct(tenant, productId, input, { requestId }));
 });
