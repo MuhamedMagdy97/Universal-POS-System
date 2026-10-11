@@ -62,7 +62,8 @@ Each fix has a test that failed first (UI fixes: the E2E was checked by re-intro
 
 ## Open risks (carried into T6)
 
-- **Variant switch race.** A sale that commits between `hasUnvariantedStock` and the variant switch can leave a
+- **Variant switch race. Closed in Phase 8 (R1, 2026-10-11)** with product-row locks in `insertVariant` and every
+  stock write; see `phase-8/checkout-spec.md`. Original note: a sale that commits between `hasUnvariantedStock` and the variant switch can leave a
   variant-null row on a product that now has variants. Close it before checkout ships: lock the product row in
   `insertVariant` and have sales lock it too, or re-check inside the same serializable transaction. No code change in T4.
 - **`allow` sales go negative by design (D4).** T6 must decide the org default and show oversold items clearly. The

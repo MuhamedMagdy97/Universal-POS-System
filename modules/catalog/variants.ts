@@ -23,6 +23,7 @@ import {
 } from "./internal";
 import { insertBarcode } from "./barcodes";
 import { hasUnvariantedStock } from "@/modules/inventory/queries";
+import { lockProducts } from "./seam";
 import { diffFields, nextUpdatedAt, priceWarnings, type CatalogWarning } from "./rules";
 import {
   ArchiveInput,
@@ -73,9 +74,14 @@ export async function insertVariant(
   data: CreateVariantData,
 ): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
   if (!product.hasVariants) {
-    // Stock and ledger rows recorded without a variant would be orphaned by the switch (T4, I-10).
-    if (await hasUnvariantedStock(tx, ctx.orgId, product.id)) throw conflict("PRODUCT_HAS_STOCK");
-    await tx.product.update({ where: { id: product.id }, data: { hasVariants: true } });
+    // Lock, then re-read: a sale that was in flight must commit (or not) before we look (R1).
+    await lockProducts(tx, ctx.orgId, [product.id]);
+    const current = await tx.product.findUniqueOrThrow({ where: { id: product.id }, select: { hasVariants: true } });
+    if (!current.hasVariants) {
+      // Stock and ledger rows recorded without a variant would be orphaned by the switch (T4, I-10).
+      if (await hasUnvariantedStock(tx, ctx.orgId, product.id)) throw conflict("PRODUCT_HAS_STOCK");
+      await tx.product.update({ where: { id: product.id }, data: { hasVariants: true } });
+    }
   }
   const variant = await tx.productVariant.create({
     data: {

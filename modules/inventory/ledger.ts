@@ -1,5 +1,5 @@
 import "server-only";
-import { assertStockable, getItemsForHistory } from "@/modules/catalog";
+import { assertStockable, getItemsForHistory, lockProducts } from "@/modules/catalog";
 import type { TenantContext } from "@/lib/auth/tenant";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { insufficientStock, invalidInput, type InsufficientLine } from "./errors";
@@ -70,6 +70,12 @@ export async function applyLines(
   if (input.lines.length === 0) return [];
   assertNoDuplicateRefs(input.lines.map((line) => line.ref));
 
+  // Product rows before the catalog check, so a concurrent variant switch is seen (checkout R1).
+  await lockProducts(
+    tx,
+    ctx.orgId,
+    input.lines.map((line) => line.ref.productId),
+  );
   for (const line of input.lines) {
     if (archivedAllowed(input.reason, line.qtyDelta)) await assertKnownItems(tx, ctx.orgId, [line.ref]);
     else await assertStockable(tx, ctx.orgId, line.ref);
