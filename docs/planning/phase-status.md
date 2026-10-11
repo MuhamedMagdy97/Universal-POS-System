@@ -13,9 +13,15 @@
   cross-module seam, Route Handlers, back-office UI (EN/AR, RTL), E2E on a dedicated database. See
   [phase-6/catalog-spec.md](phase-6/catalog-spec.md) ("As built").
 
+- Phase 7: inventory BUILT on `phase-7/inventory` (T4.1–T4.8, 2026-10-11): append-only ledger with balance cache,
+  opening stock, adjustments with structured reasons, instant transfers, catalog guard (`PRODUCT_HAS_STOCK`), route
+  handlers, back-office screens, E2E. See [phase-7/inventory-as-built.md](phase-7/inventory-as-built.md) for deviations
+  and the open variant-switch race to close before checkout (T6).
+
 ## Next
-- Phase 7: inventory (T4) — ledger, stock balances; uses the catalog seam (`assertStockable`) and resolves the
-  `TODO(T4)` in `createVariant`.
+- Phase 8: checkout / POS (T6) — `recordMovements` for sales, `getOnHand` for the till, the oversell policy decision,
+  and the variant-switch race from the inventory as-built notes.
 
 ## Pending
-Phases 8–14 per roadmap. No deviations accepted yet. No destructive changes made.
+Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
+changes made.

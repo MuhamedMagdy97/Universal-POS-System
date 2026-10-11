@@ -113,6 +113,35 @@ describe("listStock", () => {
   });
 });
 
+describe("getItemLedger paging", () => {
+  it("does not skip a row whose time differs from the previous row only in microseconds", async () => {
+    // createdAt is TIMESTAMP(3), so these two rows share a millisecond and only the id tells them apart.
+    // The cursor carries both values; this guards that the tie is not skipped.
+    const product = await createProduct(db, orgId);
+    await inventory.recordOpeningBalances(admin, { branchId, lines: [{ ref: ref(product.id), qty: 10 }] });
+    const insertFound = (createdAt: string) =>
+      db.$executeRaw`
+        INSERT INTO "InventoryMovement"
+          ("id", "orgId", "branchId", "productId", "qtyDelta", "reason", "adjustmentReason", "actorUserId", "createdAt")
+        VALUES (gen_random_uuid(), ${orgId}::uuid, ${branchId}::uuid, ${product.id}::uuid, 1,
+                'ADJUSTMENT', 'FOUND', ${admin.userId}::uuid, ${createdAt}::timestamptz)`;
+    await insertFound("2030-01-01T00:00:00.123456Z");
+    await insertFound("2030-01-01T00:00:00.123100Z");
+    await db.$executeRaw`UPDATE "StockBalance" SET qty = qty + 2
+      WHERE "orgId" = ${orgId}::uuid AND "branchId" = ${branchId}::uuid AND "productId" = ${product.id}::uuid`;
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await inventory.getItemLedger(admin, { branchId, productId: product.id, limit: 1, cursor });
+      seen.push(...page.rows.map((row) => row.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(seen).toHaveLength(3);
+    expect(new Set(seen).size).toBe(3);
+  });
+});
+
 describe("getItemLedger (I-17)", () => {
   it("returns the header balance and a running balance on every row, newest first", async () => {
     const product = await createProduct(db, orgId);

@@ -50,3 +50,25 @@ Additive on top of the init migration. Design: [catalog-data-model.md](../planni
   the other table already has the SKU. Services map it to 409 `SKU_TAKEN`.
 - **Other CHECKs.** `Barcode_code_format` (printable ASCII, 1–64), `Product_name_nonblank`.
 - Pre-flight for databases that already hold catalog data: `prisma/sql/catalog-hardening-preflight.sql`.
+
+## Inventory (Phase 7, migration `*_inventory`)
+
+Additive on the init migration. Design: [inventory-data-model.md](../planning/phase-7/inventory-data-model.md).
+As built: [inventory-as-built.md](../planning/phase-7/inventory-as-built.md).
+
+- **`AdjustmentReason` enum** and `InventoryMovement.adjustmentReason`, set exactly for `ADJUSTMENT` rows (CHECK
+  `InventoryMovement_adjustment_reason_present`).
+- **Sign rules.** `InventoryMovement_adjustment_direction`: `DAMAGED`, `EXPIRED`, `LOST_OR_STOLEN` only decrease;
+  `FOUND` only increases; `COUNT_CORRECTION` and `OTHER` go either way. `InventoryMovement_reason_direction`: inflow
+  reasons are positive, `SALE` and `TRANSFER_OUT` negative, `ADJUSTMENT` either way.
+- **Notes.** `InventoryMovement_other_needs_note` (a non-blank note for `OTHER`); `InventoryMovement_note_length` (≤ 500).
+- **Transfers.** `InventoryMovement_group_only_on_transfer` (a `transferGroupId` only on `TRANSFER_OUT`/`TRANSFER_IN`).
+  The existing `InventoryMovement_transfer_grouped` CHECK requires one on transfers. Partial unique index
+  `InventoryMovement_transfer_line_once` on `(orgId, transferGroupId, reason, productId, variantId) NULLS NOT DISTINCT`
+  makes a retried transfer apply once.
+- **One opening balance.** Partial unique index `InventoryMovement_one_opening_balance` on
+  `(orgId, branchId, productId, variantId) NULLS NOT DISTINCT WHERE reason = 'OPENING_BALANCE'`.
+- **Balance lookup.** `StockBalance_orgId_branchId_idx` for the stock list.
+- **No `qty ≥ 0` CHECK on `StockBalance`:** `policy: "allow"` sales may oversell by design. The ledger stays append-only
+  (existing triggers); `reconcile()` compares the cache with `SUM(qtyDelta)`.
+- Pre-flight for databases that already hold ledger rows: `scripts/preflight-inventory.sql`.
