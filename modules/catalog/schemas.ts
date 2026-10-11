@@ -209,6 +209,10 @@ export const CreateCategory = z.strictObject({
 });
 export type CreateCategory = z.infer<typeof CreateCategory>;
 
+/** Category list filter (the whole tree is returned; no cursor). */
+export const ListCategoriesQuery = z.strictObject({ status: ProductStatus.default("active") });
+export type ListCategoriesQuery = z.infer<typeof ListCategoriesQuery>;
+
 export const UpdateCategory = z.strictObject({
   name: Name.optional(),
   nameAr: Name.nullable().optional(),
