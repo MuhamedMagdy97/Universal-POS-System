@@ -429,6 +429,8 @@ export type ProductSummary = {
   vatApplicable: boolean;
   hasVariants: boolean;
   variantCount: number;
+  /** The product-level barcode flagged `isPrimary`, else null. */
+  primaryBarcode: string | null;
   isActive: boolean;
   updatedAt: string;
 };

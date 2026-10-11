@@ -17,6 +17,7 @@ import {
   inTx,
   loadProductDetail,
   parseId,
+  PRIMARY_BARCODE_SELECT,
   requirePermission,
   toSummary,
   visibleWarnings,
@@ -131,7 +132,10 @@ export async function listProducts(
     createdAt: true,
     updatedAt: true,
     _count: { select: { variants: { where: { isActive: true } } } },
+    barcodes: PRIMARY_BARCODE_SELECT,
   } satisfies Prisma.ProductSelect;
+  const summary = (row: Prisma.ProductGetPayload<{ select: typeof select }>) =>
+    toSummary(row, row._count.variants, withCost, row.barcodes[0]?.code ?? null);
 
   const rows = await db().product.findMany({
     where,
@@ -142,11 +146,11 @@ export async function listProducts(
 
   const hasMore = rows.length > take;
   const pageRows = rows.slice(0, take);
-  const items = pageRows.map((r) => toSummary(r, r._count.variants, withCost));
+  const items = pageRows.map(summary);
 
   if (prependHit && barcodeHit) {
     const hit = await db().product.findFirst({ where: { id: barcodeHit, orgId: ctx.orgId }, select });
-    if (hit) items.unshift(toSummary(hit, hit._count.variants, withCost));
+    if (hit) items.unshift(summary(hit));
   }
 
   let nextCursor: string | null = null;

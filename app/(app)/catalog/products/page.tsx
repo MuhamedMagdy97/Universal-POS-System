@@ -127,6 +127,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
               <tr className="border-b border-border text-start">
                 <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.name")}</th>
                 <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.sku")}</th>
+                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.barcode")}</th>
                 <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.category")}</th>
                 <th className="px-2 py-2 text-end font-medium">{tr("catalog.products.column.price")}</th>
                 <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.vat")}</th>
@@ -151,6 +152,13 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
                   </td>
                   <td className="px-2 py-2" dir="ltr">
                     <bdi className="font-mono">{item.sku}</bdi>
+                  </td>
+                  <td className="px-2 py-2" dir="ltr">
+                    {item.primaryBarcode ? (
+                      <bdi className="font-mono">{item.primaryBarcode}</bdi>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-2">
                     {item.categoryId

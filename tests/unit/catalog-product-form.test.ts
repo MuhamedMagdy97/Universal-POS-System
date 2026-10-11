@@ -27,6 +27,7 @@ const product: ProductDetail = {
   vatApplicable: true,
   hasVariants: true,
   variantCount: 1,
+  primaryBarcode: null,
   isActive: true,
   updatedAt: "2026-10-11T10:00:00.000Z",
   createdAt: "2026-10-11T09:00:00.000Z",
