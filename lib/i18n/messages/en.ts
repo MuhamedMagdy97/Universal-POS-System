@@ -86,6 +86,7 @@ export const en = {
   "inventory.opening.taken": "Stock already recorded",
   "inventory.opening.invalid": "Enter a whole number from 1.",
   "inventory.opening.empty": "Every item already has opening stock at this branch.",
+  "inventory.opening.truncated": "Showing the first {count} items. Search to find more.",
   "inventory.history.title": "Item history",
   "inventory.history.current": "On hand now: {qty}",
   "inventory.history.columns.date": "Date",

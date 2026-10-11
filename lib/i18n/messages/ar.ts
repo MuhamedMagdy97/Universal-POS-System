@@ -84,6 +84,7 @@ export const ar: Messages = {
   "inventory.opening.taken": "المخزون مسجل بالفعل",
   "inventory.opening.invalid": "أدخل عددًا صحيحًا من 1 فأكثر.",
   "inventory.opening.empty": "كل الأصناف لديها رصيد افتتاحي في هذا الفرع.",
+  "inventory.opening.truncated": "يعرض أول {count} أصناف. ابحث لإيجاد المزيد.",
   "inventory.history.title": "سجل الصنف",
   "inventory.history.current": "المتاح الآن: {qty}",
   "inventory.history.columns.date": "التاريخ",

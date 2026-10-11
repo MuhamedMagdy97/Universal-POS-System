@@ -91,7 +91,7 @@ export function OpeningGrid({ locale, branchId, rows, truncated }: Props) {
           </tbody>
         </table>
       )}
-      {truncated ? <p className="text-muted">{tr("inventory.state.loadMore")}</p> : null}
+      {truncated ? <p className="text-muted">{tr("inventory.opening.truncated", { count: rows.length })}</p> : null}
       {message ? (
         <p
           role={message.kind === "error" ? "alert" : "status"}

@@ -6,7 +6,7 @@ import { loadInventoryContext } from "../_lib/context";
 import { NotAllowed, NotFound } from "../_components/states";
 import { OpeningGrid, type OpeningRow } from "../_components/opening-grid";
 
-/** Opening-stock grid: items with no movements at this branch yet, one page of 100. */
+/** Opening-stock grid: items with no movements at this branch, one page of 100, searchable by name, SKU or barcode. */
 const GRID_SIZE = 100;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -27,10 +27,11 @@ function one(value: string | string[] | undefined): string | undefined {
 async function OpeningContent({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
   const requestedBranch = one(params.branch);
-  const page = await loadInventoryContext(
-    `/inventory/opening${requestedBranch ? `?branch=${requestedBranch}` : ""}`,
-    requestedBranch,
-  );
+  const q = one(params.q)?.trim().slice(0, 100);
+  const query = new URLSearchParams();
+  if (requestedBranch) query.set("branch", requestedBranch);
+  if (q) query.set("q", q);
+  const page = await loadInventoryContext(`/inventory/opening${query.size ? `?${query}` : ""}`, requestedBranch);
   if (page.kind === "denied") return <NotAllowed locale={page.locale} />;
   if (page.kind === "notFound") return <NotFound locale={page.locale} branches={page.branches} />;
 
@@ -40,7 +41,7 @@ async function OpeningContent({ searchParams }: { searchParams: SearchParams }) 
 
   let result;
   try {
-    result = await listStock(ctx, { branchId: branch.id, filter: "unopened", limit: GRID_SIZE });
+    result = await listStock(ctx, { branchId: branch.id, q, filter: "unopened", limit: GRID_SIZE });
   } catch (err) {
     if (err instanceof AppError && err.code === "FORBIDDEN") return <NotAllowed locale={locale} />;
     if (err instanceof AppError && err.code === "NOT_FOUND") return <NotFound locale={locale} branches={branches} />;
@@ -59,6 +60,20 @@ async function OpeningContent({ searchParams }: { searchParams: SearchParams }) 
       <h1 className="text-2xl font-semibold">
         {tr("inventory.opening.title")} — {branch.name}
       </h1>
+      <form method="get" action="/inventory/opening" className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="branch" value={branch.id} />
+        <input
+          name="q"
+          defaultValue={q ?? ""}
+          aria-label={tr("inventory.search.label")}
+          placeholder={tr("inventory.search.placeholder")}
+          dir="ltr"
+          className="min-w-64 flex-1 rounded-md border border-border bg-background px-3 py-2"
+        />
+        <button type="submit" className="rounded-md border border-border px-4 py-2">
+          {tr("inventory.search.submit")}
+        </button>
+      </form>
       <OpeningGrid locale={locale} branchId={branch.id} rows={rows} truncated={result.nextCursor !== null} />
     </div>
   );
