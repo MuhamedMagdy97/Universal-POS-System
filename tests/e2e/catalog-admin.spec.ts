@@ -94,8 +94,8 @@ test("admin creates, finds, edits, archives and restores a product with the keyb
   await page.getByRole("button", { name: "Archive", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeVisible();
-  // Not relying on which dialog button gets initial focus: move to the confirm button explicitly.
-  await dialog.getByRole("button", { name: "Archive", exact: true }).focus();
+  // The confirm button has initial focus, so Enter archives (Cancel must not be the default).
+  await expect(dialog.getByRole("button", { name: "Archive", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Product archived").filter({ visible: true })).toBeVisible();

@@ -16,11 +16,17 @@ type Props = {
 /** Modal confirm built on <dialog>: focus is trapped by the browser and Esc closes it. */
 export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pending, onConfirm, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // The browser focuses the first button on showModal(), so focus the confirm button here.
+      // An `autoFocus` attribute would not work: it runs while the dialog is still closed.
+      confirmRef.current?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -40,10 +46,10 @@ export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pe
           {cancelLabel}
         </button>
         <button
+          ref={confirmRef}
           type="button"
           onClick={onConfirm}
           disabled={pending}
-          autoFocus
           className="rounded-md bg-red-700 px-4 py-2 text-white disabled:opacity-60"
         >
           {confirmLabel}
