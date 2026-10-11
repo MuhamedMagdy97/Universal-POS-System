@@ -38,6 +38,8 @@ jobs:
       # Throwaway credentials for the CI-only Postgres service above.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_ci?schema=public
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_test?schema=public
+      # Dedicated E2E database: Playwright migrates and seeds it (prisma/seed-e2e.ts).
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pos_e2e?schema=public
       AUTH_URL: http://localhost:3000
 
     steps:
@@ -63,8 +65,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Create test database
-        run: psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE pos_test;"
+      - name: Create test databases
+        run: |
+          psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE pos_test;"
+          psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE pos_e2e;"
 
       - name: Unit and integration tests
         run: npm test
