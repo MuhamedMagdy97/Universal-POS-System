@@ -31,7 +31,7 @@ async function openShift(orgId: string, branchId: string, registerId: string) {
 
 describe("tenant-aware uniqueness", () => {
   it("rejects a duplicate SKU inside one org but allows it in another", async () => {
-    const sku = `DUP-${randomUUID().slice(0, 6)}`;
+    const sku = `DUP-${randomUUID().slice(0, 6).toUpperCase()}`;
     await createProduct(db, tenantA.org.id, sku);
     await expect(createProduct(db, tenantA.org.id, sku)).rejects.toThrow();
     await expect(createProduct(db, tenantB.org.id, sku)).resolves.toMatchObject({ sku });
