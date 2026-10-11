@@ -105,3 +105,12 @@ rule are the same as catalog.
 | 409 CONFLICT | `INSUFFICIENT_STOCK` (`details.lines` with `onHand`, `requested`), `OPENING_BALANCE_EXISTS` (`details.refs`), `STALE_STOCK` (`details.onHand`), `PRODUCT_HAS_STOCK` (catalog, when switching to variants) |
 | 409 IDEMPOTENCY_CONFLICT | `transferId` reused with different content |
 | 422 VALIDATION_FAILED | `ADJUSTMENT_DIRECTION`, `NOTE_REQUIRED` (zod issue on `note`), `NO_CHANGE`, `SAME_BRANCH`, `DUPLICATE_LINE`, `INVALID_CURSOR`; seam: `ITEM_NOT_SELLABLE` with `details.cause` (`PRODUCT_ARCHIVED`, `VARIANT_ARCHIVED`, `VARIANT_REQUIRED`, `VARIANT_NOT_ALLOWED`, `VARIANT_PRODUCT_MISMATCH`) |
+
+## Checkout (built in Phase 8 / T6)
+| Method + path | Permission | Body | Success |
+|---|---|---|---|
+| `POST /api/shifts/open` | `registers.open` | `{ branchId, registerId, openingFloatMinor }` | 201 `ShiftSummary` |
+| `POST /api/sales` (+ `Idempotency-Key`) | `sales.create` | `{ branchId, registerId, lines: [{ ref, qty }] (1–200), payments: [{ method, amountMinor, reference? }] (0–3) }` | 201 new · 200 replay · `SaleDetail` |
+
+- The server computes every total; the response carries no cost. Same key with a different body → 409
+  `IDEMPOTENCY_CONFLICT`. Rules, errors and audit: `docs/planning/phase-8/checkout-data-model-and-api.md`.

@@ -19,8 +19,10 @@
   and the open variant-switch race to close before checkout (T6).
 
 ## Next
-- Phase 8: checkout / POS (T6) — `recordMovements` for sales, `getOnHand` for the till, the oversell policy decision,
-  and the variant-switch race from the inventory as-built notes.
+- Phase 8: checkout / POS (T6) — spec approved; R1 variant-switch race closed; checkout backend built (sales create with
+  idempotency, server-side totals and payments, stock through the seam, shift open). Still to do: till screen (UI), E2E,
+  and the task plan. See [phase-8/checkout-spec.md](phase-8/checkout-spec.md) and
+  [phase-8/checkout-data-model-and-api.md](phase-8/checkout-data-model-and-api.md). Nothing committed yet.
 
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
