@@ -113,6 +113,46 @@ describe("listStock", () => {
   });
 });
 
+describe("listStock barcodes and names (review fixes)", () => {
+  it("shows each variant's own primary barcode", async () => {
+    const product = await createProduct(db, orgId, `PB-${uniqueCode().slice(-6)}`);
+    const v1 = await createVariant(db, orgId, product.id);
+    const v2 = await createVariant(db, orgId, product.id);
+    const c1 = uniqueCode();
+    const c2 = uniqueCode();
+    await db.barcode.create({ data: { orgId, code: c1, productId: product.id, variantId: v1.id, isPrimary: true } });
+    await db.barcode.create({ data: { orgId, code: c2, productId: product.id, variantId: v2.id, isPrimary: true } });
+    const page = await inventory.listStock(admin, { branchId, q: product.sku, filter: "all", limit: 25 });
+    const byVariant = new Map(page.rows.map((row) => [row.variantId, row.primaryBarcode]));
+    expect(byVariant.get(v1.id)).toBe(c1);
+    expect(byVariant.get(v2.id)).toBe(c2);
+  });
+
+  it("finds only the scanned variant when the barcode belongs to one variant", async () => {
+    const product = await createProduct(db, orgId, `VS-${uniqueCode().slice(-6)}`);
+    const v1 = await createVariant(db, orgId, product.id);
+    await createVariant(db, orgId, product.id);
+    const code = uniqueCode();
+    await db.barcode.create({ data: { orgId, code, productId: product.id, variantId: v1.id } });
+    const page = await inventory.listStock(admin, { branchId, q: code, filter: "all", limit: 25 });
+    expect(page.rows.map((row) => row.variantId)).toEqual([v1.id]);
+  });
+
+  it("returns variantName null for a product without variants", async () => {
+    const product = await createProduct(db, orgId, `VN-${uniqueCode().slice(-6)}`);
+    const page = await inventory.listStock(admin, { branchId, q: product.sku, filter: "all", limit: 25 });
+    expect(page.rows[0]?.variantName).toBeNull();
+  });
+
+  it("answers 422 INVALID_CURSOR for a forged history cursor", async () => {
+    const product = await createProduct(db, orgId);
+    const forged = Buffer.from(JSON.stringify({ t: "not-a-date", i: product.id })).toString("base64url");
+    await expect(
+      inventory.getItemLedger(admin, { branchId, productId: product.id, cursor: forged }),
+    ).rejects.toMatchObject({ status: 422, details: { reason: "INVALID_CURSOR" } });
+  });
+});
+
 describe("getItemLedger paging", () => {
   it("does not skip a row whose time differs from the previous row only in microseconds", async () => {
     // createdAt is TIMESTAMP(3), so these two rows share a millisecond and only the id tells them apart.

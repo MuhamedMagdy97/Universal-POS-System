@@ -26,7 +26,8 @@ export type StockRow = {
 export type StockPage = { rows: StockRow[]; nextCursor: string | null };
 
 const StockCursor = z.object({ n: z.string(), p: Uuid, v: z.string() }).strict();
-const LedgerCursor = z.object({ t: z.string(), i: Uuid }).strict();
+// `t` must be a real timestamp: a forged value would otherwise reach SQL as an invalid date (500).
+const LedgerCursor = z.object({ t: z.iso.datetime(), i: Uuid }).strict();
 
 function encode(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -63,7 +64,9 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
     ? Prisma.sql`AND (name ILIKE ${pattern} OR "nameAr" ILIKE ${pattern} OR sku ILIKE ${pattern}
         OR "variantName" ILIKE ${pattern}
         OR EXISTS (SELECT 1 FROM "Barcode" bc WHERE bc."orgId" = ${ctx.orgId}::uuid
-                   AND bc."productId" = items."productId" AND bc.code = ${search}))`
+                   AND bc."productId" = items."productId" AND bc.code = ${search}
+                   -- A variant's barcode finds only that variant; a product-level barcode finds all of them.
+                   AND (bc."variantId" IS NULL OR bc."variantId" = items."variantId")))`
     : Prisma.empty;
   const filterSql = {
     all: Prisma.sql`TRUE`,
@@ -82,10 +85,12 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
   const rows = await getDb().$queryRaw<(Omit<StockRow, "archived"> & { active: boolean })[]>`
     WITH items AS (
       SELECT p.id AS "productId", v.id AS "variantId", p.name AS name, p."nameAr" AS "nameAr",
-             COALESCE(v.sku, p.sku) AS sku, COALESCE(v.name, '') AS "variantName",
+             COALESCE(v.sku, p.sku) AS sku, v.name AS "variantName",
              CASE WHEN v.id IS NULL THEN p."isActive" ELSE p."isActive" AND v."isActive" END AS active,
              COALESCE(b.qty, 0) AS qty, b."updatedAt" AS "updatedAt",
-             (SELECT bc.code FROM "Barcode" bc WHERE bc."productId" = p.id AND bc."isPrimary" LIMIT 1) AS "primaryBarcode"
+             (SELECT bc.code FROM "Barcode" bc
+              WHERE bc."orgId" = p."orgId" AND bc."productId" = p.id AND bc."isPrimary"
+                AND bc."variantId" IS NOT DISTINCT FROM v.id) AS "primaryBarcode"
       FROM "Product" p
       LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id
       LEFT JOIN "StockBalance" b ON b."orgId" = p."orgId" AND b."branchId" = ${parsed.branchId}::uuid

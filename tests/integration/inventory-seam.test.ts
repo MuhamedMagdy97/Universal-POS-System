@@ -147,6 +147,22 @@ describe("variant rule (I-14)", () => {
     const err = await expectAppError(sell(product.id, 1, "allow", null), 422, "ITEM_NOT_SELLABLE");
     expect(detailsOf(err).cause).toBe("VARIANT_REQUIRED");
   });
+
+  it("answers 404 for a refund of an unknown product, instead of a database error", async () => {
+    await expectAppError(
+      db.$transaction((tx) =>
+        inventory.recordMovements(tx, manager, {
+          branchId,
+          reason: "REFUND",
+          refType: "Refund",
+          refId: null,
+          lines: [{ ref: { productId: "00000000-0000-4000-8000-0000000000ff", variantId: null }, qty: 1 }],
+          policy: "block",
+        }),
+      ),
+      404,
+    );
+  });
 });
 
 describe("the ledger is append-only (I-16)", () => {

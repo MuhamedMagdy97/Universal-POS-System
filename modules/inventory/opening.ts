@@ -6,7 +6,7 @@ import type { AuditRequestMeta } from "@/modules/audit";
 import { record } from "@/modules/audit";
 import { requireBranch, requirePermission } from "./access";
 import { openingExists } from "./errors";
-import { applyLines } from "./ledger";
+import { applyLines, assertKnownItems } from "./ledger";
 import { lockBalances } from "./locking";
 import { OpeningInput, assertNoDuplicateRefs } from "./schemas";
 
@@ -25,6 +25,11 @@ export async function recordOpeningBalances(
   assertNoDuplicateRefs(parsed.lines.map((line) => line.ref));
 
   return getDb().$transaction(async (tx) => {
+    await assertKnownItems(
+      tx,
+      ctx.orgId,
+      parsed.lines.map((line) => line.ref),
+    );
     // Lock first, then look: a concurrent opening waits here and then sees the rows it wrote.
     await lockBalances(
       tx,

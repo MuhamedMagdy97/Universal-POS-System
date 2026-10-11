@@ -7,7 +7,7 @@ import type { AuditRequestMeta } from "@/modules/audit";
 import { record } from "@/modules/audit";
 import { isUniqueViolation, requireActiveBranch, requireBranch, requirePermission } from "./access";
 import { idempotencyConflict, invalidInput } from "./errors";
-import { applyLines } from "./ledger";
+import { applyLines, assertKnownItems } from "./ledger";
 import { lockBalances } from "./locking";
 import { TransferInput, assertNoDuplicateRefs } from "./schemas";
 import type { ItemRef } from "./types";
@@ -58,6 +58,11 @@ async function applyTransfer(
   requested: Line[],
   meta?: AuditRequestMeta,
 ): Promise<void> {
+  await assertKnownItems(
+    tx,
+    ctx.orgId,
+    requested.map((line) => line.ref),
+  );
   // Lock every row on both branches in one global order, so crossing transfers cannot deadlock (D7).
   await lockBalances(tx, ctx.orgId, [
     ...requested.map((line) => ({ branchId: parsed.fromBranchId, ...line.ref })),

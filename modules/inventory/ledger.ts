@@ -1,5 +1,5 @@
 import "server-only";
-import { assertStockable } from "@/modules/catalog";
+import { assertStockable, getItemsForHistory } from "@/modules/catalog";
 import type { TenantContext } from "@/lib/auth/tenant";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { insufficientStock, invalidInput, type InsufficientLine } from "./errors";
@@ -38,8 +38,29 @@ export type ApplyInput = {
   lines: readonly SignedLine[];
 };
 
-/** Reasons that may run on archived items: a refund or void must still return stock. */
-const SKIPS_CATALOG_CHECK: ReadonlySet<MovementReason> = new Set(["SALE_VOID", "REFUND"]);
+/**
+ * Reasons that may move an archived item's stock: a refund or void returns stock, and a
+ * transfer moves what is left to another branch. Decreasing adjustments are allowed too (see
+ * `archivedAllowed`), so archived stock can always be written off. Nothing may add new stock
+ * to an archived item.
+ */
+const ARCHIVED_ALLOWED: ReadonlySet<MovementReason> = new Set(["SALE_VOID", "REFUND", "TRANSFER_OUT", "TRANSFER_IN"]);
+
+function archivedAllowed(reason: MovementReason, qtyDelta: number): boolean {
+  return ARCHIVED_ALLOWED.has(reason) || (reason === "ADJUSTMENT" && qtyDelta < 0);
+}
+
+/**
+ * Existence and the variant rule only (archived items pass). Unknown or other-org refs answer
+ * 404. Services call this before taking row locks, so a bad ref never reaches a raw INSERT.
+ */
+export async function assertKnownItems(
+  tx: Prisma.TransactionClient,
+  orgId: string,
+  refs: readonly ItemRef[],
+): Promise<void> {
+  await getItemsForHistory(tx, orgId, refs);
+}
 
 export async function applyLines(
   tx: Prisma.TransactionClient,
@@ -49,8 +70,9 @@ export async function applyLines(
   if (input.lines.length === 0) return [];
   assertNoDuplicateRefs(input.lines.map((line) => line.ref));
 
-  if (!SKIPS_CATALOG_CHECK.has(input.reason)) {
-    for (const line of input.lines) await assertStockable(tx, ctx.orgId, line.ref);
+  for (const line of input.lines) {
+    if (archivedAllowed(input.reason, line.qtyDelta)) await assertKnownItems(tx, ctx.orgId, [line.ref]);
+    else await assertStockable(tx, ctx.orgId, line.ref);
   }
 
   const locked = await lockBalances(

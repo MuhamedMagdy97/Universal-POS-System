@@ -260,4 +260,30 @@ describe("transferStock", () => {
       404,
     );
   });
+
+  it("answers 404 for an unknown product", async () => {
+    await expectAppError(
+      inventory.transferStock(admin, {
+        transferId: randomUUID(),
+        fromBranchId: branchA,
+        toBranchId: branchB,
+        lines: [{ ref: ref(randomUUID()), qty: 1 }],
+      }),
+      404,
+    );
+  });
+
+  it("moves an archived item's remaining stock to another branch (archived change)", async () => {
+    const product = await stockedAt(branchA, 4);
+    await db.product.update({ where: { id: product.id }, data: { isActive: false } });
+    await inventory.transferStock(admin, {
+      transferId: randomUUID(),
+      fromBranchId: branchA,
+      toBranchId: branchB,
+      lines: [{ ref: ref(product.id), qty: 4 }],
+    });
+    expect(await onHand(product.id, branchA)).toBe(0);
+    expect(await onHand(product.id, branchB)).toBe(4);
+    await expectReconciled(db, orgId);
+  });
 });

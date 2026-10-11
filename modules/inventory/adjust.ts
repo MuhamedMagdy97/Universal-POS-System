@@ -6,7 +6,7 @@ import type { AuditRequestMeta } from "@/modules/audit";
 import { record } from "@/modules/audit";
 import { requireBranch, requirePermission } from "./access";
 import { noChange, staleStock } from "./errors";
-import { applyLines } from "./ledger";
+import { applyLines, assertKnownItems } from "./ledger";
 import { lockBalances, keyOf } from "./locking";
 import { AdjustInput, checkAdjustmentDirection } from "./schemas";
 
@@ -26,6 +26,8 @@ export async function adjustStock(
 
   return getDb().$transaction(async (tx) => {
     const key = { branchId: parsed.branchId, ...parsed.ref };
+    // Check the item first: a bad ref must answer 404, not fail inside the raw lock INSERT.
+    await assertKnownItems(tx, ctx.orgId, [parsed.ref]);
     const locked = await lockBalances(tx, ctx.orgId, [key]);
     const balance = locked.get(keyOf(key));
     if (!balance) throw new Error("balance row missing after lock");

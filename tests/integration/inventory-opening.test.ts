@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
@@ -133,5 +134,20 @@ describe("recordOpeningBalances", () => {
       where: { orgId, action: "inventory.permission.denied", actorUserId: cashier.userId },
     });
     expect(denial).not.toBeNull();
+  });
+
+  it("answers 404 for an unknown product, and writes nothing", async () => {
+    const known = await createProduct(db, orgId);
+    await expectAppError(
+      inventory.recordOpeningBalances(admin, {
+        branchId,
+        lines: [
+          { ref: ref(known.id), qty: 2 },
+          { ref: ref(randomUUID()), qty: 1 },
+        ],
+      }),
+      404,
+    );
+    expect(await inventory.getOnHand(db, orgId, branchId, [ref(known.id)])).toEqual([0]);
   });
 });

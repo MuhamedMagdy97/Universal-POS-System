@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
@@ -149,19 +150,62 @@ describe("adjustStock", () => {
     expect(detailsOf(err).onHand).toBe(5);
   });
 
-  it("refuses an archived item (I-13)", async () => {
+  it("lets an archived item's stock be written off (I-13, archived change)", async () => {
     const product = await stocked(2);
     await db.product.update({ where: { id: product.id }, data: { isActive: false } });
-    await expectAppError(
+    const result = await inventory.adjustStock(admin, {
+      branchId,
+      ref: ref(product.id),
+      adjustmentReason: "DAMAGED",
+      qtyDelta: -1,
+      expectedOnHand: 2,
+    });
+    expect(result).toEqual({ qty: 1 });
+  });
+
+  it("lets a counted quantity bring an archived item down to zero", async () => {
+    const product = await stocked(3);
+    await db.product.update({ where: { id: product.id }, data: { isActive: false } });
+    const result = await inventory.adjustStock(admin, {
+      branchId,
+      ref: ref(product.id),
+      adjustmentReason: "COUNT_CORRECTION",
+      countedQty: 0,
+      expectedOnHand: 3,
+    });
+    expect(result).toEqual({ qty: 0 });
+  });
+
+  it("refuses to add stock to an archived item (I-13)", async () => {
+    const product = await stocked(2);
+    await db.product.update({ where: { id: product.id }, data: { isActive: false } });
+    const err = await expectAppError(
       inventory.adjustStock(admin, {
         branchId,
         ref: ref(product.id),
-        adjustmentReason: "DAMAGED",
-        qtyDelta: -1,
+        adjustmentReason: "FOUND",
+        qtyDelta: 1,
         expectedOnHand: 2,
       }),
       422,
       "ITEM_NOT_SELLABLE",
     );
+    expect(detailsOf(err).cause).toBe("PRODUCT_ARCHIVED");
+  });
+
+  it("answers 404 for an unknown product or another org's product", async () => {
+    const foreign = await createProduct(db, (await createTenant(db, "Inv Adjust Foreign")).org.id);
+    for (const productId of [randomUUID(), foreign.id]) {
+      await expectAppError(
+        inventory.adjustStock(admin, {
+          branchId,
+          ref: ref(productId),
+          adjustmentReason: "FOUND",
+          qtyDelta: 1,
+          expectedOnHand: 0,
+        }),
+        404,
+      );
+    }
   });
 });
