@@ -17,12 +17,15 @@ import {
   inTx,
   loadProductDetail,
   parseId,
+  PRIMARY_BARCODE_SELECT,
   requirePermission,
   toSummary,
   visibleWarnings,
   withUniqueMapping,
   type CatalogMeta,
+  type Tx,
 } from "./internal";
+import { insertBarcode } from "./barcodes";
 import { assertAssignableCategory } from "./categories";
 import {
   diffFields,
@@ -40,12 +43,14 @@ import {
   encodeCursor,
   ListProductsQuery,
   UpdateProduct,
+  type CreateProduct as CreateProductData,
   type CreateProductInput,
   type ListProductsQueryInput,
   type Page,
   type ProductDetail,
   type ProductSort,
   type ProductSummary,
+  type UpdateProduct as UpdateProductData,
 } from "./schemas";
 
 export type ProductWriteResult = ProductDetail & { warnings: CatalogWarning[] };
@@ -53,7 +58,7 @@ export type ProductWriteResult = ProductDetail & { warnings: CatalogWarning[] };
 type ArchiveInputType = z.input<typeof ArchiveInput>;
 export type UpdateProductInput = z.input<typeof UpdateProduct>;
 
-async function detailOrThrow(ctx: TenantContext, productId: string): Promise<ProductDetail> {
+export async function detailOrThrow(ctx: TenantContext, productId: string): Promise<ProductDetail> {
   const detail = await loadProductDetail(db(), ctx, productId);
   if (!detail) throw notFound("Product");
   return detail;
@@ -80,6 +85,7 @@ export async function listProducts(
   if (query.status === "active") base.isActive = true;
   if (query.status === "archived") base.isActive = false;
   if (query.categoryId) base.categoryId = query.categoryId;
+  if (query.vatCategory) base.vatCategory = query.vatCategory;
 
   // Exact barcode match (case-sensitive, like the scanner lookup).
   let barcodeHit: string | null = null;
@@ -127,7 +133,10 @@ export async function listProducts(
     createdAt: true,
     updatedAt: true,
     _count: { select: { variants: { where: { isActive: true } } } },
+    barcodes: PRIMARY_BARCODE_SELECT,
   } satisfies Prisma.ProductSelect;
+  const summary = (row: Prisma.ProductGetPayload<{ select: typeof select }>) =>
+    toSummary(row, row._count.variants, withCost, row.barcodes[0]?.code ?? null);
 
   const rows = await db().product.findMany({
     where,
@@ -138,11 +147,11 @@ export async function listProducts(
 
   const hasMore = rows.length > take;
   const pageRows = rows.slice(0, take);
-  const items = pageRows.map((r) => toSummary(r, r._count.variants, withCost));
+  const items = pageRows.map(summary);
 
   if (prependHit && barcodeHit) {
     const hit = await db().product.findFirst({ where: { id: barcodeHit, orgId: ctx.orgId }, select });
-    if (hit) items.unshift(toSummary(hit, hit._count.variants, withCost));
+    if (hit) items.unshift(summary(hit));
   }
 
   let nextCursor: string | null = null;
@@ -183,49 +192,138 @@ export async function createProduct(
   meta?: CatalogMeta,
 ): Promise<ProductWriteResult> {
   await requirePermission(ctx, "products.create", { entityType: "Product", operation: "create", meta });
-  const data = CreateProduct.parse(input);
-  const vatApplicable = data.vatCategory === "STANDARD";
+  const { barcodes, ...data } = CreateProduct.parse(input);
 
-  const productId = await withUniqueMapping(ctx, { sku: data.sku, codes: data.barcodes }, () =>
-    inTx(async (tx) => {
-      if (data.categoryId) await assertAssignableCategory(tx, ctx, data.categoryId);
-      const product = await tx.product.create({
-        data: {
-          orgId: ctx.orgId,
-          sku: data.sku,
-          name: data.name,
-          nameAr: data.nameAr ?? null,
-          categoryId: data.categoryId,
-          unitType: data.unitType,
-          priceMinor: data.priceMinor,
-          costMinor: data.costMinor,
-          vatCategory: data.vatCategory,
-          vatApplicable,
-        },
-      });
-      await audit(tx, ctx, meta, "catalog.product.created", "Product", product.id, {
-        sku: product.sku,
-        name: product.name,
-        priceMinor: product.priceMinor,
-        costMinor: product.costMinor,
-        vatCategory: product.vatCategory,
-        vatApplicable,
-        categoryId: product.categoryId,
-      });
-      for (const code of data.barcodes) {
-        const barcode = await tx.barcode.create({ data: { orgId: ctx.orgId, code, productId: product.id } });
-        await audit(tx, ctx, meta, "catalog.barcode.added", "Barcode", barcode.id, {
-          code,
-          productId: product.id,
-          variantId: null,
-        });
-      }
-      return product.id;
-    }),
+  const productId = await withUniqueMapping(ctx, { sku: data.sku, codes: barcodes }, () =>
+    inTx(async (tx) => (await insertProduct(tx, ctx, meta, data, barcodes)).id),
   );
 
   const detail = await detailOrThrow(ctx, productId);
   return { ...detail, warnings: visibleWarnings(ctx, priceWarnings(data.priceMinor, data.costMinor)) };
+}
+
+/** Product fields of a create, already parsed by `CreateProduct`. */
+export type ProductCreateData = Omit<CreateProductData, "barcodes">;
+
+/**
+ * Inserts a product and its product-level barcodes inside `tx`, with the
+ * `catalog.product.created` / `catalog.barcode.added` audit rows. Shared by
+ * `createProduct` and the aggregate save; unique violations surface as raw P2002.
+ */
+export async function insertProduct(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  data: ProductCreateData,
+  barcodes: readonly string[],
+): Promise<ProductRecord> {
+  if (data.categoryId) await assertAssignableCategory(tx, ctx, data.categoryId);
+  const vatApplicable = data.vatCategory === "STANDARD";
+  const product = await tx.product.create({
+    data: {
+      orgId: ctx.orgId,
+      sku: data.sku,
+      name: data.name,
+      nameAr: data.nameAr ?? null,
+      categoryId: data.categoryId,
+      unitType: data.unitType,
+      priceMinor: data.priceMinor,
+      costMinor: data.costMinor,
+      vatCategory: data.vatCategory,
+      vatApplicable,
+    },
+  });
+  await audit(tx, ctx, meta, "catalog.product.created", "Product", product.id, {
+    sku: product.sku,
+    name: product.name,
+    priceMinor: product.priceMinor,
+    costMinor: product.costMinor,
+    vatCategory: product.vatCategory,
+    vatApplicable,
+    categoryId: product.categoryId,
+  });
+  for (const code of barcodes) {
+    await insertBarcode(tx, ctx, meta, { code, productId: product.id, variantId: null, isPrimary: false });
+  }
+  return product;
+}
+
+export type ProductRecord = NonNullable<Awaited<ReturnType<Tx["product"]["findFirst"]>>>;
+export type ProductPatch = Omit<UpdateProductData, "expectedUpdatedAt">;
+
+/** Loads a product of the caller's org inside `tx` (404 otherwise) and checks `expectedUpdatedAt` (409 STALE_WRITE). */
+export async function loadFreshProduct(
+  tx: Tx,
+  ctx: TenantContext,
+  id: string,
+  expectedUpdatedAt: string,
+): Promise<ProductRecord> {
+  const current = await tx.product.findFirst({ where: { id, orgId: ctx.orgId } });
+  if (!current) throw notFound("Product");
+  assertFresh(current.updatedAt, expectedUpdatedAt);
+  return current;
+}
+
+/**
+ * Applies a PATCH to `current` (loaded and freshness-checked in `tx`). Writes
+ * `catalog.product.updated` / `.price_changed` as needed. With `touch`, bumps
+ * `updatedAt` even when no product field changed: the aggregate save does this
+ * so any other open form of the same product becomes stale.
+ */
+export async function applyProductUpdate(
+  tx: Tx,
+  ctx: TenantContext,
+  meta: CatalogMeta,
+  current: ProductRecord,
+  patch: ProductPatch,
+  options: { touch?: boolean } = {},
+): Promise<{ finalPrice: number; finalCost: number }> {
+  const id = current.id;
+  if (patch.categoryId && patch.categoryId !== current.categoryId) {
+    await assertAssignableCategory(tx, ctx, patch.categoryId);
+  }
+
+  const { priceMinor, costMinor, ...rest } = patch;
+  const priceChanges = diffFields(
+    { priceMinor: current.priceMinor, costMinor: current.costMinor },
+    { priceMinor, costMinor },
+  );
+  const otherChanges = diffFields(
+    {
+      sku: current.sku,
+      name: current.name,
+      nameAr: current.nameAr,
+      categoryId: current.categoryId,
+      vatCategory: current.vatCategory,
+    },
+    rest,
+  );
+  const hasPriceChange = Object.keys(priceChanges).length > 0;
+  const hasOtherChange = Object.keys(otherChanges).length > 0;
+  const finalPrice = priceMinor ?? current.priceMinor;
+  const finalCost = costMinor ?? current.costMinor;
+  if (!hasPriceChange && !hasOtherChange && !options.touch) return { finalPrice, finalCost };
+
+  const vatCategory = rest.vatCategory ?? current.vatCategory;
+  const updated = await tx.product.updateMany({
+    where: { id, orgId: ctx.orgId, updatedAt: current.updatedAt },
+    data: {
+      ...rest,
+      priceMinor: finalPrice,
+      costMinor: finalCost,
+      vatApplicable: vatCategory === "STANDARD",
+      updatedAt: nextUpdatedAt(current.updatedAt),
+    },
+  });
+  if (updated.count !== 1) throw conflict("STALE_WRITE");
+
+  if (hasOtherChange) {
+    await audit(tx, ctx, meta, "catalog.product.updated", "Product", id, { changes: otherChanges });
+  }
+  if (hasPriceChange) {
+    await audit(tx, ctx, meta, "catalog.product.price_changed", "Product", id, priceChanges);
+  }
+  return { finalPrice, finalCost };
 }
 
 /**
@@ -241,60 +339,12 @@ export async function updateProduct(
 ): Promise<ProductWriteResult> {
   await requirePermission(ctx, "products.update", { entityType: "Product", operation: "update", meta });
   const id = parseId(productId, "Product");
-  const data = UpdateProduct.parse(input);
-  const { expectedUpdatedAt, ...patch } = data;
+  const { expectedUpdatedAt, ...patch } = UpdateProduct.parse(input);
 
   const result = await withUniqueMapping(ctx, { sku: patch.sku }, () =>
     inTx(async (tx) => {
-      const current = await tx.product.findFirst({ where: { id, orgId: ctx.orgId } });
-      if (!current) throw notFound("Product");
-      assertFresh(current.updatedAt, expectedUpdatedAt);
-
-      if (patch.categoryId && patch.categoryId !== current.categoryId) {
-        await assertAssignableCategory(tx, ctx, patch.categoryId);
-      }
-
-      const { priceMinor, costMinor, ...rest } = patch;
-      const priceChanges = diffFields(
-        { priceMinor: current.priceMinor, costMinor: current.costMinor },
-        { priceMinor, costMinor },
-      );
-      const otherChanges = diffFields(
-        {
-          sku: current.sku,
-          name: current.name,
-          nameAr: current.nameAr,
-          categoryId: current.categoryId,
-          vatCategory: current.vatCategory,
-        },
-        rest,
-      );
-      const hasPriceChange = Object.keys(priceChanges).length > 0;
-      const hasOtherChange = Object.keys(otherChanges).length > 0;
-      const finalPrice = priceMinor ?? current.priceMinor;
-      const finalCost = costMinor ?? current.costMinor;
-      if (!hasPriceChange && !hasOtherChange) return { finalPrice, finalCost };
-
-      const vatCategory = rest.vatCategory ?? current.vatCategory;
-      const updated = await tx.product.updateMany({
-        where: { id, orgId: ctx.orgId, updatedAt: current.updatedAt },
-        data: {
-          ...rest,
-          priceMinor: finalPrice,
-          costMinor: finalCost,
-          vatApplicable: vatCategory === "STANDARD",
-          updatedAt: nextUpdatedAt(current.updatedAt),
-        },
-      });
-      if (updated.count !== 1) throw conflict("STALE_WRITE");
-
-      if (hasOtherChange) {
-        await audit(tx, ctx, meta, "catalog.product.updated", "Product", id, { changes: otherChanges });
-      }
-      if (hasPriceChange) {
-        await audit(tx, ctx, meta, "catalog.product.price_changed", "Product", id, priceChanges);
-      }
-      return { finalPrice, finalCost };
+      const current = await loadFreshProduct(tx, ctx, id, expectedUpdatedAt);
+      return applyProductUpdate(tx, ctx, meta, current, patch);
     }),
   );
 

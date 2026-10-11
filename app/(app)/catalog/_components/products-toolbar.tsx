@@ -4,13 +4,15 @@ import { useEffect, useRef } from "react";
 import Form from "next/form";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
-import type { ProductStatus } from "@/modules/catalog/schemas";
+import { VAT_CATEGORY_VALUES, type ProductStatus, type VatCategory } from "@/modules/catalog/schemas";
 import { listShortcut } from "../_lib/form-helpers";
 
 type Props = {
   locale: Locale;
   q: string;
   categoryId: string;
+  /** "" = any VAT category. */
+  vatCategory: VatCategory | "";
   status: ProductStatus;
   canCreate: boolean;
   categories: { id: string; label: string }[];
@@ -22,11 +24,11 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * Search + filters. The state lives in the URL (GET form → `?q&categoryId&status`),
+ * Search + filters. The state lives in the URL (GET form → `?q&categoryId&vatCategory&status`),
  * so results are shareable and back-button safe. The search box is autofocused
  * for scanners; `/` focuses it and `N` opens a new product when no field has focus.
  */
-export function ProductsToolbar({ locale, q, categoryId, status, canCreate, categories }: Props) {
+export function ProductsToolbar({ locale, q, categoryId, vatCategory, status, canCreate, categories }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -82,6 +84,22 @@ export function ProductsToolbar({ locale, q, categoryId, status, canCreate, cate
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-sm">{tr("catalog.products.filter.vatCategory")}</span>
+        <select
+          name="vatCategory"
+          defaultValue={vatCategory}
+          onChange={() => formRef.current?.requestSubmit()}
+          className="rounded-md border border-border px-3 py-2"
+        >
+          <option value="">{tr("catalog.products.filter.all")}</option>
+          {VAT_CATEGORY_VALUES.map((v) => (
+            <option key={v} value={v}>
+              {tr(`catalog.vatCategory.${v}`)}
             </option>
           ))}
         </select>

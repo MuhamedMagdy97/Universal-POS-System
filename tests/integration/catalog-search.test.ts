@@ -165,3 +165,84 @@ describe("tenant isolation (C-10)", () => {
     expect((await catalog.listProducts(outsider, { categoryId })).items).toEqual([]);
   });
 });
+
+describe("VAT category filter", () => {
+  it("returns only products of the requested VAT category, combined with other filters", async () => {
+    const t = await createTenant(db, "VAT filter");
+    const ctx = await createMember(db, t.org.id, "ADMIN");
+    const p = `VF${shortUpper()}`;
+    const standard = await catalog.createProduct(ctx, { sku: `${p}-S`, name: "Std", priceMinor: 1 });
+    const zero = await catalog.createProduct(ctx, {
+      sku: `${p}-Z`,
+      name: "Zero",
+      priceMinor: 1,
+      vatCategory: "ZERO_RATED",
+    });
+    const exempt = await catalog.createProduct(ctx, {
+      sku: `${p}-E`,
+      name: "Exempt",
+      priceMinor: 1,
+      vatCategory: "EXEMPT",
+    });
+    const archivedExempt = await catalog.createProduct(ctx, {
+      sku: `${p}-EA`,
+      name: "Exempt old",
+      priceMinor: 1,
+      vatCategory: "EXEMPT",
+    });
+    await catalog.archiveProduct(ctx, archivedExempt.id, { expectedUpdatedAt: archivedExempt.updatedAt });
+
+    const ids = async (query: catalog.ListProductsQueryInput) =>
+      (await catalog.listProducts(ctx, query)).items.map((i) => i.id).sort();
+
+    expect(await ids({ vatCategory: "STANDARD" })).toEqual([standard.id]);
+    expect(await ids({ vatCategory: "ZERO_RATED" })).toEqual([zero.id]);
+    expect(await ids({ vatCategory: "EXEMPT" })).toEqual([exempt.id]);
+    expect(await ids({ vatCategory: "EXEMPT", status: "all" })).toEqual([exempt.id, archivedExempt.id].sort());
+    expect(await ids({ vatCategory: "EXEMPT", q: "old", status: "all" })).toEqual([archivedExempt.id]);
+    expect(await ids({})).toEqual([standard.id, zero.id, exempt.id].sort());
+    await expect(catalog.listProducts(ctx, { vatCategory: "REDUCED" as never })).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
+describe("primary barcode in the list", () => {
+  it("shows the product-level primary barcode, else null", async () => {
+    const t = await createTenant(db, "Primary barcode");
+    const ctx = await createMember(db, t.org.id, "ADMIN");
+    const p = `PB${shortUpper()}`;
+    const withPrimary = await catalog.createProduct(ctx, { sku: `${p}-A`, name: "A", priceMinor: 1 });
+    const primaryCode = uniqueCode();
+    await catalog.addBarcode(ctx, { code: uniqueCode(), productId: withPrimary.id });
+    await catalog.addBarcode(ctx, { code: primaryCode, productId: withPrimary.id, isPrimary: true });
+    const nonPrimary = await catalog.createProduct(ctx, {
+      sku: `${p}-B`,
+      name: "B",
+      priceMinor: 1,
+      barcodes: [uniqueCode()],
+    });
+    const variantOnly = await catalog.createProductAggregate(ctx, {
+      sku: `${p}-C`,
+      name: "C",
+      priceMinor: 1,
+      variants: [{ sku: `${p}-C1`, name: "C1" }],
+    });
+    const [variant] = variantOnly.variants;
+    if (!variant) throw new Error("variant missing");
+    await catalog.addBarcode(ctx, {
+      code: uniqueCode(),
+      productId: variantOnly.id,
+      variantId: variant.id,
+      isPrimary: true,
+    });
+
+    const page = await catalog.listProducts(ctx, { q: p });
+    const byId = new Map(page.items.map((i) => [i.id, i.primaryBarcode]));
+    expect(byId.get(withPrimary.id)).toBe(primaryCode);
+    expect(byId.get(nonPrimary.id)).toBeNull();
+    expect(byId.get(variantOnly.id)).toBeNull();
+    // The exact-barcode hit (prepended on page 1) carries it too.
+    const hit = await catalog.listProducts(ctx, { q: primaryCode });
+    expect(hit.items[0]).toMatchObject({ id: withPrimary.id, primaryBarcode: primaryCode });
+    expect((await catalog.getProduct(ctx, withPrimary.id)).primaryBarcode).toBe(primaryCode);
+  });
+});

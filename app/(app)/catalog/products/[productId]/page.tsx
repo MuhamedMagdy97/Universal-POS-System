@@ -47,7 +47,6 @@ async function ProductContent({ params, searchParams }: { params: Params; search
         product={product}
         initialNotice={{
           saved: query.saved === "1",
-          partial: query.partial === "1",
           priceBelowCost: query.warn === "PRICE_BELOW_COST",
         }}
       />

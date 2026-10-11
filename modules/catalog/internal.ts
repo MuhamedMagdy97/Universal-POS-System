@@ -116,7 +116,12 @@ type VariantRow = {
 
 type BarcodeRow = { id: string; code: string; productId: string; variantId: string | null; isPrimary: boolean };
 
-export function toSummary(row: ProductRow, variantCount: number, withCost: boolean): ProductSummary {
+export function toSummary(
+  row: ProductRow,
+  variantCount: number,
+  withCost: boolean,
+  primaryBarcode: string | null,
+): ProductSummary {
   const summary: ProductSummary = {
     id: row.id,
     sku: row.sku,
@@ -129,6 +134,7 @@ export function toSummary(row: ProductRow, variantCount: number, withCost: boole
     vatApplicable: row.vatApplicable,
     hasVariants: row.hasVariants,
     variantCount,
+    primaryBarcode,
     isActive: row.isActive,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -155,6 +161,22 @@ export function toBarcode(row: BarcodeRow): BarcodeDetail {
   return { id: row.id, code: row.code, productId: row.productId, variantId: row.variantId, isPrimary: row.isPrimary };
 }
 
+/**
+ * Selects the product-level primary barcode (at most one per item, DB unique
+ * index `Barcode_one_primary_per_item`). Prisma loads it for a whole page in one
+ * batched query, not one per product.
+ */
+export const PRIMARY_BARCODE_SELECT = {
+  where: { isPrimary: true, variantId: null },
+  select: { code: true },
+  take: 1,
+} satisfies Prisma.Product$barcodesArgs;
+
+/** The product-level primary barcode code among `barcodes`, else null. */
+export function primaryBarcodeOf(barcodes: readonly BarcodeRow[]): string | null {
+  return barcodes.find((b) => b.isPrimary && b.variantId === null)?.code ?? null;
+}
+
 export const PRODUCT_DETAIL_INCLUDE = {
   variants: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }, { id: "asc" }] },
   barcodes: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
@@ -174,7 +196,7 @@ export async function loadProductDetail(
   const withCost = canSeeCost(ctx);
   const activeVariants = row.variants.filter((v) => v.isActive).length;
   return {
-    ...toSummary(row, activeVariants, withCost),
+    ...toSummary(row, activeVariants, withCost, primaryBarcodeOf(row.barcodes)),
     createdAt: row.createdAt.toISOString(),
     variants: row.variants.map((v) => toVariant(v, withCost)),
     barcodes: row.barcodes.map(toBarcode),

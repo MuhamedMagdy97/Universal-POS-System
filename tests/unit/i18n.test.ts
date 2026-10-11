@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOCALES, MESSAGES, dirOf, interpolate, isLocale, t, translator } from "@/lib/i18n";
+import { DOCUMENT_LOCALE_SCRIPT, LOCALES, MESSAGES, dirOf, interpolate, isLocale, t, translator } from "@/lib/i18n";
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
@@ -65,5 +65,25 @@ describe("t()", () => {
     expect(isLocale("fr")).toBe(false);
     expect(dirOf("ar")).toBe("rtl");
     expect(dirOf("en")).toBe("ltr");
+  });
+});
+
+describe("DOCUMENT_LOCALE_SCRIPT", () => {
+  function run(cookie: string) {
+    const documentElement = { lang: "en", dir: "ltr" };
+    new Function("document", DOCUMENT_LOCALE_SCRIPT)({ cookie, documentElement });
+    return documentElement;
+  }
+
+  it("applies the locale cookie to <html> lang/dir", () => {
+    expect(run("a=1; pos_locale=ar; b=2")).toEqual({ lang: "ar", dir: "rtl" });
+    expect(run("pos_locale=en")).toEqual({ lang: "en", dir: "ltr" });
+  });
+
+  it("keeps the prerendered default for a missing or unknown locale", () => {
+    expect(run("")).toEqual({ lang: "en", dir: "ltr" });
+    expect(run("pos_locale=fr")).toEqual({ lang: "en", dir: "ltr" });
+    expect(run("xpos_locale=ar")).toEqual({ lang: "en", dir: "ltr" });
+    expect(run("pos_locale=__proto__")).toEqual({ lang: "en", dir: "ltr" });
   });
 });

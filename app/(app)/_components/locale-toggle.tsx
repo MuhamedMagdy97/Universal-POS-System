@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { applyDocumentLocale, setClientLocale, useClientLocale } from "@/lib/i18n/client";
+import { setClientLocale, useClientLocale } from "@/lib/i18n/client";
 
 /**
  * EN/AR toggle. Stores the choice in a cookie so Server Components render the
@@ -11,11 +10,6 @@ import { applyDocumentLocale, setClientLocale, useClientLocale } from "@/lib/i18
 export function LocaleToggle() {
   const router = useRouter();
   const locale = useClientLocale();
-
-  // The root layout prerenders `dir="ltr"`; apply the stored locale after hydration.
-  useEffect(() => {
-    applyDocumentLocale(locale);
-  }, [locale]);
 
   function toggle() {
     setClientLocale(locale === "en" ? "ar" : "en");
