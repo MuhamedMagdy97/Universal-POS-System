@@ -29,6 +29,7 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "next-env.d.ts",
     "lib/generated/**",
+    ".claude/**",
   ]),
 ]);
 

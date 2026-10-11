@@ -1,21 +1,19 @@
 "use client";
 
-import { useState } from "react";
-
-type Locale = "en" | "ar";
+import { useRouter } from "next/navigation";
+import { setClientLocale, useClientLocale } from "@/lib/i18n/client";
 
 /**
- * EN/AR placeholder: flips `lang`/`dir` on <html> so the RTL-ready layout can
- * be checked. Translated strings and persistence arrive with T10 (EN/AR).
+ * EN/AR toggle. Stores the choice in a cookie so Server Components render the
+ * right language, flips `lang`/`dir` on <html>, then refreshes the route.
  */
 export function LocaleToggle() {
-  const [locale, setLocale] = useState<Locale>("en");
+  const router = useRouter();
+  const locale = useClientLocale();
 
   function toggle() {
-    const next: Locale = locale === "en" ? "ar" : "en";
-    document.documentElement.lang = next;
-    document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
-    setLocale(next);
+    setClientLocale(locale === "en" ? "ar" : "en");
+    router.refresh();
   }
 
   return (

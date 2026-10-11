@@ -38,9 +38,18 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchases.receive",
     "reports.view",
   ]),
-  MANAGER: new Set<Permission>([...INVENTORY, "sales.void", "sales.refund", "discounts.override", "reports.view"]),
+  // products.read lets managers and cashiers search and scan at the POS (catalog Q1).
+  // Cost fields stay hidden from them: they require products.update.
+  MANAGER: new Set<Permission>([
+    "products.read",
+    ...INVENTORY,
+    "sales.void",
+    "sales.refund",
+    "discounts.override",
+    "reports.view",
+  ]),
   // discounts.apply is granted per cashier later (T6); not part of the default.
-  CASHIER: new Set<Permission>(["sales.create", "registers.open", "registers.close"]),
+  CASHIER: new Set<Permission>(["products.read", "sales.create", "registers.open", "registers.close"]),
   REPORTING: new Set<Permission>(["reports.view"]),
 };
 

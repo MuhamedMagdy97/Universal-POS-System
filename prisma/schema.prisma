@@ -58,6 +58,14 @@ enum UnitType {
   KG
 }
 
+// Tax treatment for future e-invoicing (ZATCA / ETA). `Product.vatApplicable`
+// is kept and must equal (vatCategory = STANDARD), enforced by a CHECK.
+enum VatCategory {
+  STANDARD
+  ZERO_RATED
+  EXEMPT
+}
+
 enum MovementReason {
   OPENING_BALANCE
   SALE
@@ -182,6 +190,8 @@ model Organization {
   currency           Currency
   vatRateBp          Int
   blockNegativeStock Boolean      @default(true)
+  // Shelf prices include VAT (EG and SA consumer pricing). Read by checkout (T6).
+  pricesIncludeVat   Boolean      @default(true)
   // Receipt fields
   legalName          String?
   taxNumber          String?
@@ -304,9 +314,12 @@ model Category {
   name      String
   nameAr    String?
   isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Sibling names are unique per (orgId, parentId), case-insensitive: raw SQL
+  // index "Category_sibling_name_key" in the catalog_hardening migration.
   org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
   parent   Category?    @relation("CategoryTree", fields: [orgId, parentId], references: [orgId, id], onDelete: Restrict)
   children Category[]   @relation("CategoryTree")
@@ -317,20 +330,24 @@ model Category {
 }
 
 model Product {
-  id            String   @id @default(uuid()) @db.Uuid
-  orgId         String   @db.Uuid
-  categoryId    String?  @db.Uuid
+  id            String      @id @default(uuid()) @db.Uuid
+  orgId         String      @db.Uuid
+  categoryId    String?     @db.Uuid
   sku           String
   name          String
   nameAr        String?
-  unitType      UnitType @default(EACH)
+  unitType      UnitType    @default(EACH)
   priceMinor    Int
-  costMinor     Int      @default(0)
-  vatApplicable Boolean  @default(true)
+  costMinor     Int         @default(0)
+  // Kept for existing readers; must equal (vatCategory = STANDARD) (DB CHECK).
+  vatApplicable Boolean     @default(true)
+  vatCategory   VatCategory @default(STANDARD)
+  // Set once the product has variants: every stock/sale line must then name a variant.
+  hasVariants   Boolean     @default(false)
   // Deactivate instead of delete once referenced (business rule 8).
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
   category      Category?           @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
@@ -358,20 +375,24 @@ model ProductVariant {
   priceMinor Int?
   costMinor  Int?
   isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  product       Product             @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  barcodes      Barcode[]
-  stockBalances StockBalance[]
-  movements     InventoryMovement[]
-  poItems       POItem[]
-  receiptItems  GoodsReceiptItem[]
-  saleItems     SaleItem[]
+  org             Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product         Product             @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  barcodes        Barcode[]           @relation("BarcodeVariant")
+  productBarcodes Barcode[]           @relation("BarcodeVariantOfProduct")
+  stockBalances   StockBalance[]
+  movements       InventoryMovement[]
+  poItems         POItem[]
+  receiptItems    GoodsReceiptItem[]
+  saleItems       SaleItem[]
 
   @@unique([orgId, id])
   @@unique([orgId, sku])
+  // Target for "variant belongs to this product" composite FKs (Barcode; T4/T6 reuse it).
+  @@unique([orgId, productId, id])
   @@index([orgId, productId])
 }
 
@@ -381,13 +402,19 @@ model Barcode {
   code      String
   productId String   @db.Uuid
   variantId String?  @db.Uuid
+  // The code printed on labels; at most one per product/variant (partial unique index in SQL).
+  isPrimary Boolean  @default(false)
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
-  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  product Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  org              Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product          Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant          ProductVariant? @relation("BarcodeVariant", fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  // The variant must belong to this barcode's product; a NULL variantId skips the check (MATCH SIMPLE).
+  variantOfProduct ProductVariant? @relation("BarcodeVariantOfProduct", fields: [orgId, productId, variantId], references: [orgId, productId, id], onDelete: Restrict)
 
   @@unique([orgId, code])
+  @@index([orgId, productId])
 }
 
 // ────────────────────────── Inventory ──────────────────────────

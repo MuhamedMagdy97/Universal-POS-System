@@ -4,7 +4,8 @@ Multi-tenant point of sale and back-office for retail shops in Egypt (EGP, 14% V
 Modular monolith: Next.js App Router + TypeScript + PostgreSQL + Prisma. Product and architecture docs live in
 [`docs/`](docs/).
 
-Status: **Phase 5 (foundation)**. Auth, tenancy, schema and app shells exist; POS features land in later phases (see
+Status: **Phase 6 (catalog)**. Auth, tenancy, schema, app shells and the product catalog (products, variants,
+barcodes, categories; API + back-office UI) exist; inventory (Phase 7) is next (see
 [`docs/planning/roadmap.md`](docs/planning/roadmap.md)).
 
 ## Prerequisites
@@ -32,12 +33,13 @@ psql -U postgres -h localhost -c "create database pos_dev;" -c "create database 
 
 Fill in `.env`:
 
-| Key                 | Purpose                                                           |
-| ------------------- | ----------------------------------------------------------------- |
-| `DATABASE_URL`      | Postgres connection string for the app (`pos_dev`)                |
-| `TEST_DATABASE_URL` | Separate database for `npm test`; must differ from `DATABASE_URL` |
-| `AUTH_SECRET`       | 32+ random characters (command in `.env.example`)                 |
-| `AUTH_URL`          | Base URL of the app, e.g. `http://localhost:3000`                 |
+| Key                 | Purpose                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`      | Postgres connection string for the app (`pos_dev`)                                            |
+| `TEST_DATABASE_URL` | Separate database for `npm test`; must differ from `DATABASE_URL`                             |
+| `E2E_DATABASE_URL`  | Separate database for Playwright e2e; must differ from `DATABASE_URL` and `TEST_DATABASE_URL` |
+| `AUTH_SECRET`       | 32+ random characters (command in `.env.example`)                                             |
+| `AUTH_URL`          | Base URL of the app, e.g. `http://localhost:3000`                                             |
 
 `.env` is git-ignored. Never commit secrets; only `.env.example` is tracked.
 
@@ -87,6 +89,11 @@ prisma/       schema.prisma + migrations (init migration adds triggers and CHECK
 proxy.ts      deny-by-default session gate (Next.js 16 "proxy", formerly middleware)
 tests/        unit/, integration/ (real Postgres), e2e/ (Playwright)
 ```
+
+## Catalog
+
+Spec, data model, API rules, UX and task plan: [`docs/planning/phase-6/`](docs/planning/phase-6/) (start with
+`catalog-spec.md`). Endpoints as built: [`docs/architecture/api-contracts.md`](docs/architecture/api-contracts.md).
 
 ## Rules that every change must keep
 

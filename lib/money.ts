@@ -95,10 +95,42 @@ export function vatInGross(grossMinor: number, rateBp: number): number {
 
 const MAJOR_PATTERN = /^(-)?(\d+)(?:\.(\d+))?$/;
 
-/** Parse a decimal string such as "12.50" into minor units without floats. */
+const ARABIC_INDIC_ZERO = 0x0660; // ٠ … ٩
+const EASTERN_ARABIC_INDIC_ZERO = 0x06f0; // ۰ … ۹ (Persian/Urdu forms)
+const ARABIC_DECIMAL_SEPARATOR = String.fromCharCode(0x066b); // ٫
+/** Directional marks that sneak in when numbers are copied out of RTL text. */
+const BIDI_MARKS = new RegExp(`[${String.fromCharCode(0x061c, 0x200e, 0x200f)}]`, "g");
+
+/**
+ * Maps Arabic-Indic and Eastern Arabic-Indic digits to ASCII and the Arabic
+ * decimal separator to ".", and drops bidi marks. Everything else is left
+ * as is so validation still rejects it (e.g. thousands separators).
+ * "١٢٫٥٠" → "12.50".
+ */
+export function normalizeDigits(input: string): string {
+  let out = "";
+  for (const char of input.replace(BIDI_MARKS, "")) {
+    const code = char.charCodeAt(0);
+    if (code >= ARABIC_INDIC_ZERO && code <= ARABIC_INDIC_ZERO + 9) {
+      out += String(code - ARABIC_INDIC_ZERO);
+    } else if (code >= EASTERN_ARABIC_INDIC_ZERO && code <= EASTERN_ARABIC_INDIC_ZERO + 9) {
+      out += String(code - EASTERN_ARABIC_INDIC_ZERO);
+    } else if (char === ARABIC_DECIMAL_SEPARATOR) {
+      out += ".";
+    } else {
+      out += char;
+    }
+  }
+  return out;
+}
+
+/**
+ * Parse a decimal string such as "12.50" into minor units without floats.
+ * Latin, Arabic-Indic and Eastern Arabic-Indic digits are accepted (`normalizeDigits`).
+ */
 export function parseMajor(input: string, currency: CurrencyCode): number {
   const digits = CURRENCY_MINOR_DIGITS[currency];
-  const match = MAJOR_PATTERN.exec(input.trim());
+  const match = MAJOR_PATTERN.exec(normalizeDigits(input).trim());
   if (!match) throw new MoneyError(`"${input}" is not a valid amount`);
   const [, sign, whole = "0", fraction = ""] = match;
   if (fraction.length > digits) {
@@ -119,13 +151,25 @@ export function toMajorString(minor: number, currency: CurrencyCode): string {
   return `${negative ? "-" : ""}${whole}${digits > 0 ? `.${fraction}` : ""}`;
 }
 
-/** Locale-aware display. Intl formats the exact decimal string, so no float rounding occurs. */
-export function formatMoney(minor: number, currency: CurrencyCode, locale = "en"): string {
+/**
+ * Locale-aware money display for stored minor units. Intl formats the exact
+ * decimal string from `toMajorString`, so no float math touches the amount.
+ * Arabic locales use Latin digits unless the locale names a numbering system
+ * explicitly (catalog Q12), e.g. "ar-EG-u-nu-arab" keeps Arabic-Indic digits.
+ */
+export function formatMinor(minor: number, currency: CurrencyCode, locale: string): string {
+  const explicitDigits = new Intl.Locale(locale).numberingSystem !== undefined;
   const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     minimumFractionDigits: CURRENCY_MINOR_DIGITS[currency],
     maximumFractionDigits: CURRENCY_MINOR_DIGITS[currency],
+    ...(explicitDigits ? {} : { numberingSystem: "latn" }),
   });
   return formatter.format(toMajorString(minor, currency) as Intl.StringNumericLiteral);
+}
+
+/** `formatMinor` with an English default locale. */
+export function formatMoney(minor: number, currency: CurrencyCode, locale = "en"): string {
+  return formatMinor(minor, currency, locale);
 }
