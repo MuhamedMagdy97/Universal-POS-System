@@ -13,21 +13,6 @@ export async function e2eQuery<T extends Record<string, unknown>>(sql: string, p
   }
 }
 
-/**
- * The app has no organization picker yet: sign-in leaves `activeOrganizationId`
- * empty, so the tenant guard denies everything. Until the org switcher lands,
- * the E2E harness activates each seeded user's (single) membership on their
- * sessions, as an org picker would.
- */
-export async function activateOrganization(email: string): Promise<void> {
-  await e2eQuery(
-    `UPDATE "Session" s SET "activeOrganizationId" = m."orgId", "updatedAt" = now()
-       FROM "User" u JOIN "Membership" m ON m."userId" = u."id" AND m."isActive"
-      WHERE s."userId" = u."id" AND u."email" = $1 AND s."activeOrganizationId" IS NULL`,
-    [email],
-  );
-}
-
 /** Login is rate limited (5/min per IP); the harness signs several users in from one IP. */
 export async function resetLoginRateLimit(): Promise<void> {
   await e2eQuery(`DELETE FROM "RateLimit"`);

@@ -5,6 +5,7 @@ import { nextCookies } from "better-auth/next-js";
 import { getConfig } from "@/lib/config";
 import { getDb } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { pickActiveOrganization } from "@/lib/auth/active-org";
 
 export const SESSION_TTL_SECONDS = 60 * 60 * 12; // one working day
 export const LOGIN_RATE_LIMIT = { window: 60, max: 5 } as const;
@@ -29,6 +30,21 @@ function buildAuth() {
         // Set server-side only (input: false); the tenant guard reads these.
         activeOrganizationId: { type: "string", required: false, input: false },
         activeBranchId: { type: "string", required: false, input: false },
+      },
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          // Every new session starts in the user's organization, so the tenant guard
+          // has an active org right after sign-in. An org picker can override it later.
+          before: async (session) => {
+            const memberships = await getDb().membership.findMany({
+              where: { userId: session.userId, isActive: true },
+              select: { orgId: true, createdAt: true },
+            });
+            return { data: { ...session, activeOrganizationId: pickActiveOrganization(memberships) } };
+          },
+        },
       },
     },
     rateLimit: {

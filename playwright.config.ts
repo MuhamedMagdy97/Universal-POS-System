@@ -29,7 +29,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run start -- --port ${E2E_PORT}`,
+    // Build first: `next start` otherwise serves whatever was built last, which can predate code changes.
+    command: `npm run build && npm run start -- --port ${E2E_PORT}`,
     url: `${E2E_BASE_URL}/api/health`,
     // Never attach to a server we did not start: it could be using another database.
     reuseExistingServer: false,
