@@ -9,8 +9,8 @@
 
 ## Current
 - Phase 5: foundation BUILT (2026-10-11): Node 22, Next.js 16 scaffold, Prisma schema + init migration on local PostgreSQL 16, Better-Auth DB sessions, tenant guard, health route. lint, tsc, vitest, next build, Playwright smoke green.
-- Phase 6: catalog BUILT (2026-10-11) on `phase-6/catalog`: hardening migration, services + audit, cross-module seam,
-  Route Handlers, back-office UI (EN/AR, RTL). E2E (T3.8) in progress. See
+- Phase 6: catalog BUILT and merged to `main` (PR #3, 2026-10-11): hardening migration, services + audit,
+  cross-module seam, Route Handlers, back-office UI (EN/AR, RTL), E2E on a dedicated database. See
   [phase-6/catalog-spec.md](phase-6/catalog-spec.md) ("As built").
 
 ## Next

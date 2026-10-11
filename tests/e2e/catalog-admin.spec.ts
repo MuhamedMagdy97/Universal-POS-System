@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { storageStateFor } from "./support/auth";
 
@@ -11,7 +12,8 @@ test("admin creates, finds, edits, archives and restores a product with the keyb
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`.toUpperCase();
   const name = `Keyboard Kettle ${run}`;
   const sku = `E2E-KB-${run}`;
-  const barcode = `29${Date.now()}`.slice(0, 13);
+  // Random, not time-based: parallel runs in the same instant must not scan the same barcode.
+  const barcode = `29${String(randomInt(1e11)).padStart(11, "0")}`;
 
   // List: the search box is autofocused; Shift+Tab reaches "Add product".
   await page.goto("/catalog/products");

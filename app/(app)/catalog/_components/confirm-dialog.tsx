@@ -33,7 +33,16 @@ export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pe
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // The native `close` event arrives a task after the dialog closes. Esc therefore closes through
+      // React state (else an Enter on the opener in between would not reopen it), and a late `close`
+      // event is ignored once the dialog has been reopened (else it would shut the new one).
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClose={() => {
+        if (!ref.current?.open) onClose();
+      }}
       aria-labelledby="confirm-dialog-title"
       className="m-auto max-w-md rounded-md border border-border bg-background p-6 text-foreground backdrop:bg-black/40"
     >
