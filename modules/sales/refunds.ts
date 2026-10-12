@@ -8,7 +8,7 @@ import { record, type AuditRequestMeta } from "@/modules/audit";
 import { recordMovements } from "@/modules/inventory";
 import { Uuid } from "@/modules/inventory/schemas";
 import { lockShift } from "@/modules/registers";
-import { isUniqueViolation, requireBranch, requirePermission } from "./access";
+import { isUniqueViolation, requireBranch, requirePermission, requireRegister } from "./access";
 import { loadSale, requestHashOf, type SaleDetail } from "./create";
 import { salesConflict } from "./errors";
 import { IdempotencyKey, RefundInput, VoidInput } from "./schemas";
@@ -154,9 +154,12 @@ async function writeRefund(
   });
   if (!scope) throw notFound("Sale");
 
-  // The refund books against the open shift on the sale's register (V6).
+  // The refund books against the open shift of the till paying it out: the one chosen, which must
+  // be in the sale's branch, or else the sale's own till (V6, as changed by the owner 2026-10-12).
+  const registerId = input.registerId ?? scope.registerId;
+  if (input.registerId !== null) await requireRegister(tx, ctx.orgId, scope.branchId, registerId);
   const open = await tx.registerShift.findFirst({
-    where: { orgId: ctx.orgId, registerId: scope.registerId, status: "OPEN" },
+    where: { orgId: ctx.orgId, registerId, status: "OPEN" },
     select: { id: true },
   });
   if (!open) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register to refund");

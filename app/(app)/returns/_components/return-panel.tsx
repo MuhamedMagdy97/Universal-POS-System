@@ -67,7 +67,12 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
   const anyLeft = sale.lines.some((line) => refundableOf(line) > 0);
   const showRefund = canRefund && completed && anyLeft;
   const plan = planRefund(sale.lines, qtys);
-  const ready = canSubmitRefund(plan, reason, pending) && sale.registerHasOpenShift;
+  // The till paying out: the sale's own till when it is open, else the first open till in the branch.
+  const firstOpen = sale.registers.find((till) => till.hasOpenShift)?.id ?? "";
+  const [tillId, setTillId] = useState(firstOpen);
+  const chosen = sale.registers.find((till) => till.id === tillId && till.hasOpenShift) ? tillId : firstOpen;
+  const tillOpen = chosen !== "";
+  const ready = canSubmitRefund(plan, reason, pending) && tillOpen;
 
   function fail(key: MessageKey) {
     setError(key);
@@ -85,6 +90,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
         sale.id,
         {
           lines: plan.lines,
+          registerId: chosen,
           method,
           reference: method === "CASH" || reference.trim() === "" ? null : reference.trim(),
           reason: reason.trim(),
@@ -230,11 +236,26 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
 
         {showRefund ? (
           <div className="flex max-w-md flex-col gap-3">
-            {!sale.registerHasOpenShift ? (
+            {tillOpen ? (
+              <label className="flex flex-col gap-1">
+                <span>{tr("returns.refund.till")}</span>
+                <select
+                  value={chosen}
+                  onChange={(e) => setTillId(e.target.value)}
+                  className="rounded-md border border-border bg-background px-3 py-2"
+                >
+                  {sale.registers.map((till) => (
+                    <option key={till.id} value={till.id} disabled={!till.hasOpenShift}>
+                      {till.hasOpenShift ? till.name : tr("returns.refund.tillClosed", { name: till.name })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
               <p role="alert" className="text-red-700">
-                {tr("returns.refund.noShift", { register: sale.registerName })}
+                {tr("returns.refund.noShift")}
               </p>
-            ) : null}
+            )}
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1">{tr("returns.refund.method")}</legend>
               <div className="flex gap-2">

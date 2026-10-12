@@ -34,6 +34,9 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
 
   it("gives managers voids, refunds and overrides but not user management", () => {
     expect(hasPermission("MANAGER", "sales.void")).toBe(true);
+    expect(hasPermission("MANAGER", "sales.create")).toBe(true);
+    expect(hasPermission("MANAGER", "registers.open")).toBe(true);
+    expect(hasPermission("MANAGER", "registers.close")).toBe(true);
     expect(hasPermission("MANAGER", "sales.refund")).toBe(true);
     expect(hasPermission("MANAGER", "discounts.override")).toBe(true);
     expect(hasPermission("MANAGER", "users.manage")).toBe(false);

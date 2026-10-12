@@ -4,7 +4,7 @@ Parent: [checkout-spec.md](checkout-spec.md). API and rules: [checkout-data-mode
 
 ## 1. Screen: `/pos` ("Till")
 
-Header link "Till" for roles with `sales.create` (Owner, Admin, Manager, Cashier). Other roles get a "You can't use the
+Header link "Till" for roles with `sales.create` (Owner, Manager, Cashier; Admin does not sell). Other roles get a "You can't use the
 till" state. The page picks the branch (`?branch=`) and register (`?register=`) with a plain GET form; it is hidden when
 there is only one choice.
 

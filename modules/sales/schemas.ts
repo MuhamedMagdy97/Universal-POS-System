@@ -83,6 +83,8 @@ export const RefundInput = z
       .refine((lines) => new Set(lines.map((line) => line.saleItemId)).size === lines.length, {
         message: "Each sale line may appear once",
       }),
+    // The till paying out the refund, in the sale's branch. Omitted: the sale's own till.
+    registerId: Uuid.nullish().transform((value) => value ?? null),
     method: z.enum(PAY_METHOD_VALUES),
     reference: z
       .string()

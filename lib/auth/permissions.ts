@@ -42,8 +42,12 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   ]),
   // products.read lets managers and cashiers search and scan at the POS (catalog Q1).
   // Cost fields stay hidden from them: they require products.update.
+  // Managers run a till too (sell, open and close shifts), so they can cover a register and refund at it (T8).
   MANAGER: new Set<Permission>([
     "products.read",
+    "sales.create",
+    "registers.open",
+    "registers.close",
     "inventory.read",
     ...INVENTORY,
     "sales.void",

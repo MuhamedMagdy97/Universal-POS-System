@@ -44,6 +44,10 @@ export type SaleForReturns = {
   refunds: ReturnRefund[];
   /** The sale's register has an open shift to book a refund on (V6). */
   registerHasOpenShift: boolean;
+  /** Active tills in the sale's branch that can pay out a refund, the sale's own till first. */
+  registers: { id: string; name: string; hasOpenShift: boolean }[];
+  /** The sale's own till. */
+  registerId: string;
   /** COMPLETED, its shift still open, and no refunds yet (V7). */
   canVoid: boolean;
 };
@@ -81,10 +85,14 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
     _sum: { qty: true, amountMinor: true },
   });
   const refunded = new Map(done.map((row) => [row.saleItemId, row._sum]));
-  const openShift = await db.registerShift.findFirst({
-    where: { orgId: ctx.orgId, registerId: sale.registerId, status: "OPEN" },
-    select: { id: true },
+  const tills = await db.register.findMany({
+    where: { orgId: ctx.orgId, branchId: sale.branchId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, shifts: { where: { status: "OPEN" }, select: { id: true } } },
   });
+  const registers = tills
+    .map((till) => ({ id: till.id, name: till.name, hasOpenShift: till.shifts.length > 0 }))
+    .sort((x, y) => Number(y.id === sale.registerId) - Number(x.id === sale.registerId));
 
   return {
     id: sale.id,
@@ -112,7 +120,9 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       reason: refund.reason,
       createdAt: refund.createdAt.toISOString(),
     })),
-    registerHasOpenShift: openShift !== null,
+    registerHasOpenShift: registers.some((till) => till.id === sale.registerId && till.hasOpenShift),
+    registers,
+    registerId: sale.registerId,
     canVoid: sale.status === "COMPLETED" && sale.shift.status === "OPEN" && sale.refunds.length === 0,
   };
 }

@@ -456,3 +456,79 @@ describe("finding a sale for returns", () => {
     await expectAppError(getSaleForReturns(otherManager, sale.number), 404);
   });
 });
+
+describe("choosing the till that pays a refund (owner decision 2026-10-12)", () => {
+  it("books a refund paid from another till in the branch on that till's shift, not the sale's", async () => {
+    const saleTill = await openTill(0);
+    const payingTill = await openTill(5000);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(saleTill.registerId, product.id, 1, 1000);
+    const [itemId] = await saleItemIds(sale.id);
+
+    const { refund } = await refundSale(manager, sale.id, KEY(), {
+      lines: [{ saleItemId: itemId, qty: 1 }],
+      registerId: payingTill.registerId,
+      method: "CASH",
+      reason: "Paid at till 2",
+    });
+    expect(refund.shiftId).toBe(payingTill.shiftId);
+    expect(await previewShiftCash(cashier, saleTill.shiftId)).toMatchObject({
+      cashRefundsMinor: 0,
+      expectedCashMinor: 1000,
+    });
+    expect(await previewShiftCash(cashier, payingTill.shiftId)).toMatchObject({
+      cashRefundsMinor: 1000,
+      expectedCashMinor: 4000,
+    });
+  });
+
+  it("refuses a till from another branch as not found, and a chosen till with no open shift", async () => {
+    const saleTill = await openTill(0);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(saleTill.registerId, product.id, 1, 1000);
+    const [itemId] = await saleItemIds(sale.id);
+    const body = { lines: [{ saleItemId: itemId, qty: 1 }], method: "CASH" as const, reason: "x" };
+
+    const otherBranch = await db.branch.findFirstOrThrow({ where: { orgId, NOT: { id: branchId } } });
+    const farTill = await db.register.create({
+      data: { orgId, branchId: otherBranch.id, name: `Far ${uniqueCode()}` },
+    });
+    await expectAppError(refundSale(manager, sale.id, KEY(), { ...body, registerId: farTill.id }), 404);
+
+    // The sale's own till is open, but the chosen one is not: the choice is honoured, not silently replaced.
+    const idleTill = await db.register.create({ data: { orgId, branchId, name: `Idle ${uniqueCode()}` } });
+    await expectAppError(
+      refundSale(manager, sale.id, KEY(), { ...body, registerId: idleTill.id }),
+      409,
+      "SHIFT_NOT_OPEN",
+    );
+  });
+
+  it("lists the branch's tills for the Returns screen, the sale's own till first", async () => {
+    const saleTill = await openTill(0);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(saleTill.registerId, product.id, 1, 1000);
+    const view = await getSaleForReturns(manager, sale.number);
+    expect(view.registerId).toBe(saleTill.registerId);
+    expect(view.registers[0]).toMatchObject({ id: saleTill.registerId, hasOpenShift: true });
+    expect(view.registers.every((till) => typeof till.hasOpenShift === "boolean")).toBe(true);
+  });
+
+  it("lets a manager open a shift, sell and close it (managers can work a till)", async () => {
+    const register = await db.register.create({ data: { orgId, branchId, name: `Manager ${uniqueCode()}` } });
+    const shift = await openShift(manager, { branchId, registerId: register.id, openingFloatMinor: 0 });
+    const product = await stocked(5, 1000);
+    await createSale(
+      manager,
+      {
+        branchId,
+        registerId: register.id,
+        lines: [line(product.id, 1)],
+        payments: [{ method: "CASH", amountMinor: 1000 }],
+      },
+      KEY(),
+    );
+    const closed = await closeShift(manager, shift.id, { countedCashMinor: 1000 });
+    expect(closed).toMatchObject({ status: "CLOSED", expectedCashMinor: 1000, discrepancyMinor: 0 });
+  });
+});
