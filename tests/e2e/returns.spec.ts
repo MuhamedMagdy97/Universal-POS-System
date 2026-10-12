@@ -55,6 +55,8 @@ test.describe("manager", () => {
 
     await page.getByRole("textbox", { name: `Refund quantity for ${name}` }).fill("1");
     await expect(page.getByTestId("refund-total")).toContainText("10.00");
+    // The sale's own till is open, so it is the default till paying out the refund.
+    await expect(page.getByLabel("Pay out from till")).toBeVisible();
     const submit = page.getByRole("button", { name: /^Refund EGP/ });
     await expect(submit).toBeDisabled();
     await page.getByLabel("Reason", { exact: true }).fill("Damaged box");
