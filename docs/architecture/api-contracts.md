@@ -4,7 +4,7 @@
 - Errors: `{code, message, details}` → 401/403/404/409/422.
 - Idempotency-Key header on `POST /api/sales` (and receive/refund paths).
 - Cursor pagination on lists and reports.
-- Endpoints: `/api/sales` (create, void, history), `/api/refunds`,
+- Endpoints: `/api/sales` (create, void, history), `/api/sales/{id}/refunds` (built as a sale sub-resource in T8),
   `/api/products|categories|barcodes`, `/api/inventory/{adjust,transfer}`,
   `/api/purchasing/{pos,receive}`, `/api/shifts/{open,close}` + cash movements,
   `/api/reports/*`. Full contract table: Phase 4 report.
@@ -122,3 +122,11 @@ rule are the same as catalog.
 | `POST /api/shifts/{shiftId}/cash-movements` | `sales.create` (PAY_IN) / `registers.close` (PAY_OUT, DROP) | `{ type, amountMinor, reason }` | 201 `CashMovementSummary` |
 
 Details and error codes: `docs/planning/phase-8/shift-close-data-model-and-api.md`.
+
+## Returns and voids (T8)
+| Method + path | Permission | Body | Success |
+|---|---|---|---|
+| `POST /api/sales/{saleId}/refunds` (`Idempotency-Key`) | `sales.refund` (Owner, Manager) | `{ lines: [{ saleItemId, qty }], method, reference?, reason }` | 201 `RefundDetail` (200 on replay) |
+| `POST /api/sales/{saleId}/void` | `sales.void` (Owner, Manager) | `{ reason }` | 200 the sale, `status: VOIDED` |
+
+Details, deviations (void replays by state) and error codes: `docs/planning/phase-8/returns-void-data-model-and-api.md`.
