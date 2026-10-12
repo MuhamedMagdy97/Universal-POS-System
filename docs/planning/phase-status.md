@@ -39,6 +39,12 @@
   (`requestHash`, `reference` on `Refund`). Back-office Returns screen (`/returns`) for Owner and Manager; refunds pay out from a chosen till; Managers can work a till. Deviations (void replays by state, VAT share per line, voids refused after refunds, zero-total refunds refused) are in
   [phase-8/returns-void-data-model-and-api.md](phase-8/returns-void-data-model-and-api.md).
 
+- Phase 9 / T9: reports and audit trail. Spec approved by the owner (2026-10-12), all decisions as recommended:
+  [phase-9/reports-audit-spec.md](phase-9/reports-audit-spec.md). Design and task plan written
+  ([data model and API](phase-9/reports-audit-data-model-and-api.md), [screens and tests](phase-9/reports-audit-ux-and-tests.md),
+  [plan](phase-9/reports-audit-plan.md)); six new choices in the API doc §11 await a glance. Not built yet. T5
+  (purchase orders and receiving) comes after T9; `modules/purchasing` is a stub.
+
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
