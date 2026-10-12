@@ -19,3 +19,10 @@ Design: [reports-audit-data-model-and-api.md](reports-audit-data-model-and-api.m
 | T9.11 | **Close-out.** R3 query plans on a seeded volume; as-built notes and deviations; `phase-status.md`. | Full gate green: lint, typecheck, vitest, `next build`, Playwright. |
 
 Order: T9.1 → T9.2 → T9.3–T9.5 (any order) → T9.6 → T9.7 → T9.8–T9.10 → T9.11.
+
+## Status (2026-10-12)
+
+All of T9.1–T9.11 are built on `phase-9/reports`. Deviations from the design are marked *As built* in
+[reports-audit-data-model-and-api.md](reports-audit-data-model-and-api.md) (shifts report as one set-based query,
+totals summed from the grouped rows) and in [reports-audit-ux-and-tests.md](reports-audit-ux-and-tests.md) (audit
+paging by links, E2E as the admin, isolation tests folded into `reports.test.ts`, R3 timings).

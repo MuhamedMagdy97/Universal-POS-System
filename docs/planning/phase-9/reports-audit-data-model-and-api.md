@@ -1,7 +1,8 @@
-# Phase 9 / T9 — Reports and Audit Trail: Data Model and API
+# Phase 9 / T9 — Reports and Audit Trail: Data Model and API (as built)
 
 Parent: [reports-audit-spec.md](reports-audit-spec.md). Decisions P1–P13 are approved (2026-10-12). Items marked
-**(new)** are design choices made here that the spec left open; they are listed again in §11 for the owner.
+**(new)** are design choices made here that the spec left open; they are listed in §11 and were accepted by the owner
+(2026-10-12). *As built* notes mark where the build differs from the first draft of this document.
 
 ## 1. Data model
 
@@ -82,17 +83,20 @@ Rules per report:
   without a category go to one "Uncategorized" row (`categoryId: null`). A child category is its own row; no roll-up to
   the parent.
 - **cashiers:** `averageMinor = round(grossMinor / salesCount)`, half up. Refunds are by `Refund.processedById`.
-- **shifts:** **(new)** a shift is in range by the local day of `openedAt`. The cash breakdown reuses
-  `cashBreakdown()` from `modules/registers/shifts.ts` (exported for this, no logic copied), so a closed shift's
-  `expectedCashMinor` here equals the stored one (acceptance #1; tested). An open shift shows its live expected cash and
-  `null` counted and discrepancy.
+- **shifts:** **(new)** a shift is in range by the local day of `openedAt`. *As built:* the cash terms are the
+  close's formula (`cashBreakdown()` in `modules/registers/shifts.ts`) written as one set-based query, not a call to
+  `cashBreakdown()` per shift (that would be four queries per shift over a year). A closed shift reports its stored
+  `expectedCashMinor`; an open one its live figure with `null` counted and discrepancy. Tests pin both to the registers
+  module: the closed shift's terms add up to the stored expected cash, and the open shift equals `previewShiftCash`.
 - **refunds-voids:** voids by `voidedAt`, refunds by `createdAt`. `reference` is the manual slip or wallet id already
   stored; never card data.
 - **vat:** refunds use the rate of the sale line they refund (`RefundItem → SaleItem.vatRateBp`). **(new)** Rate 0 is
   one row labelled "0% (zero-rated or exempt)": sale lines do not snapshot the VAT category, so the two cannot be told
   apart. `netVatMinor = vatSalesMinor − vatRefundsMinor`.
 
-Totals: one `totals` object with the column sums over **all** rows, computed in SQL, even when `rows` is truncated.
+Totals: one `totals` object with the column sums over **all** rows, even when `rows` is truncated. *As built:* SQL
+returns every grouped row and the totals are exact integer sums of them (`sum` in `lib/money.ts`). Averages, opening
+cash, expected and counted cash are not totalled.
 
 **Row cap (new).** JSON returns at most 500 rows (`truncated: true` beyond that). CSV returns every row. Only
 `products`, `refunds-voids` and `shifts` can reach the cap in practice.
@@ -147,15 +151,23 @@ Both are GET only and have no side effects other than the export audit row.
 ## 9. Module layout
 
     modules/reports/
-      index.ts         public API: getReport, listAuditEvents, getDashboardTiles, REPORT_NAMES
-      timezone.ts      country → IANA zone, local-date parsing and range checks
+      index.ts         public API: getReport, exportReportCsv, listAuditEvents, getDashboardTiles, …
+      service.ts       runs a report, totals, CSV export, dashboard tiles
+      queries.ts       the eight reports, one or two $queryRaw each
+      sql.ts           local-day and range fragments, scope filter, bigint → number
+      columns.ts       visible columns per report, shared by the screen and CSV
+      timezone.ts      country → IANA zone, local-date parsing, range rules, quick picks
       access.ts        reports.view / users.manage checks, branch scope → branch id list
-      queries/*.ts     one file per report: a single $queryRaw with Prisma.sql fragments
-      audit-trail.ts   cursor paging and filters
+      audit-trail.ts   audit filters, cursor paging, CSV
       csv.ts           pure CSV writer (BOM, quoting, injection guard)
-      schemas.ts       zod for query strings
+      schemas.ts       zod for query strings, audit cursor
 
-`modules/registers` exports `cashBreakdown` for the shifts report; reports never write.
+Reports never write, except the denial and export audit rows.
+
+**Testing note.** Sales, refunds and payments are append-only and closed shifts immutable (database triggers). The
+report fixture (`tests/integration/reports-fixture.ts`) builds its history through the real services and then moves
+rows to fixed times in one transaction with `session_replication_role = replica`. That needs a superuser connection,
+which the local and CI test databases have.
 
 ## 10. Dashboard tiles (P11)
 
@@ -163,7 +175,7 @@ Both are GET only and have no side effects other than the export audit row.
 (`grossMinor − refundsMinor`), sales count, refunds total, open shifts count. Users without `reports.view` keep the
 current greeting.
 
-## 11. New choices for the owner to check
+## 11. New choices (accepted by the owner, 2026-10-12)
 
 1. Product names and categories in reports are the current catalog ones, not the names at sale time.
 2. 0% VAT is one row: zero-rated and exempt are not split (no snapshot). A split needs `vatCategory` on `SaleItem`
