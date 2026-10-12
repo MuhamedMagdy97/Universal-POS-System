@@ -220,13 +220,14 @@ export type CashBreakdown = {
   payInMinor: number;
   payOutMinor: number;
   dropMinor: number;
+  cashRefundsMinor: number;
   expectedCashMinor: number;
 };
 
 /**
  * Expected drawer cash: opening float + applied cash on completed sales (change is excluded,
- * since a CASH payment row holds the applied amount) + pay-ins − pay-outs − drops.
- * Cash refunds (T8) will add a negative term here.
+ * since a CASH payment row holds the applied amount) + pay-ins − pay-outs − drops − cash refunds
+ * booked on this shift (T8, returns-void-spec.md V12). A voided sale drops out through its status.
  */
 async function cashBreakdown(
   tx: Tx,
@@ -243,18 +244,24 @@ async function cashBreakdown(
     where: { orgId, shiftId },
     _sum: { amountMinor: true },
   });
+  const cashRefunds = await tx.refund.aggregate({
+    where: { orgId, shiftId, method: "CASH" },
+    _sum: { totalMinor: true },
+  });
   const moved = (type: string) => moves.find((move) => move.type === type)?._sum.amountMinor ?? 0;
   const cashSalesMinor = cashSales._sum.amountMinor ?? 0;
   const payInMinor = moved("PAY_IN");
   const payOutMinor = moved("PAY_OUT");
   const dropMinor = moved("DROP");
+  const cashRefundsMinor = cashRefunds._sum.totalMinor ?? 0;
   return {
     openingFloatMinor,
     cashSalesMinor,
     payInMinor,
     payOutMinor,
     dropMinor,
-    expectedCashMinor: openingFloatMinor + cashSalesMinor + payInMinor - payOutMinor - dropMinor,
+    cashRefundsMinor,
+    expectedCashMinor: openingFloatMinor + cashSalesMinor + payInMinor - payOutMinor - dropMinor - cashRefundsMinor,
   };
 }
 

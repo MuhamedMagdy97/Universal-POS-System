@@ -7,7 +7,11 @@ import * as sales from "@/app/api/sales/route";
 import * as shifts from "@/app/api/shifts/open/route";
 import * as close from "@/app/api/shifts/[shiftId]/close/route";
 import * as movements from "@/app/api/shifts/[shiftId]/cash-movements/route";
+import * as refunds from "@/app/api/sales/[saleId]/refunds/route";
+import * as voids from "@/app/api/sales/[saleId]/void/route";
 import * as inventory from "@/modules/inventory";
+import { openShift } from "@/modules/registers";
+import { createSale } from "@/modules/sales";
 import { createMember, createProduct, createTenant, expectReconciled, testDb } from "./helpers";
 
 /**
@@ -255,5 +259,124 @@ describe("shift close routes", () => {
       409,
       "CONFLICT",
     );
+  });
+});
+
+describe("refund and void routes", () => {
+  let managerA: string;
+  let saleId: string;
+  let saleItemId: string;
+  let otherOrgSaleId: string;
+
+  /** A fresh register with an open shift and one cash sale of 2 units, so these tests never meet the others. */
+  async function seedSale(tenant: typeof a) {
+    const cashier = await createMember(db, tenant.org.id, "CASHIER");
+    const admin = await createMember(db, tenant.org.id, "ADMIN");
+    const product = await createProduct(db, tenant.org.id);
+    await inventory.recordOpeningBalances(admin, {
+      branchId: tenant.branchA.id,
+      lines: [{ ref: { productId: product.id, variantId: null }, qty: 10 }],
+    });
+    const register = await db.register.create({
+      data: { orgId: tenant.org.id, branchId: tenant.branchA.id, name: `Refund Till ${randomUUID().slice(0, 8)}` },
+    });
+    await openShift(cashier, { branchId: tenant.branchA.id, registerId: register.id, openingFloatMinor: 0 });
+    const { sale } = await createSale(
+      cashier,
+      {
+        branchId: tenant.branchA.id,
+        registerId: register.id,
+        lines: [{ ref: { productId: product.id, variantId: null }, qty: 2 }],
+        payments: [{ method: "CASH", amountMinor: 2000 }],
+      },
+      `seed-${randomUUID()}`,
+    );
+    return sale.id;
+  }
+
+  beforeAll(async () => {
+    managerA = await sessionFor(a.org.id, "MANAGER");
+    saleId = await seedSale(a);
+    saleItemId = (await db.saleItem.findFirstOrThrow({ where: { saleId } })).id;
+    otherOrgSaleId = await seedSale(b);
+  });
+
+  type Post = { cookie?: string; body?: unknown; key?: string };
+  const post = (handler: Handler, id: string, path: string, opts: Post) => {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (opts.cookie) headers.cookie = opts.cookie;
+    if (opts.key) headers["idempotency-key"] = opts.key;
+    return handler(
+      new Request(`${BASE}/api/sales/${id}/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(opts.body ?? {}),
+      }),
+      { params: Promise.resolve({ saleId: id }) },
+    );
+  };
+  const refundBody = (qty = 1) => ({ lines: [{ saleItemId, qty }], method: "CASH", reason: "Route test" });
+
+  it("answer 401 without a session and 403 without the permission", async () => {
+    await expectEnvelope(await post(refunds.POST, saleId, "refunds", { body: refundBody(), key: "r-401" }), 401);
+    await expectEnvelope(await post(voids.POST, saleId, "void", { body: { reason: "x" } }), 401);
+    // A cashier holds neither sales.refund nor sales.void (V1, V2).
+    await expectEnvelope(
+      await post(refunds.POST, saleId, "refunds", { cookie: cashierA, body: refundBody(), key: "r-403" }),
+      403,
+    );
+    await expectEnvelope(await post(voids.POST, saleId, "void", { cookie: cashierA, body: { reason: "x" } }), 403);
+  });
+
+  it("answer 404 for a malformed id, an unknown id and another org's sale", async () => {
+    const ids = ["not-a-uuid", randomUUID(), otherOrgSaleId];
+    for (const id of ids) {
+      await expectEnvelope(
+        await post(refunds.POST, id, "refunds", { cookie: managerA, body: refundBody(), key: `r-${randomUUID()}` }),
+        404,
+      );
+      await expectEnvelope(await post(voids.POST, id, "void", { cookie: managerA, body: { reason: "x" } }), 404);
+    }
+  });
+
+  it("answers 422 when the Idempotency-Key header is missing", async () => {
+    await expectEnvelope(
+      await post(refunds.POST, saleId, "refunds", { cookie: managerA, body: refundBody() }),
+      422,
+      "VALIDATION_FAILED",
+    );
+  });
+
+  it("refunds (201), replays (200), refuses the key with another body (409), then over-refunds (409)", async () => {
+    const key = `r-${randomUUID()}`;
+    const first = await post(refunds.POST, saleId, "refunds", { cookie: managerA, body: refundBody(), key });
+    expect(first.status).toBe(201);
+    expect(first.headers.get("cache-control")).toBe("no-store");
+    const created = (await first.json()) as { id: string; totalMinor: number };
+    expect(created.totalMinor).toBe(1000);
+
+    const replay = await post(refunds.POST, saleId, "refunds", { cookie: managerA, body: refundBody(), key });
+    expect(replay.status).toBe(200);
+    expect(((await replay.json()) as { id: string }).id).toBe(created.id);
+
+    await expectEnvelope(
+      await post(refunds.POST, saleId, "refunds", { cookie: managerA, body: refundBody(2), key }),
+      409,
+      "IDEMPOTENCY_CONFLICT",
+    );
+    const over = await expectEnvelope(
+      await post(refunds.POST, saleId, "refunds", { cookie: managerA, body: refundBody(2), key: `r-${randomUUID()}` }),
+      409,
+      "CONFLICT",
+    );
+    expect(over.details).toMatchObject({ reason: "REFUND_QTY_EXCEEDED" });
+
+    // The sale now has a refund, so a void is refused.
+    const refused = await expectEnvelope(
+      await post(voids.POST, saleId, "void", { cookie: managerA, body: { reason: "Too late" } }),
+      409,
+      "CONFLICT",
+    );
+    expect(refused.details).toMatchObject({ reason: "SALE_HAS_REFUNDS" });
   });
 });

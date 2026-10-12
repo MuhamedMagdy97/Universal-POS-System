@@ -73,6 +73,33 @@ export const CloseShiftInput = z
   .strict();
 export type CloseShiftInput = z.infer<typeof CloseShiftInput>;
 
+/** A refund of some lines of a completed sale (T8, returns-void-spec.md V3–V5). Quantities are per sale line. */
+export const RefundInput = z
+  .object({
+    lines: z
+      .array(z.object({ saleItemId: Uuid, qty: Qty }).strict())
+      .min(1)
+      .max(200)
+      .refine((lines) => new Set(lines.map((line) => line.saleItemId)).size === lines.length, {
+        message: "Each sale line may appear once",
+      }),
+    method: z.enum(PAY_METHOD_VALUES),
+    reference: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .nullish()
+      .transform((value) => value ?? null),
+    reason: z.string().trim().min(1).max(200),
+  })
+  .strict();
+export type RefundInput = z.infer<typeof RefundInput>;
+
+/** A void of a whole sale (T8, V7). The reason is kept on the sale and in the audit row. */
+export const VoidInput = z.object({ reason: z.string().trim().min(1).max(200) }).strict();
+export type VoidInput = z.infer<typeof VoidInput>;
+
 /** Cash pay-in, pay-out or drop during a shift (T7 spec S5). Amounts are always positive. */
 export const CashMovementInput = z
   .object({

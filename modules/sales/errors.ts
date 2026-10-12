@@ -6,7 +6,14 @@ import { AppError } from "@/lib/errors";
  */
 
 export type SalesConflictReason =
-  "SHIFT_NOT_OPEN" | "SHIFT_ALREADY_OPEN" | "SHIFT_ALREADY_CLOSED" | "IDEMPOTENCY_CONFLICT";
+  | "SHIFT_NOT_OPEN"
+  | "SHIFT_ALREADY_OPEN"
+  | "SHIFT_ALREADY_CLOSED"
+  | "IDEMPOTENCY_CONFLICT"
+  | "REFUND_QTY_EXCEEDED"
+  | "SALE_NOT_COMPLETED"
+  | "SALE_HAS_REFUNDS"
+  | "VOID_SHIFT_CLOSED";
 
 export function salesConflict(reason: SalesConflictReason, message: string, details: Record<string, unknown> = {}) {
   return new AppError(reason === "IDEMPOTENCY_CONFLICT" ? "IDEMPOTENCY_CONFLICT" : "CONFLICT", message, {
