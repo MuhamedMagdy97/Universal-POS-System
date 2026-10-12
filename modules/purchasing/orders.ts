@@ -169,7 +169,7 @@ export async function createPurchaseOrder(
   const parsed = PoInput.parse(input);
   if (!(await branchIdsInScope(ctx)).includes(parsed.branchId)) throw notFound("Branch");
 
-  return getDb().$transaction(async (tx) => {
+  const savedId = await getDb().$transaction(async (tx) => {
     await requireActiveSupplier(tx, ctx.orgId, parsed.supplierId);
     const lines = await prepareLines(tx, ctx.orgId, parsed.lines);
     // Org row lock + counter bump: numbers are gap-free because a rollback gives the number back (P7).
@@ -201,8 +201,10 @@ export async function createPurchaseOrder(
         lineCount: lines.length,
       },
     });
-    return loadPurchaseOrder(tx, ctx.orgId, po.id);
+    return po.id;
   });
+  // Read after commit: nested includes inside a transaction run concurrently on its one connection.
+  return loadPurchaseOrder(getDb(), ctx.orgId, savedId);
 }
 
 export async function updatePurchaseOrder(
@@ -215,7 +217,7 @@ export async function updatePurchaseOrder(
   const id = parseId(poId);
   const patch = PoPatch.parse(input);
 
-  return getDb().$transaction(async (tx) => {
+  const savedId = await getDb().$transaction(async (tx) => {
     const po = await lockPo(tx, ctx, id);
     if (!canEdit(po)) {
       throw purchasingConflict("PO_NOT_EDITABLE", "This purchase order can no longer be edited", { status: po.status });
@@ -249,8 +251,9 @@ export async function updatePurchaseOrder(
         metadata: { number: po.number, fields },
       });
     }
-    return loadPurchaseOrder(tx, ctx.orgId, id);
+    return id;
   });
+  return loadPurchaseOrder(getDb(), ctx.orgId, savedId);
 }
 
 // ---------- transitions ----------
@@ -273,7 +276,7 @@ async function transition(
         ? CancelInput.parse(input ?? {}).reason
         : null;
 
-  return getDb().$transaction(async (tx) => {
+  const savedId = await getDb().$transaction(async (tx) => {
     const po = await lockPo(tx, ctx, id);
     const allowed = kind === "order" ? canOrder(po) : kind === "cancel" ? canCancel(po) : canClose(po);
     if (!allowed) {
@@ -311,8 +314,9 @@ async function transition(
         ...(kind === "close" ? { unitsDropped: po.items.reduce((total, item) => total + outstanding(item), 0) } : {}),
       },
     });
-    return loadPurchaseOrder(tx, ctx.orgId, id);
+    return id;
   });
+  return loadPurchaseOrder(getDb(), ctx.orgId, savedId);
 }
 
 export function orderPurchaseOrder(ctx: TenantContext, poId: string, meta?: AuditRequestMeta) {

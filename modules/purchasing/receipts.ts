@@ -46,7 +46,11 @@ export async function receivePurchaseOrder(
   if (replayed) return replayed;
 
   try {
-    return await db.$transaction((tx) => writeReceipt(tx, ctx, id, parsed, idempotencyKey, requestHash, meta));
+    const { receiptId, purchaseOrderId } = await db.$transaction((tx) =>
+      writeReceipt(tx, ctx, id, parsed, idempotencyKey, requestHash, meta),
+    );
+    // Read after commit: nested includes inside a transaction run concurrently on its one connection.
+    return { po: await loadPurchaseOrder(db, ctx.orgId, purchaseOrderId), receiptId, created: true };
   } catch (err) {
     // A concurrent request with the same key won the unique index; our transaction rolled back.
     if (!isUniqueViolation(err)) throw err;
@@ -85,7 +89,7 @@ async function writeReceipt(
   idempotencyKey: string,
   requestHash: string,
   meta: AuditRequestMeta | undefined,
-): Promise<ReceiveResult> {
+): Promise<{ receiptId: string; purchaseOrderId: string }> {
   const po = await lockPo(tx, ctx, poId);
   if (!canReceive(po)) {
     throw purchasingConflict("PO_NOT_RECEIVABLE", "This purchase order cannot be received now", { status: po.status });
@@ -180,5 +184,5 @@ async function writeReceipt(
     },
   });
 
-  return { po: await loadPurchaseOrder(tx, ctx.orgId, po.id), receiptId, created: true };
+  return { receiptId, purchaseOrderId: po.id };
 }

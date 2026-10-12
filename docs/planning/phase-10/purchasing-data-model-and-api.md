@@ -116,3 +116,28 @@ Added to `REPORT_NAMES` and `REPORT_COLUMNS`. Rows: local day of `receivedAt`, s
 (Σ qty) and value (Σ qty × unit cost), over the branches in scope, sorted by day then supplier. Access needs
 `reports.view` and `purchases.manage` (P5); a missing grant answers 403 with `reports.permission.denied`. The report is
 hidden from the picker for users who cannot run it.
+
+## 7. As built (2026-10-12)
+
+Built on `phase-10/purchasing` as designed (T5.1–T5.9). Deviations and details worth knowing:
+
+- **PO detail read after commit.** Create, edit, transitions and receiving return the PO read *after* their
+  transaction commits. Reading it inside the transaction made Prisma run the nested includes concurrently on the
+  transaction's single connection, which `pg` flags as deprecated (it breaks in pg 9).
+- **Report access.** `requireAccess` takes the report name. A user with `reports.view` but not `purchases.manage` is
+  refused the purchases report with 403 before any branch check (audited with `permission: "purchases.manage"`). The
+  existing R5 scope test skips this report for the branch-limited manager.
+- **Read denials are audited too.** A cashier listing suppliers or POs writes `purchasing.permission.denied`, the same
+  as a refused write.
+- **Supplier list** is capped at 500 rows, sorted by name (no paging; small shops).
+- **Item names on a PO** come from the product and variant rows (`catalog.itemNames`), not from the variant-rule seam,
+  so a PO still renders if its product later gains variants.
+- **Receive form state.** With Cache Components, Next keeps a visited route's client state. The receive form is keyed
+  by the outstanding quantities, so the second visit starts fresh (new quantities, new Idempotency-Key) instead of
+  showing the previous receipt's numbers. Found by the E2E test.
+- **Audit trail.** The new actions and the `Supplier`, `PurchaseOrder` and `GoodsReceipt` entity types are in the
+  `/audit` filters, with EN/AR labels.
+- **Tests.** Unit: `purchasing-rules`, `purchasing-screen-helpers`, `permissions`. Integration: `purchasing`
+  (suppliers, POs, receiving, idempotency, the parallel-receipt race, scope and isolation), `purchasing-routes`,
+  `purchasing-report` (Cairo day boundary), `purchasing-constraints`. E2E: `purchasing.spec.ts` (admin orders, manager
+  receives in two parts, stock and cost follow; cashier refused; Arabic RTL).

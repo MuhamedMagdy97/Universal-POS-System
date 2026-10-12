@@ -61,7 +61,9 @@ async function PoContent({ params, searchParams }: Props) {
         <h1 className="text-2xl font-semibold" dir="ltr">
           {po.number}
         </h1>
-        <StatusBadge locale={locale} status={po.status} />
+        <span data-testid="po-status">
+          <StatusBadge locale={locale} status={po.status} />
+        </span>
       </div>
       {query.received ? <p role="status">{tr("purchasing.receive.done")}</p> : null}
 

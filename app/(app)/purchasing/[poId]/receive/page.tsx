@@ -49,6 +49,9 @@ async function ReceiveContent({ params }: Props) {
       </p>
       {receivable ? (
         <ReceiveForm
+          // Next keeps a visited route's client state; a new outstanding amount must start a fresh form
+          // (fresh quantities and a fresh Idempotency-Key), not the one from the last receipt.
+          key={open.map((line) => `${line.id}:${line.outstanding}`).join(",")}
           locale={locale}
           currency={currency}
           poId={po.id}

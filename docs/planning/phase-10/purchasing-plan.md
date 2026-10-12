@@ -17,3 +17,8 @@ own. Design: [purchasing-data-model-and-api.md](purchasing-data-model-and-api.md
 | T5.9 | **E2E and close-out:** `purchasing.spec.ts`; as-built notes; `phase-status.md`, roadmap. | Full gate green: lint, typecheck, vitest, `next build`, Playwright. |
 
 Order: T5.1 → T5.2 → T5.3 → T5.4 → T5.5 → T5.6 → T5.7 → T5.8 → T5.9.
+
+## Status (2026-10-12)
+
+All of T5.1–T5.9 are built on `phase-10/purchasing`. Deviations are in
+[purchasing-data-model-and-api.md §7](purchasing-data-model-and-api.md).

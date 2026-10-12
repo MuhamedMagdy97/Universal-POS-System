@@ -46,7 +46,16 @@
   stored shift close; 100 000 sales over a year answer in ≤ 300 ms per report. Deviations are in
   [data model and API](phase-9/reports-audit-data-model-and-api.md) and [screens and tests](phase-9/reports-audit-ux-and-tests.md).
   Not built: profit and margin (needs a cost snapshot, P12), purchase reports (T5), a 0% VAT split into zero-rated and
-  exempt (needs a VAT category snapshot). T5 (purchase orders and receiving) comes next; `modules/purchasing` is a stub.
+  exempt (needs a VAT category snapshot).
+
+- Phase 10 / T5: purchasing. Spec approved by the owner (2026-10-12; roles, last cost, receiving rules, edits and
+  report as recommended, remaining choices as recommended): [phase-10/purchasing-spec.md](phase-10/purchasing-spec.md).
+  BUILT on `phase-10/purchasing` (2026-10-12): suppliers, purchase orders (draft, ordered, partly received, received,
+  cancelled, closed short), idempotent receiving that adds stock through the ledger and sets last cost through a new
+  catalog seam in one transaction, `purchases.manage` (Owner, Admin) and `purchases.receive` (plus Manager), a
+  Purchases received report, and the `/purchasing` screens in EN/AR. One migration (`purchasing`). Deviations are in
+  [data model and API §7](phase-10/purchasing-data-model-and-api.md). Not built: purchase returns, supplier payments,
+  input VAT, receiving without a PO, PO printing (T10).
 
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
