@@ -109,6 +109,14 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("vatRefundsMinor", "reports.col.vatRefunds", "money"),
     c("netVatMinor", "reports.col.netVat", "money"),
   ],
+  // Purchases received (T5 P5): cost values, so purchases.manage is needed too.
+  purchases: [
+    c("day", "reports.col.day", "day"),
+    c("supplierName", "reports.col.supplier", "text"),
+    c("receiptsCount", "reports.col.receipts", "int"),
+    c("units", "reports.col.units", "int"),
+    c("valueMinor", "reports.col.purchaseValue", "money"),
+  ],
 };
 
 /** 1400 → "14%", 1250 → "12.5%". Integer math only. */

@@ -9,6 +9,7 @@ import { translator, type Locale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import {
   branchesInScope,
+  canRunReport,
   getReport,
   QUICK_RANGES,
   quickRange,
@@ -66,7 +67,10 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
   }
   if (!hasPermission(ctx.role, "reports.view")) return <Denied locale={locale} />;
 
-  const report = toReportName(one(params.report));
+  const asked = toReportName(one(params.report));
+  // A report the role cannot run (purchases without purchases.manage) falls back to the default.
+  const report = canRunReport(ctx, asked) ? asked : toReportName(undefined);
+  const names = REPORT_NAMES.filter((name) => canRunReport(ctx, name));
   const branch = one(params.branch);
   const [branches, settings] = await Promise.all([branchesInScope(ctx), reportSettings(ctx.orgId)]);
   const quick = toQuickRange(one(params.range));
@@ -97,7 +101,7 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
       </div>
 
       <nav aria-label={tr("reports.picker")} className="flex flex-wrap gap-2">
-        {REPORT_NAMES.map((name) => (
+        {names.map((name) => (
           <Link
             key={name}
             href={reportHref({ report: name, branch, from, to })}
