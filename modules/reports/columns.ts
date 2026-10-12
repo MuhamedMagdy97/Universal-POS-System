@@ -1,0 +1,130 @@
+import type { MessageKey } from "@/lib/i18n";
+import type { ReportName } from "./schemas";
+
+/**
+ * Visible columns per report, shared by the screen and the CSV export. Pure, so client
+ * components can import it. `kind` drives formatting and whether the column is totalled.
+ */
+
+export type ColumnKind =
+  | "text"
+  | "name" // localized: `name` / `nameAr`
+  | "int"
+  | "money"
+  | "day"
+  | "datetime"
+  | "method"
+  | "rate"
+  | "status"
+  | "kind";
+
+/** Column headers are `reports.col.*` keys, none of which take placeholders. */
+export type ColumnLabel = Extract<MessageKey, `reports.col.${string}`>;
+
+export type Column = { key: string; label: ColumnLabel; kind: ColumnKind };
+
+const c = (key: string, label: ColumnLabel, kind: ColumnKind): Column => ({ key, label, kind });
+
+export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
+  "sales-summary": [
+    c("day", "reports.col.day", "day"),
+    c("salesCount", "reports.col.salesCount", "int"),
+    c("grossMinor", "reports.col.gross", "money"),
+    c("vatMinor", "reports.col.vat", "money"),
+    c("netMinor", "reports.col.net", "money"),
+    c("refundsCount", "reports.col.refundsCount", "int"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+    c("voidsCount", "reports.col.voidsCount", "int"),
+    c("voidsMinor", "reports.col.voids", "money"),
+    c("netAfterRefundsMinor", "reports.col.netAfterRefunds", "money"),
+  ],
+  payments: [
+    c("method", "reports.col.method", "method"),
+    c("salesCount", "reports.col.salesCount", "int"),
+    c("salesMinor", "reports.col.sales", "money"),
+    c("refundsCount", "reports.col.refundsCount", "int"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+    c("netMinor", "reports.col.netReceived", "money"),
+  ],
+  products: [
+    c("sku", "reports.col.sku", "text"),
+    c("name", "reports.col.product", "name"),
+    c("qtySold", "reports.col.qtySold", "int"),
+    c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+    c("grossMinor", "reports.col.sales", "money"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+    c("netMinor", "reports.col.netRevenue", "money"),
+  ],
+  categories: [
+    c("name", "reports.col.category", "name"),
+    c("qtySold", "reports.col.qtySold", "int"),
+    c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+    c("grossMinor", "reports.col.sales", "money"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+    c("netMinor", "reports.col.netRevenue", "money"),
+  ],
+  cashiers: [
+    c("name", "reports.col.cashier", "text"),
+    c("salesCount", "reports.col.salesCount", "int"),
+    c("grossMinor", "reports.col.sales", "money"),
+    c("averageMinor", "reports.col.average", "money"),
+    c("refundsCount", "reports.col.refundsCount", "int"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+  ],
+  shifts: [
+    c("registerName", "reports.col.register", "text"),
+    c("status", "reports.col.status", "status"),
+    c("openedAt", "reports.col.openedAt", "datetime"),
+    c("openedBy", "reports.col.openedBy", "text"),
+    c("closedAt", "reports.col.closedAt", "datetime"),
+    c("closedBy", "reports.col.closedBy", "text"),
+    c("openingFloatMinor", "reports.col.openingFloat", "money"),
+    c("cashSalesMinor", "reports.col.cashSales", "money"),
+    c("payInMinor", "reports.col.payIn", "money"),
+    c("payOutMinor", "reports.col.payOut", "money"),
+    c("dropMinor", "reports.col.drops", "money"),
+    c("cashRefundsMinor", "reports.col.cashRefunds", "money"),
+    c("expectedCashMinor", "reports.col.expectedCash", "money"),
+    c("countedCashMinor", "reports.col.countedCash", "money"),
+    c("discrepancyMinor", "reports.col.discrepancy", "money"),
+    c("discrepancyNote", "reports.col.note", "text"),
+  ],
+  "refunds-voids": [
+    c("kind", "reports.col.kind", "kind"),
+    c("at", "reports.col.time", "datetime"),
+    c("saleNumber", "reports.col.saleNumber", "text"),
+    c("totalMinor", "reports.col.amount", "money"),
+    c("vatMinor", "reports.col.vat", "money"),
+    c("method", "reports.col.method", "method"),
+    c("reference", "reports.col.reference", "text"),
+    c("reason", "reports.col.reason", "text"),
+    c("byName", "reports.col.by", "text"),
+    c("registerName", "reports.col.register", "text"),
+  ],
+  vat: [
+    c("rateBp", "reports.col.rate", "rate"),
+    c("netSalesMinor", "reports.col.netSales", "money"),
+    c("vatSalesMinor", "reports.col.vatSales", "money"),
+    c("netRefundsMinor", "reports.col.netRefunds", "money"),
+    c("vatRefundsMinor", "reports.col.vatRefunds", "money"),
+    c("netVatMinor", "reports.col.netVat", "money"),
+  ],
+};
+
+/** 1400 → "14%", 1250 → "12.5%". Integer math only. */
+export function formatRateBp(rateBp: number): string {
+  const whole = Math.trunc(rateBp / 100);
+  const fraction = String(rateBp % 100)
+    .padStart(2, "0")
+    .replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""}%`;
+}
+
+/** Money and count columns are totalled. Averages and floats are not simple sums. */
+const NOT_TOTALLED = new Set(["averageMinor", "openingFloatMinor", "expectedCashMinor", "countedCashMinor"]);
+
+export function totalledKeys(report: ReportName): string[] {
+  return REPORT_COLUMNS[report]
+    .filter((col) => (col.kind === "money" || col.kind === "int") && !NOT_TOTALLED.has(col.key))
+    .map((col) => col.key);
+}

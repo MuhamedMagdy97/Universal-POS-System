@@ -39,6 +39,15 @@
   (`requestHash`, `reference` on `Refund`). Back-office Returns screen (`/returns`) for Owner and Manager; refunds pay out from a chosen till; Managers can work a till. Deviations (void replays by state, VAT share per line, voids refused after refunds, zero-total refunds refused) are in
   [phase-8/returns-void-data-model-and-api.md](phase-8/returns-void-data-model-and-api.md).
 
+- Phase 9 / T9: reports and audit trail. Spec approved by the owner (2026-10-12), all decisions and the six design
+  choices as recommended: [phase-9/reports-audit-spec.md](phase-9/reports-audit-spec.md). BUILT on `phase-9/reports`
+  (2026-10-12): eight reports in the shop's timezone (Cairo or Riyadh) with CSV export, `/reports`, `/audit` (Owner and
+  Admin), dashboard tiles for `reports.view`. No migration. Every report is traced to one seeded history and the
+  stored shift close; 100 000 sales over a year answer in ≤ 300 ms per report. Deviations are in
+  [data model and API](phase-9/reports-audit-data-model-and-api.md) and [screens and tests](phase-9/reports-audit-ux-and-tests.md).
+  Not built: profit and margin (needs a cost snapshot, P12), purchase reports (T5), a 0% VAT split into zero-rated and
+  exempt (needs a VAT category snapshot). T5 (purchase orders and receiving) comes next; `modules/purchasing` is a stub.
+
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
