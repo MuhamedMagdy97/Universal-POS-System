@@ -18,7 +18,7 @@ export {
 } from "./service";
 export { REPORT_COLUMNS, formatRateBp, type Column, type ColumnKind } from "./columns";
 export { REPORT_NAMES, isReportName, ReportQuery, AuditQuery, DENIED_ACTIONS, type ReportName } from "./schemas";
-export { branchesInScope, orgSettings as reportSettings, type ReportBranch } from "./access";
+export { canRunReport, branchesInScope, orgSettings as reportSettings, type ReportBranch } from "./access";
 export { csvResponse } from "./csv";
 export { QUICK_RANGES, quickRange, todayIn, formatLocalDateTime, type QuickRange, type LocalRange } from "./timezone";
 export {

@@ -40,6 +40,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   shifts: q.shifts,
   "refunds-voids": q.refundsVoids,
   vat: q.vat,
+  purchases: q.purchases,
 };
 
 function totalsOf(report: ReportName, rows: ReportRow[]): Record<string, number> {
@@ -54,7 +55,7 @@ type FullReport = Omit<ReportResult, "truncated">;
 
 async function runReport(ctx: TenantContext, name: string, rawQuery: unknown, meta?: AuditRequestMeta) {
   if (!isReportName(name)) throw notFound("Report");
-  await requireAccess(ctx, "reports", `report.${name}`, meta);
+  await requireAccess(ctx, "reports", `report.${name}`, meta, name);
   const query = ReportQuery.parse(rawQuery);
   const branchIds = await resolveBranchIds(ctx, query.branchId);
   const { zone, currency } = await orgSettings(ctx.orgId);

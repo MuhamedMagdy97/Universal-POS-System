@@ -8,6 +8,6 @@
 - [x] 5 — Foundation (built: Node 22, scaffold, Prisma migrate, auth+tenant guards).
 - [x] 6 — Catalog (built 2026-10-11; e2e in progress).
 - [x] 7 — Inventory (built 2026-10-11; ledger, balances, opening, adjustments, instant transfers; see phase-7/inventory-as-built.md).
-- [ ] 8–11 — Checkout, registers, returns/purchasing, reports.
+- [x] 8–11 — Checkout, registers, returns, reports (T6–T9) and purchasing (T5, phase-10/purchasing-spec.md).
 - [ ] 12 — Validated industry module (evidence-gated, one at a time).
 - [ ] 13 — Hardening & integrations. 14 — Release readiness.

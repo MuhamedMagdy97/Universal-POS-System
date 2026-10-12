@@ -438,3 +438,39 @@ export async function refundsVoids(scope: ReportScope): Promise<RefundsVoidsRow[
 export async function openShiftCount(orgId: string, branchIds: string[]): Promise<number> {
   return getDb().registerShift.count({ where: { orgId, branchId: { in: branchIds }, status: "OPEN" } });
 }
+
+// ---------- purchases (T5 P5) ----------
+
+export type PurchasesRow = {
+  day: string;
+  supplierId: string;
+  supplierName: string;
+  receiptsCount: number;
+  units: number;
+  valueMinor: number;
+};
+
+/** Goods received per local day and supplier: receipts, units and value at the received unit cost. */
+export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
+  const rows = await getDb().$queryRaw<
+    { day: string; supplierId: string; supplierName: string; n: Big; units: Big; value: Big }[]
+  >`
+    SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, s."id"::text AS "supplierId", s."name" AS "supplierName",
+           COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
+           SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS value
+    FROM "GoodsReceipt" g
+    JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
+    JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
+    JOIN "Supplier" s ON s."orgId" = p."orgId" AND s."id" = p."supplierId"
+    WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
+    GROUP BY 1, s."id", s."name"
+    ORDER BY 1, s."name", s."id"`;
+  return rows.map((row) => ({
+    day: row.day,
+    supplierId: row.supplierId,
+    supplierName: row.supplierName,
+    receiptsCount: num(row.n),
+    units: num(row.units),
+    valueMinor: num(row.value),
+  }));
+}

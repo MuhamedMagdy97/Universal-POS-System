@@ -217,7 +217,8 @@ describe("refunds and voids", () => {
 describe("scope", () => {
   it("never shows a branch-limited manager another branch's numbers (R5)", async () => {
     const scoped = await createScopedMember(db, f.orgId, "MANAGER", [f.branchA]);
-    for (const report of REPORT_NAMES) {
+    // Purchases needs purchases.manage, so a manager is refused before any branch check (T5 P5).
+    for (const report of REPORT_NAMES.filter((name) => name !== "purchases")) {
       await expectAppError(getReport(scoped, report, { branchId: f.branchB, from: DAY, to: DAY }), 404);
     }
     const mine = await getReport(scoped, "sales-summary", { from: DAY, to: DAY });

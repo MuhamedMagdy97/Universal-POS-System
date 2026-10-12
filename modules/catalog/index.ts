@@ -51,6 +51,8 @@ export {
   lockProducts,
   type CatalogClient,
 } from "./seam";
-export type { ItemRefViolation } from "./sellable";
+// Purchasing writes last cost through this seam (T5 P2); tx-aware, no permission check.
+export { applyReceivedCosts } from "./costs";
+export { itemNames, type ItemRefViolation } from "./sellable";
 export type { CatalogConflictReason, CatalogValidationReason } from "./errors";
 export { MAX_CATEGORY_DEPTH, type CatalogWarning } from "./rules";

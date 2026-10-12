@@ -11,6 +11,7 @@ export const REPORT_NAMES = [
   "shifts",
   "refunds-voids",
   "vat",
+  "purchases",
 ] as const;
 export type ReportName = (typeof REPORT_NAMES)[number];
 

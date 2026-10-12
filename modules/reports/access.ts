@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { forbidden, notFound } from "@/lib/errors";
 import type { CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
+import type { ReportName } from "./schemas";
 import { zoneFor } from "./timezone";
 
 /**
@@ -17,8 +18,24 @@ type Area = "reports" | "audit";
 
 const PERMISSION_FOR: Record<Area, Permission> = { reports: "reports.view", audit: "users.manage" };
 
-export async function requireAccess(ctx: TenantContext, area: Area, operation: string, meta?: AuditRequestMeta) {
-  const permission = PERMISSION_FOR[area];
+/** Reports that show cost need a second grant on top of reports.view (T5 P5). */
+const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = { purchases: "purchases.manage" };
+
+/** Whether the caller may run `report` (the picker hides the others). */
+export function canRunReport(ctx: Pick<TenantContext, "role">, report: ReportName): boolean {
+  const extra = EXTRA_PERMISSION[report];
+  return hasPermission(ctx.role, "reports.view") && (extra === undefined || hasPermission(ctx.role, extra));
+}
+
+export async function requireAccess(
+  ctx: TenantContext,
+  area: Area,
+  operation: string,
+  meta?: AuditRequestMeta,
+  report?: ReportName,
+) {
+  const extra = report ? EXTRA_PERMISSION[report] : undefined;
+  const permission = extra && hasPermission(ctx.role, PERMISSION_FOR[area]) ? extra : PERMISSION_FOR[area];
   if (hasPermission(ctx.role, permission)) return;
   try {
     await record(getDb(), {

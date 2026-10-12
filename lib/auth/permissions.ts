@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "discounts.override",
   "registers.open",
   "registers.close",
+  "purchases.manage",
   "purchases.receive",
   "reports.view",
   "users.manage",
@@ -37,12 +38,14 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     ...PRODUCTS,
     "inventory.read",
     ...INVENTORY,
+    "purchases.manage",
     "purchases.receive",
     "reports.view",
   ]),
   // products.read lets managers and cashiers search and scan at the POS (catalog Q1).
   // Cost fields stay hidden from them: they require products.update.
   // Managers run a till too (sell, open and close shifts), so they can cover a register and refund at it (T8).
+  // They receive deliveries at their branches but do not raise purchase orders (T5 P1).
   MANAGER: new Set<Permission>([
     "products.read",
     "sales.create",
@@ -53,6 +56,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "sales.void",
     "sales.refund",
     "discounts.override",
+    "purchases.receive",
     "reports.view",
   ]),
   // discounts.apply is granted per cashier later (T6); not part of the default.
