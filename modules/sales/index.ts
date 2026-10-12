@@ -7,6 +7,13 @@
 export { createSale, loadSale, requestHashOf, type CreateSaleResult, type SaleDetail } from "./create";
 export { refundSale, voidSale, loadRefund, type RefundDetail, type RefundResult } from "./refunds";
 export {
+  getSaleForReturns,
+  normalizeSaleNumber,
+  type SaleForReturns,
+  type ReturnLine,
+  type ReturnRefund,
+} from "./returns-view";
+export {
   SaleInput,
   IdempotencyKey,
   OpenShiftInput,

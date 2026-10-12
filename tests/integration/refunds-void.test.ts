@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
 import * as inventory from "@/modules/inventory";
-import { createSale, refundSale, voidSale } from "@/modules/sales";
+import { createSale, getSaleForReturns, refundSale, voidSale } from "@/modules/sales";
 import { closeShift, openShift, previewShiftCash } from "@/modules/registers";
 import {
   createMember,
@@ -395,5 +395,64 @@ describe("rounding of refunds", () => {
     );
     expect(await db.refund.count({ where: { orgId, saleId: sale.id } })).toBe(0);
     expect(await onHand(product.id)).toBe(4);
+  });
+});
+
+describe("finding a sale for returns", () => {
+  it("finds a sale by its number however it is typed, with what is left per line", async () => {
+    const { registerId } = await openTill(0);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(registerId, product.id, 3, 3000);
+    const [itemId] = await saleItemIds(sale.id);
+    await refundSale(manager, sale.id, KEY(), {
+      lines: [{ saleItemId: itemId, qty: 1 }],
+      method: "CASH",
+      reason: "One",
+    });
+
+    const unpadded = String(Number(sale.number));
+    const arabic = unpadded.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
+    for (const typed of [sale.number, unpadded, arabic]) {
+      const view = await getSaleForReturns(manager, typed);
+      expect(view.id).toBe(sale.id);
+    }
+
+    const view = await getSaleForReturns(manager, sale.number);
+    expect(view.lines).toEqual([
+      expect.objectContaining({ saleItemId: itemId, qty: 3, refundedQty: 1, refundedAmountMinor: 1000 }),
+    ]);
+    expect(view.refunds).toHaveLength(1);
+    expect(view.registerHasOpenShift).toBe(true);
+    // It has a refund, so it can no longer be voided.
+    expect(view.canVoid).toBe(false);
+  });
+
+  it("offers a void only while the shift is open and before any refund", async () => {
+    const { registerId, shiftId } = await openTill(0);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(registerId, product.id, 1, 1000);
+    expect((await getSaleForReturns(manager, sale.number)).canVoid).toBe(true);
+
+    await closeShift(cashier, shiftId, { countedCashMinor: 1000 });
+    const after = await getSaleForReturns(manager, sale.number);
+    expect(after.canVoid).toBe(false);
+    expect(after.registerHasOpenShift).toBe(false);
+  });
+
+  it("refuses a role without refund or void rights, and answers 404 for a bad or unknown number", async () => {
+    await expectAppError(getSaleForReturns(cashier, "000001"), 403);
+    await expectAppError(getSaleForReturns(manager, "12a"), 404);
+    await expectAppError(getSaleForReturns(manager, "1234567"), 404);
+    await expectAppError(getSaleForReturns(manager, "999999"), 404);
+  });
+
+  it("answers 404 for another organization's sale", async () => {
+    const { registerId } = await openTill(0);
+    const product = await stocked(5, 1000);
+    const sale = await cashSale(registerId, product.id, 1, 1000);
+    const other = await createTenant(db, "Returns Other");
+    const otherManager = await createMember(db, other.org.id, "MANAGER");
+    // Sale numbers are per organization; a new org has no sales, so our number is unknown there.
+    await expectAppError(getSaleForReturns(otherManager, sale.number), 404);
   });
 });
