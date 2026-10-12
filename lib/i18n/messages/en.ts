@@ -314,6 +314,7 @@ export const en = {
   "pos.close.payIn": "Pay-ins",
   "pos.close.payOut": "Pay-outs",
   "pos.close.drop": "Drops",
+  "pos.close.cashRefunds": "Cash refunds",
   "pos.close.expected": "Expected in drawer",
   "pos.close.counted": "Cash counted",
   "pos.close.difference": "Difference",

@@ -312,6 +312,7 @@ export const ar: Messages = {
   "pos.close.payIn": "إيداعات",
   "pos.close.payOut": "مصروفات نقدية",
   "pos.close.drop": "إيداع للخزنة",
+  "pos.close.cashRefunds": "مرتجعات نقدية",
   "pos.close.expected": "المتوقع في الدرج",
   "pos.close.counted": "النقد المعدود",
   "pos.close.difference": "الفرق",

@@ -162,6 +162,10 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
         <dd dir="ltr" className="text-end">
           {money(cash.dropMinor === 0 ? 0 : -cash.dropMinor)}
         </dd>
+        <dt>{tr("pos.close.cashRefunds")}</dt>
+        <dd dir="ltr" className="text-end">
+          {money(cash.cashRefundsMinor === 0 ? 0 : -cash.cashRefundsMinor)}
+        </dd>
         <dt className="font-semibold">{tr("pos.close.expected")}</dt>
         <dd dir="ltr" className="text-end font-semibold" data-testid="close-expected">
           {money(cash.expectedCashMinor)}
