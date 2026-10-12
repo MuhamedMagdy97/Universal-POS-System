@@ -126,7 +126,7 @@ Details and error codes: `docs/planning/phase-8/shift-close-data-model-and-api.m
 ## Returns and voids (T8)
 | Method + path | Permission | Body | Success |
 |---|---|---|---|
-| `POST /api/sales/{saleId}/refunds` (`Idempotency-Key`) | `sales.refund` (Owner, Manager) | `{ lines: [{ saleItemId, qty }], method, reference?, reason }` | 201 `RefundDetail` (200 on replay) |
+| `POST /api/sales/{saleId}/refunds` (`Idempotency-Key`) | `sales.refund` (Owner, Manager) | `{ lines: [{ saleItemId, qty }], registerId? (paying till, same branch), method, reference?, reason }` | 201 `RefundDetail` (200 on replay) |
 | `POST /api/sales/{saleId}/void` | `sales.void` (Owner, Manager) | `{ reason }` | 200 the sale, `status: VOIDED` |
 
 Details, deviations (void replays by state) and error codes: `docs/planning/phase-8/returns-void-data-model-and-api.md`.
