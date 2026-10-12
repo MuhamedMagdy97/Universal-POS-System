@@ -453,4 +453,12 @@ export const en = {
   "reports.col.netRefunds": "Net refunds",
   "reports.col.vatRefunds": "VAT on refunds",
   "reports.col.netVat": "VAT due",
+
+  // Audit trail (T9)
+  "audit.col.time": "Time",
+  "audit.col.actor": "Who",
+  "audit.col.action": "Action",
+  "audit.col.entity": "Record",
+  "audit.col.entityId": "Record id",
+  "audit.col.details": "Details",
 } as const;

@@ -449,4 +449,12 @@ export const ar: Messages = {
   "reports.col.netRefunds": "صافي المرتجعات",
   "reports.col.vatRefunds": "ضريبة المرتجعات",
   "reports.col.netVat": "الضريبة المستحقة",
+
+  // Audit trail (T9)
+  "audit.col.time": "الوقت",
+  "audit.col.actor": "المستخدم",
+  "audit.col.action": "الإجراء",
+  "audit.col.entity": "السجل",
+  "audit.col.entityId": "معرّف السجل",
+  "audit.col.details": "التفاصيل",
 };

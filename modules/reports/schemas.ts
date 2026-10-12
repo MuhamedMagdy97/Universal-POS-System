@@ -61,3 +61,20 @@ export const AuditQuery = z
     path: ["action"],
   });
 export type AuditQuery = z.infer<typeof AuditQuery>;
+
+/** Audit paging position: the last row's `createdAt` (UTC, ms) and id, base64url-encoded. */
+export type AuditCursor = { at: string; id: string };
+
+export function encodeAuditCursor(cursor: AuditCursor): string {
+  return Buffer.from(`${cursor.at}|${cursor.id}`, "utf8").toString("base64url");
+}
+
+/** null for anything that is not a cursor this module wrote. */
+export function decodeAuditCursor(raw: string): AuditCursor | null {
+  const text = Buffer.from(raw, "base64url").toString("utf8");
+  const [at, id, ...rest] = text.split("|");
+  if (rest.length > 0 || at === undefined || id === undefined) return null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(at) || Number.isNaN(Date.parse(at))) return null;
+  if (!Uuid.safeParse(id).success) return null;
+  return { at, id };
+}

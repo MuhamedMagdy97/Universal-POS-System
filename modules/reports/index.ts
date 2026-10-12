@@ -19,3 +19,11 @@ export { REPORT_NAMES, isReportName, ReportQuery, AuditQuery, DENIED_ACTIONS, ty
 export { branchesInScope, type ReportBranch } from "./access";
 export { csvResponse } from "./csv";
 export { QUICK_RANGES, quickRange, todayIn, formatLocalDateTime, type QuickRange, type LocalRange } from "./timezone";
+export {
+  listAuditEvents,
+  exportAuditCsv,
+  listAuditActors,
+  AUDIT_PAGE_SIZE,
+  type AuditRow,
+  type AuditPage,
+} from "./audit-trail";
