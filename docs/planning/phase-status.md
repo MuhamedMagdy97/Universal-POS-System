@@ -34,10 +34,9 @@
   built: pay-in/pay-out/drop screen (API only), shift list (T9).
 
 - Phase 8 / T8: returns, refunds and voids. Spec approved by the owner (2026-10-12):
-  [phase-8/returns-void-spec.md](phase-8/returns-void-spec.md). BUILT on `phase-8/checkout` (backend): partial refunds with
+  [phase-8/returns-void-spec.md](phase-8/returns-void-spec.md). BUILT on `phase-8/checkout`: partial refunds with
   remainder rounding, whole-sale voids on an open shift, cash refunds in the T7 expected-cash formula, one migration
-  (`requestHash`, `reference` on `Refund`). The till refund and void
-  screens are not built. Deviations (void replays by state, VAT share per line, voids refused after refunds, zero-total refunds refused) are in
+  (`requestHash`, `reference` on `Refund`). Back-office Returns screen (`/returns`) for Owner and Manager. Deviations (void replays by state, VAT share per line, voids refused after refunds, zero-total refunds refused) are in
   [phase-8/returns-void-data-model-and-api.md](phase-8/returns-void-data-model-and-api.md).
 
 ## Pending

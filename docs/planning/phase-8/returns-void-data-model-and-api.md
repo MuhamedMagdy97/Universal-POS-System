@@ -61,13 +61,32 @@ reason. This is the same approach as the T7 close replay. Adding a `voidIdempote
 
 `refund.create` (sale, shift, method, totals) and `sale.void` (reason, total), in the same transaction.
 
-## 8. Not in this part
+## 8. Returns screen (as built)
 
-- The refund and void screens on the till. The API exists and is tested; the till does not offer either action yet.
+`/returns` (header link **Returns**) for roles with `sales.refund` or `sales.void`: Owner and Manager. It is a
+back-office page, not part of the till, because a Manager cannot use the till (no `sales.create`). Other roles see
+"You can't use returns".
+
+- **Find:** the receipt number, typed with or without leading zeros, in Western or Arabic-Indic digits
+  (`getSaleForReturns`). A number from another organization or branch scope is "not found".
+- **Refund:** a quantity box per line, up to what is left; the amount per line and the total preview the server's
+  rule (share, remainder on the last units). Method (cash, card, wallet), reference for non-cash, and a reason are
+  required. If the sale's register has no open shift, the page says so and the refund button stays disabled. One
+  `Idempotency-Key` per form, kept only when the outcome is unknown.
+- **Void:** offered only while the sale's shift is open and the sale has no refunds; a reason and a second click
+  confirm it.
+- After each action, or after an error that means the data moved (refunded, voided or closed meanwhile), the page
+  reloads its data.
+
+Tests: `tests/unit/returns-helpers.test.ts` (quantity, preview, plan, errors), `tests/integration/refunds-void.test.ts`
+(read model), `tests/e2e/returns.spec.ts` (refund one of two units, void, unknown number, cashier refused).
+
+## 9. Not in this part
+
 - Refund receipts (T10).
 - Exchanges, store credit and refunds without an original sale (out of scope in the spec).
 
-## 9. Open product questions
+## 10. Open product questions
 
 - **Which drawer pays a cash refund.** V6 books a refund on the open shift of the *sale's* register. In a store with
   several tills, a refund handed out at till 2 for a sale made at till 1 is booked against till 1, so till 1 counts
