@@ -9,6 +9,7 @@ import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
 import { ReturnsNavLink } from "./_components/returns-nav-link";
 import { ReportsNavLink } from "./_components/reports-nav-link";
+import { PurchasingNavLink } from "./_components/purchasing-nav-link";
 
 /**
  * Authenticated app shell. Static chrome prerenders; anything that reads the
@@ -36,6 +37,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Suspense>
           <Suspense fallback={null}>
             <InventoryNavLink />
+          </Suspense>
+          <Suspense fallback={null}>
+            <PurchasingNavLink />
           </Suspense>
           <Suspense fallback={null}>
             <ReportsNavLink />

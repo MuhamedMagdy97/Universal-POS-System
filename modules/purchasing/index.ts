@@ -10,7 +10,7 @@
  * `@/modules/purchasing/rules` (pure) instead.
  */
 export * from "./schemas";
-export { canViewPurchasing, branchIdsInScope } from "./access";
+export { canViewPurchasing, branchesInScope, type PurchasingBranch } from "./access";
 export {
   listSuppliers,
   createSupplier,

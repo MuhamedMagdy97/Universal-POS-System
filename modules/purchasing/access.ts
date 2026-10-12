@@ -41,22 +41,24 @@ export function canViewPurchasing(ctx: TenantContext): boolean {
   return VIEW.some((p) => hasPermission(ctx.role, p));
 }
 
-/** Active branch ids in the caller's membership scope (empty when the membership is inactive). */
-export async function branchIdsInScope(ctx: TenantContext): Promise<string[]> {
+export type PurchasingBranch = { id: string; name: string };
+
+/** Active branches in the caller's membership scope, by name (empty when the membership is inactive). */
+export async function branchesInScope(ctx: TenantContext): Promise<PurchasingBranch[]> {
   const db = getDb();
   const membership = await prismaTenantRepository(db).findMembership(ctx.orgId, ctx.userId);
   if (!membership || !membership.isActive) return [];
-  const rows = await db.branch.findMany({
+  return db.branch.findMany({
     where: {
       orgId: ctx.orgId,
       isActive: true,
       ...(membership.allBranches ? {} : { membershipBranches: { some: { membershipId: membership.id } } }),
     },
-    select: { id: true },
+    select: { id: true, name: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
   });
-  return rows.map((row) => row.id);
 }
 
-export async function inScope(ctx: TenantContext, branchId: string): Promise<boolean> {
-  return (await branchIdsInScope(ctx)).includes(branchId);
+export async function branchIdsInScope(ctx: TenantContext): Promise<string[]> {
+  return (await branchesInScope(ctx)).map((branch) => branch.id);
 }
