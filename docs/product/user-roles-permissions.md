@@ -8,14 +8,14 @@ Gate on action grants, never role-name string checks in business logic:
 
 - products.read/create/update, inventory.adjust/transfer
 - sales.create/void/refund, discounts.apply/override
-- registers.open/close, purchases.receive
+- registers.open/close, purchases.manage (suppliers, POs), purchases.receive (receive against a PO)
 - reports.view, users.manage, settings.manage
 
 ## Matrix (MVP default)
 - Owner: all.
 - Admin: users.manage, settings.manage, products.*, inventory.*, purchases.*, reports.view.
 - Manager: products.read, inventory.* (read included), sales.create, registers.open/close, sales.void, refunds,
-  discounts.override, reports.view. Managers can work a till so they can cover a register and refund at it
+  discounts.override, purchases.receive (their branches; T5 P1), reports.view. Managers can work a till so they can cover a register and refund at it
   (owner decision 2026-10-12, T8 follow-up).
 - Cashier: products.read, sales.create, registers.open/close (+ discounts.apply only if granted).
 - Reporting: reports.view, inventory.read (read-only stock; D5).

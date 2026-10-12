@@ -59,6 +59,19 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
     ]);
   });
 
+  it("lets owners and admins run purchasing and managers only receive (purchasing P1)", () => {
+    for (const role of ["OWNER", "ADMIN"] as const) {
+      expect(hasPermission(role, "purchases.manage")).toBe(true);
+      expect(hasPermission(role, "purchases.receive")).toBe(true);
+    }
+    expect(hasPermission("MANAGER", "purchases.manage")).toBe(false);
+    expect(hasPermission("MANAGER", "purchases.receive")).toBe(true);
+    for (const role of ["CASHIER", "REPORTING"] as const) {
+      expect(hasPermission(role, "purchases.manage")).toBe(false);
+      expect(hasPermission(role, "purchases.receive")).toBe(false);
+    }
+  });
+
   it("gives admins settings and catalog but not sales voids", () => {
     expect(hasPermission("ADMIN", "settings.manage")).toBe(true);
     expect(hasPermission("ADMIN", "products.create")).toBe(true);

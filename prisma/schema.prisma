@@ -203,6 +203,8 @@ model Organization {
   pricesIncludeVat   Boolean      @default(true)
   // Last issued sale number (checkout): bumped in the sale transaction, gap-free on rollback.
   lastSaleNo         Int          @default(0)
+  // Last issued purchase order number (T5): bumped in the PO create transaction, like lastSaleNo.
+  lastPoNo           Int          @default(0)
   // Receipt fields
   legalName          String?
   taxNumber          String?
@@ -508,6 +510,11 @@ model PurchaseOrder {
   status      PurchaseOrderStatus @default(DRAFT)
   createdById String              @db.Uuid
   note        String?
+  // Set when marked ORDERED (purchasing-data-model-and-api.md §1).
+  orderedAt   DateTime?
+  // Set when CANCELLED or RECEIVED; closeReason explains a cancel or a short close.
+  closedAt    DateTime?
+  closeReason String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
@@ -519,6 +526,8 @@ model PurchaseOrder {
 
   @@unique([orgId, id])
   @@unique([orgId, number])
+  @@index([orgId, status, branchId])
+  @@index([orgId, supplierId])
 }
 
 model POItem {
@@ -546,6 +555,8 @@ model GoodsReceipt {
   branchId        String   @db.Uuid
   purchaseOrderId String   @db.Uuid
   idempotencyKey  String
+  // sha256 of the canonical request body: a replayed key must carry the same receipt (P10).
+  requestHash     String
   receivedById    String   @db.Uuid
   note            String?
   receivedAt      DateTime @default(now())
@@ -557,6 +568,8 @@ model GoodsReceipt {
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
+  @@index([orgId, branchId, receivedAt])
+  @@index([orgId, purchaseOrderId])
 }
 
 model GoodsReceiptItem {
