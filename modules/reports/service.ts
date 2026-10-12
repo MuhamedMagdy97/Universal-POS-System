@@ -1,17 +1,18 @@
 import "server-only";
+import { hasPermission } from "@/lib/auth/permissions";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import { t, type Locale } from "@/lib/i18n";
 import { sum, toMajorString, type CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
-import { orgSettings, requireAccess, resolveBranchIds } from "./access";
+import { branchesInScope, orgSettings, requireAccess, resolveBranchIds } from "./access";
 import { formatRateBp, REPORT_COLUMNS, totalledKeys, type Column } from "./columns";
 import { toCsv, trusted, type CsvCell } from "./csv";
 import * as q from "./queries";
 import { isReportName, ReportQuery, type ReportName } from "./schemas";
 import type { ReportScope } from "./sql";
-import { formatLocalDateTime, resolveRange } from "./timezone";
+import { formatLocalDateTime, resolveRange, todayIn } from "./timezone";
 
 /** JSON shows at most this many rows (§11.5); totals and CSV always cover every row. */
 export const ROW_CAP = 500;
@@ -162,4 +163,38 @@ function csvValue(column: Column, row: ReportRow, report: FullReport, locale: Lo
     default:
       return String(value);
   }
+}
+
+export type DashboardTiles = {
+  currency: CurrencyCode;
+  today: string;
+  netSalesMinor: number;
+  salesCount: number;
+  refundsMinor: number;
+  openShifts: number;
+};
+
+/**
+ * Today's tiles (P11) over every branch in the caller's scope. null for roles without
+ * `reports.view` (no audit row: the dashboard asks, the user did not).
+ */
+export async function getDashboardTiles(ctx: TenantContext): Promise<DashboardTiles | null> {
+  if (!hasPermission(ctx.role, "reports.view")) return null;
+  const branchIds = (await branchesInScope(ctx)).map((b) => b.id);
+  if (branchIds.length === 0) return null;
+  const { zone, currency } = await orgSettings(ctx.orgId);
+  const today = todayIn(zone);
+  const [rows, openShifts] = await Promise.all([
+    q.salesSummary({ orgId: ctx.orgId, branchIds, zone, from: today, to: today }),
+    q.openShiftCount(ctx.orgId, branchIds),
+  ]);
+  const day = rows[0];
+  return {
+    currency,
+    today,
+    netSalesMinor: day?.netAfterRefundsMinor ?? 0,
+    salesCount: day?.salesCount ?? 0,
+    refundsMinor: day?.refundsMinor ?? 0,
+    openShifts,
+  };
 }
