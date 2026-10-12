@@ -670,7 +670,11 @@ model Refund {
   shiftId        String?       @db.Uuid
   processedById  String        @db.Uuid
   idempotencyKey String
+  // Hash of the canonical request body, so a replay with another body is refused (as on Sale).
+  requestHash    String?
   method         PaymentMethod
+  // Manual reference (card slip / wallet transaction id). Never raw card data.
+  reference      String?
   reason         String
   totalMinor     Int
   vatMinor       Int

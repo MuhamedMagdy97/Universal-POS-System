@@ -7,6 +7,7 @@ import { SignOutButton } from "./_components/sign-out-button";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
+import { ReturnsNavLink } from "./_components/returns-nav-link";
 
 /**
  * Authenticated app shell. Static chrome prerenders; anything that reads the
@@ -25,6 +26,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <nav aria-label="Main" className="flex items-center gap-3">
           <Suspense fallback={null}>
             <PosNavLink />
+          </Suspense>
+          <Suspense fallback={null}>
+            <ReturnsNavLink />
           </Suspense>
           <Suspense fallback={null}>
             <CatalogNavLink />

@@ -102,6 +102,7 @@ describe("closing a shift", () => {
       payInMinor: 500,
       payOutMinor: 200,
       dropMinor: 300,
+      cashRefundsMinor: 0,
       expectedCashMinor: 7000,
     });
     const closed = await closeShift(cashier, shiftId, {
