@@ -49,13 +49,12 @@ prints. Pages without a print root (reports) print as before.
   404; Z-report matches the close; route 200/422; 429 with `Retry-After`, audited once, reads unaffected, next window
   passes, counted per user.
 - `tests/unit/hardening.test.ts` (5): buckets, windows, 429 envelope, headers and CSP.
-- `tests/e2e/hardening.spec.ts` (7): settings onto the printed slip; print media shows only the slip; reprint
+- `tests/e2e/hardening.spec.ts` (8): settings onto the printed slip; print media shows only the slip; reprint
   "Copy"; Arabic slip RTL with Latin digits; Returns reprint and refund slip; Z-report after close; Manager denied
-  settings; headers on a page and an API route; Arabic sweep.
-- Full suites: vitest 728 passed (1 skipped), Playwright 55 passed, lint, typecheck, Prettier and `next build` clean.
+  settings; headers on a page and an API route; Arabic sweep; A4 PO print with supplier, lines and total.
+- Full suites: vitest 728 passed (1 skipped), Playwright 56 passed, lint, typecheck, Prettier and `next build` clean.
 
 ## 4. Not done
 
 - **Manual print check on a real 80 mm printer (risk R1)** — needs the shop's hardware.
-- No E2E for the A4 PO print (the layout reuses the PO detail data; checked by typecheck only).
 - Nonce CSP (Phase 13), ESC/POS or printer drivers, e-invoicing (out of scope).

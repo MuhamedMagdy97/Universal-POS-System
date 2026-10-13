@@ -196,3 +196,47 @@ test.describe("Arabic RTL (H12)", () => {
     await admin.close();
   });
 });
+
+test.describe("purchase order print (H10)", () => {
+  test.use({ storageState: storageStateFor("adminA") });
+
+  test("prints the PO on A4 with supplier, lines and total", async ({ page }) => {
+    const run = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+    const supplier = `Print Supplier ${run}`;
+    const sku = `POP-${run}`;
+    await createRunProduct(ORG, sku, `PO Print ${run}`);
+
+    await page.goto("/purchasing/suppliers");
+    await page.getByRole("button", { name: "Add supplier" }).click();
+    await page.getByLabel("Name").fill(supplier);
+    await page.getByLabel("Tax number").fill("TAX-77");
+    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("cell", { name: supplier })).toBeVisible();
+
+    await page.goto("/purchasing/new");
+    await page.getByLabel("Supplier").selectOption({ label: supplier });
+    const branchPicker = page.getByLabel("Branch");
+    if ((await branchPicker.count()) > 0) await branchPicker.selectOption(MAIN);
+    await page.getByRole("textbox", { name: "Add items" }).fill(sku);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByRole("listitem").filter({ hasText: sku }).getByRole("button", { name: "Add" }).click();
+    await page.getByRole("textbox", { name: `Ordered ${sku}` }).fill("3");
+    await page.getByRole("textbox", { name: `Unit cost ${sku}` }).fill("4.25");
+    await page.getByRole("button", { name: "Create draft" }).click();
+    await expect(page).toHaveURL(/\/purchasing\/[0-9a-f-]{36}$/);
+
+    await page.getByRole("button", { name: "Print order" }).click();
+    const sheet = page.locator(".print-root [data-testid=po-print]");
+    await expect(sheet).toContainText("Purchase order");
+    await expect(sheet).toContainText(/PO-\d{6}/);
+    await expect(sheet).toContainText(supplier);
+    await expect(sheet).toContainText("TAX-77");
+    await expect(sheet).toContainText(sku);
+    // 3 × 4.25 = 12.75
+    await expect(sheet).toContainText("12.75");
+
+    await page.emulateMedia({ media: "print" });
+    await expect(sheet).toBeVisible();
+    await expect(page.locator("main")).toBeHidden();
+  });
+});
