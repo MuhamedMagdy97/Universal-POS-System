@@ -65,7 +65,7 @@ export type PoDetail = {
   status: PoStatus;
   currency: CurrencyCode;
   branch: { id: string; name: string };
-  supplier: { id: string; name: string; isActive: boolean };
+  supplier: { id: string; name: string; isActive: boolean; phone: string | null; taxNumber: string | null };
   note: string | null;
   closeReason: string | null;
   createdAt: string;
@@ -350,7 +350,7 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
     include: {
       org: { select: { currency: true } },
       branch: { select: { id: true, name: true } },
-      supplier: { select: { id: true, name: true, isActive: true } },
+      supplier: { select: { id: true, name: true, isActive: true, phone: true, taxNumber: true } },
       items: {
         orderBy: { id: "asc" },
         include: {

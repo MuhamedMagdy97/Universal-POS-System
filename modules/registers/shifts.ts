@@ -1,4 +1,5 @@
 import "server-only";
+import { hasPermission } from "@/lib/auth/permissions";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -9,6 +10,7 @@ import { amountTooLarge, salesConflict } from "@/modules/sales/errors";
 import { CashMovementInput, CloseShiftInput, OpenShiftInput } from "@/modules/sales/schemas";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { Uuid } from "@/modules/inventory/schemas";
+import { zoneFor } from "@/modules/reports/timezone";
 
 /**
  * Register shifts: open (T6, Q1), close and cash movements (T7). At most one OPEN shift per
@@ -326,6 +328,58 @@ function shiftCloseSummary(shift: ClosedShiftRow): ShiftCloseSummary {
     ...shiftSummary(shift),
     closedAt: (shift.closedAt ?? new Date()).toISOString(),
     expectedCashMinor: shift.expectedCashMinor ?? 0,
+    countedCashMinor: shift.countedCashMinor ?? 0,
+    discrepancyMinor: shift.discrepancyMinor ?? 0,
+    discrepancyNote: shift.discrepancyNote,
+  };
+}
+
+/** A closed shift's Z-report for printing (T10 H9): the stored close plus the cash terms behind it. */
+export type ZReport = CashBreakdown & {
+  shiftId: string;
+  registerName: string;
+  branchName: string;
+  currency: string;
+  timeZone: string;
+  openedAt: string;
+  openedBy: string;
+  closedAt: string;
+  closedBy: string;
+  countedCashMinor: number;
+  discrepancyMinor: number;
+  discrepancyNote: string | null;
+};
+
+export async function getZReport(ctx: TenantContext, shiftId: string): Promise<ZReport> {
+  // The till that closes it, or anyone who reads the Shifts report.
+  if (!hasPermission(ctx.role, "reports.view")) {
+    await requirePermission(ctx, "registers.close", { operation: "shift.zreport", entityType: "RegisterShift" });
+  }
+  await requireShiftInScope(ctx, shiftId);
+  const db = getDb();
+  const shift = await db.registerShift.findFirst({
+    where: { id: shiftId, orgId: ctx.orgId, status: "CLOSED" },
+    include: { register: { select: { name: true } }, branch: { select: { name: true } }, org: true },
+  });
+  if (!shift || !shift.closedAt || !shift.closedById) throw notFound("Shift");
+  const [cash, users] = await Promise.all([
+    db.$transaction((tx) => cashBreakdown(tx, ctx.orgId, shiftId, shift.openingFloatMinor)),
+    db.user.findMany({ where: { id: { in: [shift.openedById, shift.closedById] } }, select: { id: true, name: true } }),
+  ]);
+  const nameOf = (id: string) => users.find((user) => user.id === id)?.name ?? "";
+  return {
+    ...cash,
+    // The stored figure is the authority for a closed shift (as the Shifts report).
+    expectedCashMinor: shift.expectedCashMinor ?? cash.expectedCashMinor,
+    shiftId: shift.id,
+    registerName: shift.register.name,
+    branchName: shift.branch.name,
+    currency: shift.org.currency,
+    timeZone: zoneFor(shift.org.countryCode),
+    openedAt: shift.openedAt.toISOString(),
+    openedBy: nameOf(shift.openedById),
+    closedAt: shift.closedAt.toISOString(),
+    closedBy: nameOf(shift.closedById),
     countedCashMinor: shift.countedCashMinor ?? 0,
     discrepancyMinor: shift.discrepancyMinor ?? 0,
     discrepancyNote: shift.discrepancyNote,

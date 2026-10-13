@@ -6,7 +6,8 @@ import { translator } from "@/lib/i18n";
 import { formatMinor, toMajorString } from "@/lib/money";
 import { getPurchaseOrder, type PoDetail } from "@/modules/purchasing";
 import { canEdit } from "@/modules/purchasing/rules";
-import { activeSuppliers, loadPurchasingContext, shopDateTime } from "../_lib/context";
+import { activeSuppliers, loadPurchasingContext, shopDateTime, shopHeader } from "../_lib/context";
+import { PrintButton } from "../../_components/printing";
 import { Denied, StatusBadge } from "../_components/states";
 import { PoActions } from "../_components/po-actions";
 import { PoEditor } from "../_components/po-editor";
@@ -46,7 +47,10 @@ async function PoContent({ params, searchParams }: Props) {
 
   const outstandingUnits = po.lines.reduce((total, line) => total + line.outstanding, 0);
   const editable = can.manage && canEdit({ status: po.status, receivedUnits: po.totals.receivedUnits });
-  const suppliers = editable ? await activeSuppliers(ctx.orgId) : [];
+  const [suppliers, shop] = await Promise.all([
+    editable ? activeSuppliers(ctx.orgId) : Promise.resolve<{ id: string; name: string }[]>([]),
+    shopHeader(ctx.orgId),
+  ]);
   // Keep the current supplier pickable even if it was archived after the PO was raised.
   if (editable && !suppliers.some((s) => s.id === po.supplier.id)) suppliers.unshift(po.supplier);
   const nameOf = (line: { name: string; nameAr: string | null }) =>
@@ -105,6 +109,83 @@ async function PoContent({ params, searchParams }: Props) {
           </>
         ) : null}
       </dl>
+
+      <PrintButton label={tr("purchasing.print")}>
+        <article className="print-a4" dir={locale === "ar" ? "rtl" : "ltr"} lang={locale} data-testid="po-print">
+          <header style={{ display: "flex", justifyContent: "space-between", gap: "8mm", marginBottom: "6mm" }}>
+            <div>
+              <p style={{ fontWeight: 700, fontSize: "14px" }}>{shop.name}</p>
+              {shop.address ? <p>{shop.address}</p> : null}
+              {shop.phone ? <p dir="ltr">{shop.phone}</p> : null}
+              {shop.taxNumber ? <p>{tr("receipt.vatNo", { number: shop.taxNumber })}</p> : null}
+            </div>
+            <div style={{ textAlign: "end" }}>
+              <p style={{ fontWeight: 700, fontSize: "14px" }}>{tr("purchasing.print.title")}</p>
+              <p dir="ltr">{po.number}</p>
+              <p dir="ltr">{shopDateTime(po.orderedAt ?? po.createdAt, zone)}</p>
+            </div>
+          </header>
+          <p>
+            <strong>{tr("purchasing.po.supplier")}:</strong> {po.supplier.name}
+            {po.supplier.phone ? (
+              <>
+                {" "}
+                · {tr("purchasing.supplier.phone")}: <bdi>{po.supplier.phone}</bdi>
+              </>
+            ) : null}
+            {po.supplier.taxNumber ? (
+              <>
+                {" "}
+                · {tr("purchasing.supplier.taxNumber")}: <bdi>{po.supplier.taxNumber}</bdi>
+              </>
+            ) : null}
+          </p>
+          <p style={{ marginBottom: "4mm" }}>
+            <strong>{tr("purchasing.po.branch")}:</strong> {po.branch.name}
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>{tr("purchasing.line.item")}</th>
+                <th className="num">{tr("purchasing.line.ordered")}</th>
+                <th className="num">{tr("purchasing.line.cost")}</th>
+                <th className="num">{tr("purchasing.line.total")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {po.lines.map((line) => (
+                <tr key={line.id}>
+                  <td>
+                    {nameOf(line)} <bdi>{line.sku}</bdi>
+                  </td>
+                  <td className="num">{line.qtyOrdered}</td>
+                  <td className="num" dir="ltr">
+                    {formatMinor(line.unitCostMinor, po.currency, locale)}
+                  </td>
+                  <td className="num" dir="ltr">
+                    {formatMinor(line.lineTotalMinor, po.currency, locale)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>{tr("purchasing.po.total")}</th>
+                <th className="num">{po.totals.orderedUnits}</th>
+                <th />
+                <th className="num" dir="ltr">
+                  {formatMinor(po.totals.totalMinor, po.currency, locale)}
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+          {po.note ? (
+            <p style={{ marginTop: "4mm" }}>
+              <strong>{tr("purchasing.po.note")}:</strong> {po.note}
+            </p>
+          ) : null}
+        </article>
+      </PrintButton>
 
       <PoActions
         locale={locale}

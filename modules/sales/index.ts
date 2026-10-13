@@ -5,6 +5,7 @@
  * table writes. See docs/architecture/system-architecture.md.
  */
 export { createSale, loadSale, requestHashOf, type CreateSaleResult, type SaleDetail } from "./create";
+export { getReceipt, type ReceiptDoc, type ReceiptKind, type ReceiptRequest } from "./receipt";
 export { refundSale, voidSale, loadRefund, type RefundDetail, type RefundResult } from "./refunds";
 export {
   getSaleForReturns,

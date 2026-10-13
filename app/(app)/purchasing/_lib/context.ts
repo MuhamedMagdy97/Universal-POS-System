@@ -70,3 +70,17 @@ export function shopDateTime(iso: string | null, zone: string): string {
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
 }
+
+/** Shop details printed at the top of a purchase order (T10 H10). */
+export async function shopHeader(orgId: string) {
+  const org = await getDb().organization.findUniqueOrThrow({
+    where: { id: orgId },
+    select: { name: true, legalName: true, taxNumber: true, receiptAddress: true, receiptPhone: true },
+  });
+  return {
+    name: org.legalName ?? org.name,
+    taxNumber: org.taxNumber,
+    address: org.receiptAddress,
+    phone: org.receiptPhone,
+  };
+}
