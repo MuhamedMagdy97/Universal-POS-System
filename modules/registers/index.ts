@@ -10,6 +10,8 @@ export {
   addCashMovement,
   lockShift,
   previewShiftCash,
+  getZReport,
+  type ZReport,
   type CashBreakdown,
   type ShiftSummary,
   type ShiftCloseSummary,

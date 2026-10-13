@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import type { SaleForReturns } from "@/modules/sales";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { keepKeyAfter } from "../../pos/_lib/till";
+import { PrintReceiptButton } from "../../_components/receipt-print";
 import { refundSaleAction, voidSaleAction } from "../actions";
 import {
   canSubmitRefund,
@@ -62,6 +63,9 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
   const [voidReason, setVoidReason] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Printed straight after the action is the original; any later print is a copy (T10 H4).
+  const [justRefunded, setJustRefunded] = useState<string | null>(null);
+  const [justVoided, setJustVoided] = useState(false);
 
   const completed = sale.status === "COMPLETED";
   const anyLeft = sale.lines.some((line) => refundableOf(line) > 0);
@@ -101,6 +105,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
     setPending(false);
     if (result.ok) {
       setMessage(tr("returns.refund.done", { total: money(result.data.totalMinor) }));
+      setJustRefunded(result.data.id);
       setQtys({});
       setReason("");
       setReference("");
@@ -123,6 +128,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
     setPending(false);
     if (result.ok) {
       setMessage(tr("returns.void.done", { number: result.data.number }));
+      setJustVoided(true);
       setVoiding(false);
       setVoidReason("");
       router.refresh();
@@ -143,6 +149,24 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
             register: sale.registerName,
           })}
         </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <PrintReceiptButton
+          locale={locale}
+          saleId={sale.id}
+          request={{ kind: "SALE", copy: true }}
+          label="receipt.reprint"
+          className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+        />
+        {!completed ? (
+          <PrintReceiptButton
+            locale={locale}
+            saleId={sale.id}
+            request={{ kind: "VOID", copy: !justVoided }}
+            label="receipt.printVoid"
+            className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+          />
+        ) : null}
       </div>
       <p>
         {tr("returns.sale.total")}:{" "}
@@ -326,7 +350,16 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                   {new Date(refund.createdAt).toLocaleString(locale)} ·{" "}
                   {tr(METHODS.find((m) => m.value === refund.method)?.label ?? "returns.refund.cash")} · {refund.reason}
                 </span>
-                <span dir="ltr">{money(refund.totalMinor)}</span>
+                <span className="flex items-center gap-2">
+                  <span dir="ltr">{money(refund.totalMinor)}</span>
+                  <PrintReceiptButton
+                    locale={locale}
+                    saleId={sale.id}
+                    request={{ kind: "REFUND", refundId: refund.id, copy: refund.id !== justRefunded }}
+                    label="receipt.printRefund"
+                    className="rounded-md border border-border px-2 py-0.5 text-xs disabled:opacity-50"
+                  />
+                </span>
               </li>
             ))}
           </ul>

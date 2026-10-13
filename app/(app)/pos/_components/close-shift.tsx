@@ -6,6 +6,7 @@ import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
 import type { CashBreakdown, ShiftCloseSummary } from "@/modules/registers";
 import { plain, safeAction } from "../../inventory/_lib/form";
+import { PrintZReportButton } from "../../_components/zreport-print";
 import { closeShiftAction } from "../actions";
 import { canSubmitClose, closeErrorKey, countPreview } from "../_lib/close";
 import { parseCash } from "../_lib/till";
@@ -105,14 +106,17 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
           </dd>
         </dl>
         {result.discrepancyNote ? <p className="text-sm text-muted">{result.discrepancyNote}</p> : null}
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          autoFocus
-          className="self-start rounded-md bg-foreground px-4 py-2 text-background"
-        >
-          {tr("pos.close.done")}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <PrintZReportButton locale={locale} shiftId={result.id} />
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            autoFocus
+            className="rounded-md bg-foreground px-4 py-2 text-background"
+          >
+            {tr("pos.close.done")}
+          </button>
+        </div>
       </section>
     );
   }

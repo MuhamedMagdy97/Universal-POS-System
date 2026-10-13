@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import type { SaleDetail } from "@/modules/sales";
 import type { PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
+import { PrintReceiptButton } from "../../_components/receipt-print";
 import { createSaleAction } from "../actions";
 import {
   addToCart,
@@ -59,6 +60,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SaleDetail | null>(null);
+  // The sale just finished, for "Reprint last receipt" once the next cart starts (T10 H4).
+  const [lastSaleId, setLastSaleId] = useState<string | null>(null);
 
   const preview = previewCart(cart, settings);
   const totalMinor = preview.ok ? preview.totalMinor : 0;
@@ -105,6 +108,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setCashRaw("");
     setReference("");
     setMethod("CASH");
+    if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
     setError(null);
     setSaleKey(crypto.randomUUID());
@@ -191,9 +195,12 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
           </dd>
         </dl>
         <div className="flex gap-2 print:hidden">
-          <button type="button" onClick={() => window.print()} className="rounded-md border border-border px-4 py-2">
-            {tr("pos.receipt.print")}
-          </button>
+          <PrintReceiptButton
+            locale={locale}
+            saleId={receipt.id}
+            request={{ kind: "SALE", copy: false }}
+            label="pos.receipt.print"
+          />
           <button
             type="button"
             onClick={newSale}
@@ -210,6 +217,17 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
       <section aria-labelledby="cart-title" className="flex flex-col gap-4">
+        {lastSaleId && cart.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <PrintReceiptButton
+              locale={locale}
+              saleId={lastSaleId}
+              request={{ kind: "SALE", copy: true }}
+              label="receipt.reprintLast"
+              className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+            />
+          </div>
+        ) : null}
         <div className="flex gap-2">
           <input
             ref={searchRef}

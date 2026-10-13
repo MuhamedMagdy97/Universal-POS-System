@@ -18,6 +18,7 @@ import {
   reportSettings,
   type ReportResult,
 } from "@/modules/reports";
+import { PrintZReportButton } from "../_components/zreport-print";
 import { cellText, csvHref, isDiscrepancy, isNumeric, reportHref, toQuickRange, toReportName } from "./_lib/format";
 
 /**
@@ -90,6 +91,8 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
   const from = result?.from ?? requested.from;
   const to = result?.to ?? requested.to;
   const columns = REPORT_COLUMNS[report];
+  // A closed shift row prints its Z-report (T10 H9).
+  const zPrint = report === "shifts";
   const format = { locale, currency: settings.currency, zone: settings.zone };
   const zoneKey = ZONE_LABEL[settings.zone as keyof typeof ZONE_LABEL];
 
@@ -203,6 +206,7 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
                     {tr(column.label)}
                   </th>
                 ))}
+                {zPrint ? <th scope="col" className="print:hidden" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -219,6 +223,17 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
                       {cellText(column, row, format)}
                     </td>
                   ))}
+                  {zPrint ? (
+                    <td className="px-2 py-2 print:hidden">
+                      {row.status === "CLOSED" && typeof row.shiftId === "string" ? (
+                        <PrintZReportButton
+                          locale={locale}
+                          shiftId={row.shiftId}
+                          className="rounded-md border border-border px-2 py-0.5 text-xs whitespace-nowrap disabled:opacity-50"
+                        />
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -237,6 +252,7 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
                         : ""}
                   </td>
                 ))}
+                {zPrint ? <td className="print:hidden" /> : null}
               </tr>
             </tfoot>
           </table>

@@ -38,3 +38,94 @@ body {
     sans-serif;
   text-align: start;
 }
+
+/* ── Printing (T10) ──────────────────────────────────────────────────────────
+   A page with an active `.print-root` (app/(app)/_components/printing.tsx) prints only
+   that node; pages without one print as they are. Receipts are a 72 mm column (the
+   printable width of 80 mm thermal paper, H1); on A4 the same column prints centred.
+   ponytail: no `@page size` for receipts — thermal drivers set the roll length, and a
+   fixed height would feed blank paper. Add a size per printer model if one needs it. */
+.print-root {
+  display: none;
+}
+
+@page receipt {
+  margin: 0;
+}
+
+@page a4 {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+    --muted: #000000;
+    --border: #000000;
+  }
+  body:has(> .print-root[data-active]) > :not(.print-root[data-active]) {
+    display: none !important;
+  }
+  .print-root[data-active] {
+    display: block;
+  }
+}
+
+.print-receipt {
+  page: receipt;
+  width: 72mm;
+  margin-inline: auto;
+  padding: 3mm 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000;
+}
+.print-receipt table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.print-receipt td {
+  vertical-align: top;
+  padding-block: 0.5mm;
+}
+.receipt-center {
+  text-align: center;
+}
+.receipt-start {
+  text-align: start;
+}
+.receipt-end {
+  text-align: end;
+  white-space: nowrap;
+  padding-inline-start: 2mm;
+}
+.receipt-strong {
+  font-weight: 700;
+}
+.receipt-rule {
+  border-top: 1px dashed #000;
+  margin-top: 1.5mm;
+  padding-top: 1.5mm;
+}
+
+.print-a4 {
+  page: a4;
+  font-size: 12px;
+  color: #000;
+}
+.print-a4 table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.print-a4 th,
+.print-a4 td {
+  border-bottom: 1px solid #000;
+  padding: 1.5mm 2mm;
+  text-align: start;
+}
+.print-a4 .num {
+  text-align: end;
+  white-space: nowrap;
+}
