@@ -189,6 +189,15 @@ model RateLimit {
   lastRequest BigInt
 }
 
+// Business API rate limit (T10 H6): one row per user, org and bucket ("read", "write",
+// "export"), fixed 60 s window. The upsert in lib/rate-limit.ts resets the count when the
+// window rolls over, so the table never grows past three rows per member.
+model ApiRateLimit {
+  key         String   @id
+  windowStart DateTime @db.Timestamptz(3)
+  count       Int
+}
+
 // ───────────────────── Tenancy: org / branch ─────────────────────
 
 model Organization {

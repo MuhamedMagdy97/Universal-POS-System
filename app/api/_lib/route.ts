@@ -4,6 +4,7 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import type { Permission } from "@/lib/auth/permissions";
 import { AppError } from "@/lib/errors";
 import { handleRoute, type RouteMeta } from "@/lib/http";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 /**
  * Shared plumbing for tenant-scoped JSON Route Handlers (catalog-api-and-rules.md §1).
@@ -34,6 +35,8 @@ export function apiRoute<Ctx>(
 ): (request: Request, context: Ctx) => Promise<Response> {
   const wrapped = handleRoute<Ctx>(async (request, context, meta) => {
     const tenant = await requireTenant(request.headers, { permission: options.permission });
+    // After the session (the key is the user and org), before any work (T10 H7).
+    await enforceRateLimit(tenant, request, meta.log);
     return handler(request, context, { ...meta, tenant });
   });
   return async (request, context) => {

@@ -97,5 +97,7 @@ export function errorResponse(err: unknown, requestId?: string): Response {
   const { status, body } = toErrorBody(err);
   const headers: Record<string, string> = {};
   if (requestId) headers["x-request-id"] = requestId;
+  const retryAfter = (body.details as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;
+  if (body.code === "RATE_LIMITED" && typeof retryAfter === "number") headers["retry-after"] = String(retryAfter);
   return Response.json(body, { status, headers });
 }
