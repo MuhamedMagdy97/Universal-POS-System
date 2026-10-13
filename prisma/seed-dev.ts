@@ -20,9 +20,7 @@ const DEV_REGISTERS = {
 const OPENING_QTY = 100;
 
 /** CLI output (the app logger is for the server). */
-const say = (line: string) =>
-  process.stdout.write(`${line}
-`);
+const say = (line: string) => process.stdout.write(`${line}\n`);
 
 function databaseKey(url: string): string {
   const parsed = new URL(url);
@@ -105,7 +103,6 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`${String(err instanceof Error ? (err.stack ?? err.message) : err)}
-`);
+  process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(1);
 });
