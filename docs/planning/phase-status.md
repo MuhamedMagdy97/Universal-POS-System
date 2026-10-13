@@ -57,6 +57,15 @@
   [data model and API §7](phase-10/purchasing-data-model-and-api.md). Not built: purchase returns, supplier payments,
   input VAT, receiving without a PO, PO printing (T10).
 
+- Phase 11 / T10: hardening slice. Spec approved by the owner (2026-10-13, every decision as recommended):
+  [phase-11/hardening-spec.md](phase-11/hardening-spec.md). BUILT on `phase-11/hardening` (2026-10-13): 80 mm
+  receipts for sales, refunds and voids with the shop details, reprints marked "Copy" and audited, receipt settings
+  (`/settings/receipt`, Owner and Admin), Z-report print after close and from the Shifts report, A4 PO print,
+  security headers with a static CSP, a per-user API rate limit in PostgreSQL (one migration, `api_rate_limit`), and
+  Arabic E2E for returns, reports, audit, purchasing and settings. Deviations (no `@page` size, copy chosen by the
+  screen, Route Handlers only) are in [phase-11/hardening-as-built.md](phase-11/hardening-as-built.md). Open: a manual
+  print check on a real 80 mm printer.
+
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

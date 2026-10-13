@@ -1,7 +1,7 @@
 # Phase 11 / T10 — Hardening Slice Specification
 
-Status: **draft, awaiting the owner's approval.** Decisions H1–H6 need a ruling; the rest are marked **(rec)** and
-will be taken as recommended unless overridden. Data model, API and task plan follow once this is approved.
+Status: **approved by the owner 2026-10-13, every decision as recommended.** Decisions marked **(rec)** can still be
+overridden. As built: [hardening-as-built.md](hardening-as-built.md).
 
 Source: `docs/planning/task-breakdown.md` (T10 "rate-limit, print CSS, EN/AR", deps T1–T9), the items earlier phases
 deferred to T10 (receipt print layout, refund receipts, Z-report printing, PO printing, Arabic digits D10, locale

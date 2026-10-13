@@ -1,7 +1,7 @@
 # API Contracts
 
 - Auth: session; `orgId` derived server-side, never client-supplied.
-- Errors: `{code, message, details}` → 401/403/404/409/422.
+- Errors: `{code, message, details}` → 401/403/404/409/422/429.
 - Idempotency-Key header on `POST /api/sales` (and receive/refund paths).
 - Cursor pagination on lists and reports.
 - Endpoints: `/api/sales` (create, void, history), `/api/sales/{id}/refunds` (built as a sale sub-resource in T8),
@@ -130,3 +130,14 @@ Details and error codes: `docs/planning/phase-8/shift-close-data-model-and-api.m
 | `POST /api/sales/{saleId}/void` | `sales.void` (Owner, Manager) | `{ reason }` | 200 the sale, `status: VOIDED` |
 
 Details, deviations (void replays by state) and error codes: `docs/planning/phase-8/returns-void-data-model-and-api.md`.
+
+## Receipts, receipt settings and rate limit (T10)
+| Method + path | Permission | Body / query | Success |
+|---|---|---|---|
+| `GET /api/sales/{saleId}/receipt` | the selling cashier, or `sales.refund` / `sales.void` | `?kind=SALE\|REFUND\|VOID&refund={refundId}&copy=0\|1` | 200 `ReceiptDoc` (`copy=1` audited `sale.receipt.reprinted`) |
+| `GET /api/org/receipt` | `settings.manage` (Owner, Admin) | — | 200 `ReceiptSettings` |
+| `PATCH /api/org/receipt` | `settings.manage` | `{ legalName?, taxNumber?, receiptAddress?, receiptPhone?, receiptHeader?, receiptFooter? }` (`""` or `null` clears) | 200 `ReceiptSettings` |
+
+Every `/api/*` Route Handler is rate-limited per user and org in 60 s windows: 600 reads, 120 writes, 10 CSV exports.
+Over the limit: 429 `RATE_LIMITED`, `details.retryAfterSeconds` and a `Retry-After` header. Every response carries the
+security headers in `next.config.ts`. Details: `docs/planning/phase-11/hardening-as-built.md`.
