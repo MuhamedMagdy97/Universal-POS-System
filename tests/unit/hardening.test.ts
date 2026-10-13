@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SECURITY_HEADERS } from "@/next.config";
 import { bucketOf, RATE_LIMITS, rateLimited, windowStartOf } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/errors";
+import { receiptPageCss } from "@/app/(app)/_components/printing";
 
 describe("rate limit buckets (T10 H6)", () => {
   const req = (method: string, path = "/api/x") => new Request(`http://localhost${path}`, { method });
@@ -43,5 +44,13 @@ describe("security headers (T10 H5)", () => {
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toMatch(/script-src 'self' 'unsafe-inline'/);
+  });
+});
+
+describe("receipt page size (T10 H1)", () => {
+  it("is 80 mm wide and as tall as the slip plus 4 mm", () => {
+    // 378 px at 96 dpi = 100.01 mm → 101 + 4.
+    expect(receiptPageCss(378)).toBe("@page receipt { size: 80mm 105mm; margin: 0; }");
+    expect(receiptPageCss(0)).toBe("@page receipt { size: 80mm 4mm; margin: 0; }");
   });
 });

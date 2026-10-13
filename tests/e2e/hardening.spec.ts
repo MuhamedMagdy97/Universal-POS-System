@@ -95,6 +95,16 @@ test.describe("receipts", () => {
     await page.emulateMedia({ media: "print" });
     await expect(slip).toBeVisible();
     await expect(page.locator("main")).toBeHidden();
+    // "Save as PDF" gets an 80 mm page as tall as the slip, not an A4 sheet.
+    const pdf = (await page.pdf({ preferCSSPageSize: true })).toString("latin1");
+    const box = /\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/.exec(pdf);
+    expect(box, "PDF MediaBox").not.toBeNull();
+    const [widthMm, heightMm] = [Number(box?.[1]), Number(box?.[2])].map((pt) => (pt * 25.4) / 72);
+    expect(widthMm).toBeCloseTo(80, 0);
+    expect(heightMm).toBeGreaterThan(40);
+    expect(heightMm).toBeLessThan(200);
+    expect(pdf.match(/\/Type\s*\/Page[^s]/g)).toHaveLength(1);
+
     await page.emulateMedia({ media: "screen" });
     await expect(slip).toBeHidden();
 

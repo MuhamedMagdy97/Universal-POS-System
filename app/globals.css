@@ -43,8 +43,8 @@ body {
    A page with an active `.print-root` (app/(app)/_components/printing.tsx) prints only
    that node; pages without one print as they are. Receipts are a 72 mm column (the
    printable width of 80 mm thermal paper, H1); on A4 the same column prints centred.
-   ponytail: no `@page size` for receipts — thermal drivers set the roll length, and a
-   fixed height would feed blank paper. Add a size per printer model if one needs it. */
+   The receipt page size (80 mm × the slip height) is set just before printing by
+   printing.tsx (`receiptPageCss`), so a PDF matches the slip and a roll feeds no blank paper. */
 .print-root {
   display: none;
 }

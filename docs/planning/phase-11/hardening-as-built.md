@@ -24,9 +24,10 @@ prints. Pages without a print root (reports) print as before.
 
 ## 2. Deviations
 
-1. **No `@page size` for receipts.** The receipt page is a 72 mm column (printable width of 80 mm paper) with zero
-   margin. `size: 80mm auto` is not valid CSS, and a fixed height feeds blank paper on a roll; the thermal driver
-   sets the length. On A4 the column prints centred.
+1. **The receipt page is sized when printing.** `size: 80mm auto` is not valid CSS, so just before `window.print()`
+   the slip is measured and `@page receipt` is set to 80 mm × its height (+4 mm). A PDF matches the slip and a roll
+   feeds no blank paper. The first version set no size, and "Save as PDF" put the slip on an A4 sheet (owner check,
+   2026-10-13). The slip is a 72 mm column, the printable width of 80 mm paper.
 2. **"Copy" is chosen by the screen, not inferred.** The server cannot tell a print from a fetch, so the first
    press of the Print button shown right after a sale, refund or void asks with `copy=0` (not audited); a second press
    of that button and every reprint button ask with `copy=1` (marked and audited). The API is open to `copy=0` for
@@ -56,9 +57,10 @@ prints. Pages without a print root (reports) print as before.
 - `tests/e2e/hardening.spec.ts` (8): settings onto the printed slip; print media shows only the slip; reprint
   "Copy" and a second press of Print is a copy; only the last printed slip goes to paper; Arabic slip RTL with Latin digits; Returns reprint and refund slip; Z-report after close; Manager denied
   settings; headers on a page and an API route; Arabic sweep; A4 PO print with supplier, lines and total.
-- Full suites: vitest 729 passed (1 skipped), Playwright 56 passed, lint, typecheck, Prettier and `next build` clean.
+- Full suites: vitest 730 passed (1 skipped), Playwright 56 passed, lint, typecheck, Prettier and `next build` clean.
+- Manual print check (risk R1): done by the owner 2026-10-13. Edges, length and text size fine; the PDF page size was
+  wrong and is fixed (deviation 1).
 
 ## 4. Not done
 
-- **Manual print check on a real 80 mm printer (risk R1)** — needs the shop's hardware.
 - Nonce CSP (Phase 13), ESC/POS or printer drivers, e-invoicing (out of scope).
