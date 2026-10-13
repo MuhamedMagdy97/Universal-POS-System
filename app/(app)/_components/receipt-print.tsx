@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
 import type { ReceiptDoc, ReceiptRequest } from "@/modules/sales";
 import { plain, safeAction } from "../inventory/_lib/form";
 import { receiptAction } from "../_lib/receipt-action";
-import { usePrinter } from "./printing";
+import { LoadAndPrintButton } from "./printing";
 
 const METHOD_LABEL: Record<string, MessageKey> = {
   CASH: "pos.pay.cash",
@@ -83,7 +82,7 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
             </td>
           </tr>
           <tr className="receipt-strong">
-            <td>{doc.kind === "REFUND" ? tr("receipt.refunded") : tr("receipt.total")}</td>
+            <td>{doc.kind === "SALE" ? tr("receipt.total") : tr("receipt.refunded")}</td>
             <td dir="ltr" className="receipt-end">
               {money(doc.totalMinor)}
             </td>
@@ -119,38 +118,20 @@ type ButtonProps = {
   className?: string;
 };
 
-/** Loads the receipt from the server (a copy is audited there) and prints it. */
+/**
+ * Loads the receipt from the server (a copy is audited there) and prints it. An "original" button
+ * asks for a copy from its second press on, so only one unmarked slip leaves the till (H4).
+ */
 export function PrintReceiptButton({ locale, saleId, request, label, className }: ButtonProps) {
-  const tr = translator(locale);
-  const { print, portal } = usePrinter();
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  async function load() {
-    setPending(true);
-    setFailed(false);
-    const result = await safeAction(() => receiptAction(saleId, request));
-    setPending(false);
-    if (result.ok) print(<ReceiptSlip doc={result.data} locale={locale} />);
-    else setFailed(true);
-  }
-
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => void load()}
-        disabled={pending}
-        className={className ?? "rounded-md border border-border px-4 py-2 disabled:opacity-50"}
-      >
-        {plain(locale, label)}
-      </button>
-      {failed ? (
-        <span role="alert" className="text-red-700">
-          {tr("receipt.error")}
-        </span>
-      ) : null}
-      {portal}
-    </>
+    <LoadAndPrintButton
+      label={plain(locale, label)}
+      errorLabel={plain(locale, "receipt.error")}
+      className={className}
+      load={(printedBefore) =>
+        safeAction(() => receiptAction(saleId, { ...request, copy: request.copy || printedBefore }))
+      }
+      render={(doc) => <ReceiptSlip doc={doc} locale={locale} />}
+    />
   );
 }

@@ -22,7 +22,7 @@ export function bucketOf(request: Request): RateBucket {
   return new URL(request.url).searchParams.get("format") === "csv" ? "export" : "read";
 }
 
-/** Start of the fixed window containing `now`. */
+/** Start of the fixed window containing `now`: the same minute boundary the SQL uses (tests seed rows with it). */
 export function windowStartOf(now: Date): Date {
   const ms = RATE_WINDOW_SECONDS * 1000;
   return new Date(Math.floor(now.getTime() / ms) * ms);
@@ -36,18 +36,21 @@ export function rateLimited(retryAfterSeconds: number): AppError {
 export async function enforceRateLimit(ctx: TenantContext, request: Request, log: Logger): Promise<void> {
   const bucket = bucketOf(request);
   const limit = RATE_LIMITS[bucket];
-  const now = new Date();
-  const windowStart = windowStartOf(now);
   let count: number;
+  let secondsLeft: number;
   try {
     const key = `${ctx.orgId}:${ctx.userId}:${bucket}`;
-    const rows = await getDb().$queryRaw<{ count: number }[]>`
-      INSERT INTO "ApiRateLimit" ("key", "windowStart", "count") VALUES (${key}, ${windowStart}, 1)
+    // The window comes from the database clock, so every server instance agrees on it, and it only
+    // moves forward: a late request from the previous window counts in the current one instead of
+    // resetting it. RATE_WINDOW_SECONDS is one minute, hence date_trunc('minute').
+    const rows = await getDb().$queryRaw<{ count: number; secondsLeft: number }[]>`
+      INSERT INTO "ApiRateLimit" ("key", "windowStart", "count") VALUES (${key}, date_trunc('minute', now()), 1)
       ON CONFLICT ("key") DO UPDATE SET
-        "count" = CASE WHEN "ApiRateLimit"."windowStart" = EXCLUDED."windowStart" THEN "ApiRateLimit"."count" + 1 ELSE 1 END,
-        "windowStart" = EXCLUDED."windowStart"
-      RETURNING "count"`;
+        "count" = CASE WHEN "ApiRateLimit"."windowStart" >= EXCLUDED."windowStart" THEN "ApiRateLimit"."count" + 1 ELSE 1 END,
+        "windowStart" = GREATEST("ApiRateLimit"."windowStart", EXCLUDED."windowStart")
+      RETURNING "count", EXTRACT(EPOCH FROM ("windowStart" + interval '1 minute' - now()))::float8 AS "secondsLeft"`;
     count = Number(rows[0]?.count ?? 0);
+    secondsLeft = Number(rows[0]?.secondsLeft ?? RATE_WINDOW_SECONDS);
   } catch (error) {
     log.error("rate limiter unavailable, request allowed", { error });
     return;
@@ -67,9 +70,5 @@ export async function enforceRateLimit(ctx: TenantContext, request: Request, log
       // A failed audit write must not turn a 429 into a 500.
     }
   }
-  const retryAfter = Math.max(
-    1,
-    Math.ceil((windowStart.getTime() + RATE_WINDOW_SECONDS * 1000 - now.getTime()) / 1000),
-  );
-  throw rateLimited(retryAfter);
+  throw rateLimited(Math.min(RATE_WINDOW_SECONDS, Math.max(1, Math.ceil(secondsLeft))));
 }

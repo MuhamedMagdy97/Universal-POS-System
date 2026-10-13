@@ -27,10 +27,14 @@ prints. Pages without a print root (reports) print as before.
 1. **No `@page size` for receipts.** The receipt page is a 72 mm column (printable width of 80 mm paper) with zero
    margin. `size: 80mm auto` is not valid CSS, and a fixed height feeds blank paper on a roll; the thermal driver
    sets the length. On A4 the column prints centred.
-2. **"Copy" is chosen by the screen, not inferred.** The server cannot tell a print from a fetch, so the original
-   print right after a sale, refund or void asks with `copy=0` (not audited) and every later print button asks with
-   `copy=1` (marked and audited). The API is open to `copy=0` for the same callers; the slip is a customer slip, not a
-   tax invoice.
+2. **"Copy" is chosen by the screen, not inferred.** The server cannot tell a print from a fetch, so the first
+   press of the Print button shown right after a sale, refund or void asks with `copy=0` (not audited); a second press
+   of that button and every reprint button ask with `copy=1` (marked and audited). The API is open to `copy=0` for
+   the same callers; the slip is a customer slip, not a tax invoice.
+7. **A void slip shows the total as refunded and no change**, with the original tenders listed, since a void hands
+   back what was taken.
+8. **The rate window is taken from the database clock** (`date_trunc('minute', now())`) and only moves forward, so
+   instances with skewed clocks and late requests never reset a running count.
 3. **Who may print.** A receipt: the cashier who made the sale, or any `sales.refund` / `sales.void` holder, in branch
    scope. A Z-report: `registers.close` (the till) or `reports.view` (the Shifts report), in branch scope, closed
    shifts only.
@@ -44,15 +48,15 @@ prints. Pages without a print root (reports) print as before.
 
 ## 3. Tests
 
-- `tests/integration/hardening.test.ts` (14): receipt fields saved, cleared, audited, refused for Manager and
+- `tests/integration/hardening.test.ts` (15): receipt fields saved, cleared, audited, refused for Manager and
   Cashier; sale, refund and void receipts match the stored rows; reprints audited; other cashiers 403, other tenants
   404; Z-report matches the close; route 200/422; 429 with `Retry-After`, audited once, reads unaffected, next window
-  passes, counted per user.
+  passes, a late request from an older window still counts, counted per user.
 - `tests/unit/hardening.test.ts` (5): buckets, windows, 429 envelope, headers and CSP.
 - `tests/e2e/hardening.spec.ts` (8): settings onto the printed slip; print media shows only the slip; reprint
-  "Copy"; Arabic slip RTL with Latin digits; Returns reprint and refund slip; Z-report after close; Manager denied
+  "Copy" and a second press of Print is a copy; only the last printed slip goes to paper; Arabic slip RTL with Latin digits; Returns reprint and refund slip; Z-report after close; Manager denied
   settings; headers on a page and an API route; Arabic sweep; A4 PO print with supplier, lines and total.
-- Full suites: vitest 728 passed (1 skipped), Playwright 56 passed, lint, typecheck, Prettier and `next build` clean.
+- Full suites: vitest 729 passed (1 skipped), Playwright 56 passed, lint, typecheck, Prettier and `next build` clean.
 
 ## 4. Not done
 

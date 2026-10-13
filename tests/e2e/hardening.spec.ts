@@ -62,7 +62,9 @@ async function sellOne(page: Page, arabic = false) {
   return { number: ((await heading.textContent()) ?? "").replace(/\D/g, ""), name };
 }
 
-const slipIn = (page: Page, testId = "receipt-slip") => page.locator(`.print-root [data-testid=${testId}]`);
+/** The slip in the print root that prints now (the last one printed on the page). */
+const slipIn = (page: Page, testId = "receipt-slip") =>
+  page.locator(`.print-root[data-active] [data-testid=${testId}]`);
 
 test.describe("receipts", () => {
   test("settings flow onto the printed receipt; a reprint is marked Copy", async ({ browser }) => {
@@ -95,6 +97,10 @@ test.describe("receipts", () => {
     await expect(page.locator("main")).toBeHidden();
     await page.emulateMedia({ media: "screen" });
     await expect(slip).toBeHidden();
+
+    // A second press of the original Print button prints a copy, never a second original.
+    await page.getByRole("button", { name: "Print", exact: true }).click();
+    await expect(slipIn(page)).toContainText("Receipt · Copy");
 
     await page.getByRole("button", { name: "New sale" }).click();
     await page.getByRole("button", { name: "Reprint last receipt" }).click();
@@ -131,10 +137,15 @@ test.describe("receipts", () => {
     await page.getByRole("button", { name: /^Refund EGP/ }).click();
     await expect(page.getByTestId("returns-message")).toContainText("Refunded EGP 10.00.");
     await page.getByRole("button", { name: "Print", exact: true }).click();
-    const slip = slipIn(page).last();
+    const slip = slipIn(page);
     await expect(slip).toContainText("Refund");
     await expect(slip).toContainText("Reason: Damaged");
     await expect(slip).not.toContainText("Copy");
+    // Two slips are mounted on this page, but only the last one printed goes to paper.
+    await expect(page.locator(".print-root")).toHaveCount(2);
+    await page.emulateMedia({ media: "print" });
+    await expect(slip).toBeVisible();
+    await expect(page.locator(".print-root:not([data-active])")).toBeHidden();
     await manager.close();
   });
 });

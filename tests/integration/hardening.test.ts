@@ -209,7 +209,7 @@ describe("receipts (H2, H4)", () => {
     await expectAppError(getReceipt(manager, sale.id, { kind: "VOID", copy: false }), 404);
     await voidSale(manager, sale.id, { reason: "Wrong item" });
     const doc = await getReceipt(manager, sale.id, { kind: "VOID", copy: false });
-    expect(doc).toMatchObject({ kind: "VOID", reason: "Wrong item", totalMinor: 1000 });
+    expect(doc).toMatchObject({ kind: "VOID", reason: "Wrong item", totalMinor: 1000, changeMinor: 0 });
     expect(doc.staffName).toMatch(/^MANAGER/);
   });
 
@@ -359,6 +359,20 @@ describe("routes", () => {
     });
     expect((await patch(request("/org/receipt", "PATCH", admin.cookie, {}), noParams)).status).toBe(200);
   }, 20_000);
+
+  it("a late request from an older window counts in the current one instead of resetting it", async () => {
+    const admin = await sessionFor(tenant.org.id, "ADMIN");
+    // The stored window is already ahead of this request (another instance moved on first) and full.
+    await db.apiRateLimit.create({
+      data: {
+        key: `${tenant.org.id}:${admin.userId}:write`,
+        windowStart: new Date(windowStartOf(new Date()).getTime() + 60_000),
+        count: RATE_LIMITS.write,
+      },
+    });
+    const patch = settingsRoute.PATCH as Handler;
+    expect((await patch(request("/org/receipt", "PATCH", admin.cookie, {}), noParams)).status).toBe(429);
+  });
 
   it("counts per user: another admin is not limited by the first", { timeout: 20_000 }, async () => {
     const first = await sessionFor(tenant.org.id, "ADMIN");

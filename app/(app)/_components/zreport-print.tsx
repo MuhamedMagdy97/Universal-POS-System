@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
 import type { ZReport } from "@/modules/registers";
 import { plain, safeAction } from "../inventory/_lib/form";
 import { zReportAction } from "../_lib/receipt-action";
-import { usePrinter } from "./printing";
+import { LoadAndPrintButton } from "./printing";
 import { receiptTime } from "./receipt-print";
 
 const ROWS: { key: keyof ZReport; label: MessageKey; strong?: boolean }[] = [
@@ -62,36 +61,13 @@ export function PrintZReportButton({
   shiftId: string;
   className?: string;
 }) {
-  const tr = translator(locale);
-  const { print, portal } = usePrinter();
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  async function load() {
-    setPending(true);
-    setFailed(false);
-    const result = await safeAction(() => zReportAction(shiftId));
-    setPending(false);
-    if (result.ok) print(<ZReportSlip report={result.data} locale={locale} />);
-    else setFailed(true);
-  }
-
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => void load()}
-        disabled={pending}
-        className={className ?? "rounded-md border border-border px-4 py-2 disabled:opacity-50"}
-      >
-        {tr("zreport.print")}
-      </button>
-      {failed ? (
-        <span role="alert" className="text-red-700">
-          {tr("receipt.error")}
-        </span>
-      ) : null}
-      {portal}
-    </>
+    <LoadAndPrintButton
+      label={plain(locale, "zreport.print")}
+      errorLabel={plain(locale, "receipt.error")}
+      className={className}
+      load={() => safeAction(() => zReportAction(shiftId))}
+      render={(report) => <ZReportSlip report={report} locale={locale} />}
+    />
   );
 }

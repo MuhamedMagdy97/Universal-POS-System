@@ -147,7 +147,8 @@ export async function getReceipt(
       totalMinor: sale.totalMinor,
       vatRatesBp: rates(sale.items.map((item) => item.vatRateBp)),
       payments: sale.payments.map((payment) => ({ method: payment.method, amountMinor: payment.amountMinor })),
-      changeMinor: sale.changeMinor,
+      // A void hands back what was taken: the slip shows the total as refunded and no change (H2).
+      changeMinor: isVoid ? 0 : sale.changeMinor,
     };
   }
 

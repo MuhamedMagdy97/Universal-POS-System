@@ -40,7 +40,7 @@ body {
 }
 
 /* ── Printing (T10) ──────────────────────────────────────────────────────────
-   A page that mounts `.print-root` (app/(app)/_components/printing.tsx) prints only
+   A page with an active `.print-root` (app/(app)/_components/printing.tsx) prints only
    that node; pages without one print as they are. Receipts are a 72 mm column (the
    printable width of 80 mm thermal paper, H1); on A4 the same column prints centred.
    ponytail: no `@page size` for receipts — thermal drivers set the roll length, and a
@@ -65,10 +65,10 @@ body {
     --muted: #000000;
     --border: #000000;
   }
-  body:has(> .print-root) > :not(.print-root) {
+  body:has(> .print-root[data-active]) > :not(.print-root[data-active]) {
     display: none !important;
   }
-  .print-root {
+  .print-root[data-active] {
     display: block;
   }
 }
