@@ -55,19 +55,20 @@ Check it is alive: `GET http://localhost:3000/api/health` returns `{"status":"ok
 
 ## Scripts
 
-| Command              | What it does                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`        | Next.js dev server                                                                                                    |
-| `npm run build`      | Production build                                                                                                      |
-| `npm start`          | Serve the production build                                                                                            |
-| `npm run lint`       | ESLint (Next + typescript-eslint strict), zero warnings allowed                                                       |
-| `npm run typecheck`  | `tsc --noEmit`                                                                                                        |
-| `npm run format`     | Prettier write (`format:check` to verify)                                                                             |
-| `npm test`           | Vitest: unit + integration tests (needs `TEST_DATABASE_URL`)                                                          |
-| `npm run test:e2e`   | Playwright smoke tests against `npm start` (run `npm run build` first; first time: `npx playwright install chromium`) |
-| `npm run db:migrate` | Create/apply migrations in development                                                                                |
-| `npm run db:deploy`  | Apply migrations in production/CI                                                                                     |
-| `npm run db:status`  | Migration status                                                                                                      |
+| Command               | What it does                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`         | Next.js dev server                                                                                                    |
+| `npm run build`       | Production build                                                                                                      |
+| `npm start`           | Serve the production build                                                                                            |
+| `npm run lint`        | ESLint (Next + typescript-eslint strict), zero warnings allowed                                                       |
+| `npm run typecheck`   | `tsc --noEmit`                                                                                                        |
+| `npm run format`      | Prettier write (`format:check` to verify)                                                                             |
+| `npm test`            | Vitest: unit + integration tests (needs `TEST_DATABASE_URL`)                                                          |
+| `npm run test:e2e`    | Playwright smoke tests against `npm start` (run `npm run build` first; first time: `npx playwright install chromium`) |
+| `npm run db:migrate`  | Create/apply migrations in development                                                                                |
+| `npm run db:deploy`   | Apply migrations in production/CI                                                                                     |
+| `npm run db:status`   | Migration status                                                                                                      |
+| `npm run db:seed:dev` | Load two demo shops (logins, till, stock) into the dev database; logins in `prisma/seed-e2e.ts`                       |
 
 The pre-commit hook runs lint, typecheck and the Prettier check.
 

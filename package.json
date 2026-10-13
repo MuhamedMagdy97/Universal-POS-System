@@ -17,6 +17,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "db:generate": "prisma generate",
+    "db:seed:dev": "jiti prisma/seed-dev.ts",
     "postinstall": "prisma generate",
     "prepare": "simple-git-hooks"
   },
