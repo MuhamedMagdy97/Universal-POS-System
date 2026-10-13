@@ -63,8 +63,8 @@
   (`/settings/receipt`, Owner and Admin), Z-report print after close and from the Shifts report, A4 PO print,
   security headers with a static CSP, a per-user API rate limit in PostgreSQL (one migration, `api_rate_limit`), and
   Arabic E2E for returns, reports, audit, purchasing and settings. Deviations (no `@page` size, copy chosen by the
-  screen, Route Handlers only) are in [phase-11/hardening-as-built.md](phase-11/hardening-as-built.md). Open: a manual
-  print check on a real 80 mm printer.
+  screen, Route Handlers only) are in [phase-11/hardening-as-built.md](phase-11/hardening-as-built.md). Print check done by the owner
+  (2026-10-13); the receipt page is now sized to the slip.
 
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
