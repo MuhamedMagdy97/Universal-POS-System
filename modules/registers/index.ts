@@ -11,6 +11,7 @@ export {
   lockShift,
   previewShiftCash,
   getZReport,
+  hasOpenShift,
   type ZReport,
   type CashBreakdown,
   type ShiftSummary,

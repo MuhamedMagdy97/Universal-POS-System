@@ -66,6 +66,11 @@
   screen, Route Handlers only) are in [phase-11/hardening-as-built.md](phase-11/hardening-as-built.md). Print check done by the owner
   (2026-10-13); the receipt page is now sized to the slip.
 
+- T2 completion: shop onboarding, staff, branches and tills. Spec approved by the owner (2026-10-14, every decision as
+  recommended): [onboarding/onboarding-spec.md](onboarding/onboarding-spec.md). BUILT on `t2/onboarding`
+  (2026-10-14): self-serve shop setup from Welcome (one transaction, signs the owner in), Staff and Branches screens
+  under Settings, My account password change, EN/AR. No migration. Deviations are in the spec, §6.
+
 ## Pending
 Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

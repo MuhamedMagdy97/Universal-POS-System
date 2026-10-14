@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TenantBadge } from "./_components/tenant-badge";
 import { LocaleToggle } from "./_components/locale-toggle";
 import { SignOutButton } from "./_components/sign-out-button";
+import { AccountLink } from "./_components/account-link";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
@@ -51,6 +52,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </nav>
         <div className="ms-auto flex items-center gap-3">
           <LocaleToggle />
+          <AccountLink />
           <SignOutButton />
         </div>
       </header>

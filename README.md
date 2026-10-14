@@ -4,9 +4,10 @@ Multi-tenant point of sale and back-office for retail shops in Egypt (EGP, 14% V
 Modular monolith: Next.js App Router + TypeScript + PostgreSQL + Prisma. Product and architecture docs live in
 [`docs/`](docs/).
 
-Status: **Phase 11 (T10 hardening), the last MVP task**. Auth, tenancy, catalog, inventory, checkout (POS till, shifts,
-returns/voids), reports and audit trail, purchasing, and the hardening slice (printed receipts and Z-reports, receipt
-settings, API rate limit, security headers, Arabic RTL coverage) are built. Details and what is next:
+Status: **MVP tasks T1–T10 built, plus shop onboarding**. Auth, tenancy (self-serve shop setup, staff, branches and
+tills), catalog, inventory, checkout (POS till, shifts, returns/voids), reports and audit trail, purchasing, and the
+hardening slice (printed receipts and Z-reports, receipt settings, API rate limit, security headers, Arabic RTL coverage)
+are built. Details and what is next:
 [`docs/planning/phase-status.md`](docs/planning/phase-status.md) and [`docs/planning/roadmap.md`](docs/planning/roadmap.md).
 
 ## Prerequisites
@@ -55,19 +56,20 @@ Check it is alive: `GET http://localhost:3000/api/health` returns `{"status":"ok
 
 ## Scripts
 
-| Command              | What it does                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`        | Next.js dev server                                                                                                    |
-| `npm run build`      | Production build                                                                                                      |
-| `npm start`          | Serve the production build                                                                                            |
-| `npm run lint`       | ESLint (Next + typescript-eslint strict), zero warnings allowed                                                       |
-| `npm run typecheck`  | `tsc --noEmit`                                                                                                        |
-| `npm run format`     | Prettier write (`format:check` to verify)                                                                             |
-| `npm test`           | Vitest: unit + integration tests (needs `TEST_DATABASE_URL`)                                                          |
-| `npm run test:e2e`   | Playwright smoke tests against `npm start` (run `npm run build` first; first time: `npx playwright install chromium`) |
-| `npm run db:migrate` | Create/apply migrations in development                                                                                |
-| `npm run db:deploy`  | Apply migrations in production/CI                                                                                     |
-| `npm run db:status`  | Migration status                                                                                                      |
+| Command               | What it does                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`         | Next.js dev server                                                                                                    |
+| `npm run build`       | Production build                                                                                                      |
+| `npm start`           | Serve the production build                                                                                            |
+| `npm run lint`        | ESLint (Next + typescript-eslint strict), zero warnings allowed                                                       |
+| `npm run typecheck`   | `tsc --noEmit`                                                                                                        |
+| `npm run format`      | Prettier write (`format:check` to verify)                                                                             |
+| `npm test`            | Vitest: unit + integration tests (needs `TEST_DATABASE_URL`)                                                          |
+| `npm run test:e2e`    | Playwright smoke tests against `npm start` (run `npm run build` first; first time: `npx playwright install chromium`) |
+| `npm run db:migrate`  | Create/apply migrations in development                                                                                |
+| `npm run db:deploy`   | Apply migrations in production/CI                                                                                     |
+| `npm run db:status`   | Migration status                                                                                                      |
+| `npm run db:seed:dev` | Load two demo shops (logins, till, stock) into the dev database; logins in `prisma/seed-e2e.ts`                       |
 
 The pre-commit hook runs lint, typecheck and the Prettier check.
 

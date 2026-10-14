@@ -13,9 +13,10 @@ export async function e2eQuery<T extends Record<string, unknown>>(sql: string, p
   }
 }
 
-/** Login is rate limited (5/min per IP); the harness signs several users in from one IP. */
+/** Login and shop setup are rate limited (5/min per IP); the harness signs several users in from one IP. */
 export async function resetLoginRateLimit(): Promise<void> {
   await e2eQuery(`DELETE FROM "RateLimit"`);
+  await e2eQuery(`DELETE FROM "ApiRateLimit" WHERE "key" LIKE 'ip:%'`);
 }
 
 export async function productIdBySku(orgId: string, sku: string): Promise<string> {

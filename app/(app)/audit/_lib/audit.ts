@@ -36,6 +36,21 @@ export const AUDIT_ACTIONS = [
   "purchasing.receipt.created",
   "reports.exported",
   "audit.exported",
+  "org.created",
+  "staff.added",
+  "staff.updated",
+  "staff.deactivated",
+  "staff.reactivated",
+  "staff.password_reset",
+  "branch.created",
+  "branch.updated",
+  "branch.deactivated",
+  "branch.reactivated",
+  "register.created",
+  "register.updated",
+  "register.deactivated",
+  "register.reactivated",
+  "account.password_changed",
 ] as const;
 
 export const AUDIT_ENTITY_TYPES = [
@@ -52,6 +67,11 @@ export const AUDIT_ENTITY_TYPES = [
   "GoodsReceipt",
   "Report",
   "AuditEvent",
+  "Organization",
+  "Membership",
+  "Branch",
+  "Register",
+  "User",
 ] as const;
 
 /** A readable label (`sale.void` → "Sale voided"); an unknown action shows its raw name. */

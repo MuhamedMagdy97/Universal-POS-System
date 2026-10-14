@@ -32,29 +32,49 @@ export function rateLimited(retryAfterSeconds: number): AppError {
   return new AppError("RATE_LIMITED", "Too many requests, try again shortly", { retryAfterSeconds });
 }
 
-/** Counts this request; throws 429 `RATE_LIMITED` (details.retryAfterSeconds) once the bucket is over its limit. */
-export async function enforceRateLimit(ctx: TenantContext, request: Request, log: Logger): Promise<void> {
-  const bucket = bucketOf(request);
-  const limit = RATE_LIMITS[bucket];
-  let count: number;
-  let secondsLeft: number;
+/**
+ * Counts one hit on `key` in the current window; null when the limiter itself failed (fail open).
+ * The window comes from the database clock, so every server instance agrees on it, and it only
+ * moves forward: a late request from the previous window counts in the current one instead of
+ * resetting it. RATE_WINDOW_SECONDS is one minute, hence date_trunc('minute').
+ */
+async function countHit(key: string, log: Logger): Promise<{ count: number; secondsLeft: number } | null> {
   try {
-    const key = `${ctx.orgId}:${ctx.userId}:${bucket}`;
-    // The window comes from the database clock, so every server instance agrees on it, and it only
-    // moves forward: a late request from the previous window counts in the current one instead of
-    // resetting it. RATE_WINDOW_SECONDS is one minute, hence date_trunc('minute').
     const rows = await getDb().$queryRaw<{ count: number; secondsLeft: number }[]>`
       INSERT INTO "ApiRateLimit" ("key", "windowStart", "count") VALUES (${key}, date_trunc('minute', now()), 1)
       ON CONFLICT ("key") DO UPDATE SET
         "count" = CASE WHEN "ApiRateLimit"."windowStart" >= EXCLUDED."windowStart" THEN "ApiRateLimit"."count" + 1 ELSE 1 END,
         "windowStart" = GREATEST("ApiRateLimit"."windowStart", EXCLUDED."windowStart")
       RETURNING "count", EXTRACT(EPOCH FROM ("windowStart" + interval '1 minute' - now()))::float8 AS "secondsLeft"`;
-    count = Number(rows[0]?.count ?? 0);
-    secondsLeft = Number(rows[0]?.secondsLeft ?? RATE_WINDOW_SECONDS);
+    return {
+      count: Number(rows[0]?.count ?? 0),
+      secondsLeft: Number(rows[0]?.secondsLeft ?? RATE_WINDOW_SECONDS),
+    };
   } catch (error) {
     log.error("rate limiter unavailable, request allowed", { error });
-    return;
+    return null;
   }
+}
+
+const retryAfter = (secondsLeft: number) => Math.min(RATE_WINDOW_SECONDS, Math.max(1, Math.ceil(secondsLeft)));
+
+/**
+ * Public forms with no session (shop setup): `limit` hits per minute per client IP, like the
+ * Better-Auth sign-up limit. Keys look like `ip:onboarding:203.0.113.7`; the table is shared.
+ */
+export async function enforceIpRateLimit(scope: string, headers: Headers, limit: number, log: Logger): Promise<void> {
+  const ip = headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "unknown";
+  const hit = await countHit(`ip:${scope}:${ip}`, log);
+  if (hit && hit.count > limit) throw rateLimited(retryAfter(hit.secondsLeft));
+}
+
+/** Counts this request; throws 429 `RATE_LIMITED` (details.retryAfterSeconds) once the bucket is over its limit. */
+export async function enforceRateLimit(ctx: TenantContext, request: Request, log: Logger): Promise<void> {
+  const bucket = bucketOf(request);
+  const limit = RATE_LIMITS[bucket];
+  const hit = await countHit(`${ctx.orgId}:${ctx.userId}:${bucket}`, log);
+  if (!hit) return;
+  const { count, secondsLeft } = hit;
   if (count <= limit) return;
 
   if (count === limit + 1) {
@@ -70,5 +90,5 @@ export async function enforceRateLimit(ctx: TenantContext, request: Request, log
       // A failed audit write must not turn a 429 into a 500.
     }
   }
-  throw rateLimited(Math.min(RATE_WINDOW_SECONDS, Math.max(1, Math.ceil(secondsLeft))));
+  throw rateLimited(retryAfter(secondsLeft));
 }

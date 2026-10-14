@@ -63,6 +63,8 @@ export async function openShift(ctx: TenantContext, input: unknown, meta?: Audit
   const db = getDb();
   try {
     return await db.$transaction(async (tx) => {
+      // Shares the till row with a deactivation (org/branches.ts), so a till is never retired under a new shift.
+      await tx.$queryRaw`SELECT "id" FROM "Register" WHERE "id" = ${parsed.registerId}::uuid FOR SHARE`;
       await requireRegister(tx, ctx.orgId, parsed.branchId, parsed.registerId);
       const open = await tx.registerShift.findFirst({
         where: { orgId: ctx.orgId, registerId: parsed.registerId, status: "OPEN" },
@@ -384,4 +386,17 @@ export async function getZReport(ctx: TenantContext, shiftId: string): Promise<Z
     discrepancyMinor: shift.discrepancyMinor ?? 0,
     discrepancyNote: shift.discrepancyNote,
   };
+}
+
+/** True if a shift is open on the till, or on any till of the branch (onboarding O5: such a till or branch stays active). */
+export async function hasOpenShift(
+  client: Tx,
+  orgId: string,
+  where: { registerId: string } | { branchId: string },
+): Promise<boolean> {
+  const open = await client.registerShift.findFirst({
+    where: { orgId, ...where, status: "OPEN" },
+    select: { id: true },
+  });
+  return open !== null;
 }

@@ -43,3 +43,12 @@ export async function getOnHand(
   );
   return refs.map((ref) => byKey.get(keyOf({ branchId, productId: ref.productId, variantId: ref.variantId })) ?? 0);
 }
+
+/** True if any item has stock (positive or negative) at the branch; a branch with stock stays active (onboarding O5). */
+export async function hasStockAt(client: InventoryClient, orgId: string, branchId: string): Promise<boolean> {
+  const balance = await client.stockBalance.findFirst({
+    where: { orgId, branchId, qty: { not: 0 } },
+    select: { id: true },
+  });
+  return balance !== null;
+}
