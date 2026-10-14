@@ -1,34 +1,37 @@
-import { BUSINESS_PRESETS } from "@/modules/presets";
+import { Suspense } from "react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth/session";
+import { getDb } from "@/lib/db";
+import { translator } from "@/lib/i18n";
+import { getLocale } from "@/lib/i18n/server";
+import { SetupForm } from "./setup-form";
 
+/**
+ * Set up a new shop (onboarding O1, O2, O7, O8). Signed out: the full form with the owner's
+ * account. Signed in without a shop: the shop fields only. Already in a shop: the dashboard.
+ */
 export default function OnboardingPage() {
   return (
+    <Suspense fallback={<p aria-busy="true">…</p>}>
+      <OnboardingContent />
+    </Suspense>
+  );
+}
+
+async function OnboardingContent() {
+  const [requestHeaders, locale] = await Promise.all([headers(), getLocale()]);
+  const session = await getSession(requestHeaders);
+  if (session) {
+    const member = await getDb().membership.findFirst({ where: { userId: session.user.id }, select: { id: true } });
+    if (member) redirect("/dashboard");
+  }
+  const tr = translator(locale);
+  return (
     <>
-      <h1 className="text-2xl font-semibold">Set up your business</h1>
-      <p className="text-muted">
-        Pick the type of business. A type applies a preset (currency, VAT default, receipt template) on top of the same
-        core. Organization creation is delivered in task T2; this page lists what each type includes today.
-      </p>
-      <ul className="flex flex-col gap-2">
-        {BUSINESS_PRESETS.map((preset) => (
-          <li
-            key={preset.id}
-            className="flex items-center justify-between gap-4 rounded-md border border-border px-4 py-3"
-          >
-            <span>
-              {preset.label.en} <span className="text-muted">· {preset.label.ar}</span>
-            </span>
-            <span
-              className={
-                preset.status === "included"
-                  ? "rounded-full bg-green-100 px-2 py-0.5 text-sm text-green-800"
-                  : "rounded-full bg-gray-100 px-2 py-0.5 text-sm text-gray-700"
-              }
-            >
-              {preset.status === "included" ? "Included" : "Coming soon"}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <h1 className="text-2xl font-semibold">{tr("onboarding.title")}</h1>
+      <p className="text-muted">{tr("onboarding.intro")}</p>
+      <SetupForm locale={locale} needsAccount={!session} />
     </>
   );
 }

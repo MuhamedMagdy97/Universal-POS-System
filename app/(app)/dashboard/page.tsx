@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { requireTenant } from "@/lib/auth/tenant";
+import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
@@ -28,10 +29,16 @@ async function DashboardContent() {
   const tr = translator(locale);
 
   let tiles: DashboardTiles | null = null;
+  let noShop = false;
   try {
     tiles = await getDashboardTiles(await requireTenant(requestHeaders));
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
+    noShop = !session.session.activeOrganizationId;
+  }
+  // Signed in but not in any shop yet (e.g. signed up through the API): finish setup (onboarding O7).
+  if (noShop && !(await getDb().membership.findFirst({ where: { userId: session.user.id }, select: { id: true } }))) {
+    redirect("/onboarding");
   }
 
   const money = (minor: number) => (tiles ? formatMinor(minor, tiles.currency, locale) : "");

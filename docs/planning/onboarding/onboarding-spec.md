@@ -1,7 +1,6 @@
 # T2 completion — Shop Onboarding, Staff, Branches and Tills: Specification
 
-Status: **draft, awaiting the owner's approval.** Decisions O1–O5 need a ruling; the rest are marked **(rec)** and
-will be taken as recommended unless overridden.
+Status: **approved by the owner (2026-10-14), every decision as recommended. BUILT on `t2/onboarding`** — see §6.
 
 Source: `docs/planning/task-breakdown.md` (T2 "Org/Branch/Register + EG/SA preset seed"), `docs/product/vision.md`
 and `target-customers.md` (onboarding business-type selector, only Retail working in the MVP),
@@ -66,3 +65,35 @@ in several shops, changing country or currency after setup, billing, deleting a 
 4. An Admin cannot add an Owner or Admin; nobody can remove the last Owner.
 5. A second branch and a second till appear on the till's branch and register pickers.
 6. Every screen works in Arabic, right to left. lint, tsc, vitest, `next build`, full Playwright green.
+
+## 6. As built (2026-10-14)
+
+Services in `modules/org` (`setup.ts`, `staff.ts`, `branches.ts`, `account.ts`, rules in `schemas.ts`), Server Actions
+for the screens, `/onboarding`, `/settings/staff`, `/settings/branches` and `/account` in EN/AR. No migration.
+Tests: `tests/integration/onboarding.test.ts` (acceptance 1–5 at the service level), `tests/unit/org-helpers.test.ts`,
+`tests/e2e/onboarding.spec.ts` (acceptance 1, 3, 5, 6 in the browser).
+
+Deviations and additions:
+
+- **O6, stronger than specified:** the login (user + Better-Auth "credential" account, argon2id) is written in the same
+  transaction as the shop, branch, till and membership, so there is nothing to delete after a failure. The owner is
+  then signed in with Better-Auth's `signInEmail` (the session picks the new shop).
+- **Rate limit:** Better-Auth's 5/min sign-up limit only covers its HTTP routes, so setup has its own: 5 per minute per
+  IP in the `ApiRateLimit` table (keys `ip:onboarding:<ip>`), via `enforceIpRateLimit` in `lib/rate-limit.ts`.
+- **Branch codes** are stored upper-case; the first branch gets code `MAIN`. The till is "Till 1" in both languages.
+- **Staff screen:** nobody edits their own row there (reason `SELF`; own password under My account). A new temporary
+  password (R4) signs the person out everywhere, like deactivation; audited as `staff.password_reset`. Staff changes
+  queue on the shop row (`FOR UPDATE`), so two owners removing each other at once leave one active owner.
+- **Branches:** also refused for the last active branch (`LAST_BRANCH`). Branches and tills can be reactivated
+  (`branch.reactivated`, `register.reactivated`); a till cannot be added to or reactivated on an inactive branch.
+- **Till deactivation vs. a new shift:** `openShift` now holds the till row `FOR SHARE`; deactivation takes it
+  `FOR UPDATE` before checking for an open shift. Known ceiling: a delivery received at the moment a branch is
+  deactivated can land on it; its stock stays on the ledger and shows again on reactivation.
+- **Open purchase orders** for a branch are not checked on deactivation; they cannot be received until the branch is
+  reactivated. Add a guard (or cancel them) if this bites.
+- **Client IP** for the setup limit is the first `x-forwarded-for` entry (as Better-Auth uses): the hosting proxy must
+  set that header, or a client could rotate it to get past the limit.
+- **My account** ends the user's other sessions on a password change.
+- **No Route Handlers** for these screens (Server Actions only); add `/api/org/*` routes when an API client needs them.
+- Not built (as scoped out): email invites and verification, forced password change at first sign-in, several shops per
+  account, changing country or currency.

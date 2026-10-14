@@ -6,7 +6,7 @@
  * table writes. See docs/architecture/system-architecture.md.
  */
 export { applyLines, recordMovements, type RecordMovementsInput, type ApplyInput, type MovementReason } from "./ledger";
-export { getOnHand, hasUnvariantedStock, type InventoryClient } from "./queries";
+export { getOnHand, hasStockAt, hasUnvariantedStock, type InventoryClient } from "./queries";
 export { reconcile, type Mismatch } from "./reconcile";
 export { type ItemRef } from "./types";
 export { insufficientStock, type InsufficientLine } from "./errors";

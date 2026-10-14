@@ -1,10 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { hasPermission } from "@/lib/auth/permissions";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
-import { forbidden } from "@/lib/errors";
 import { record, type AuditRequestMeta } from "@/modules/audit";
+import { requirePermission } from "./access";
 
 /** The six receipt fields on `Organization` (T10 H3). `settings.manage` reads and writes them. */
 
@@ -48,21 +47,13 @@ const SELECT = {
   receiptFooter: true,
 } as const;
 
-async function requireSettings(ctx: TenantContext, operation: string, meta?: AuditRequestMeta): Promise<void> {
-  if (hasPermission(ctx.role, "settings.manage")) return;
-  try {
-    await record(getDb(), {
-      ctx,
-      meta,
-      action: "settings.permission.denied",
-      entityType: "Organization",
-      entityId: ctx.orgId,
-      metadata: { permission: "settings.manage", operation },
-    });
-  } catch {
-    // A failed audit write must not turn a 403 into a 500.
-  }
-  throw forbidden("Missing permission for this action");
+function requireSettings(ctx: TenantContext, operation: string, meta?: AuditRequestMeta): Promise<void> {
+  return requirePermission(ctx, "settings.manage", {
+    operation,
+    entityType: "Organization",
+    entityId: ctx.orgId,
+    meta,
+  });
 }
 
 export async function getReceiptSettings(ctx: TenantContext): Promise<ReceiptSettings> {

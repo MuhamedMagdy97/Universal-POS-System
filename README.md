@@ -4,9 +4,10 @@ Multi-tenant point of sale and back-office for retail shops in Egypt (EGP, 14% V
 Modular monolith: Next.js App Router + TypeScript + PostgreSQL + Prisma. Product and architecture docs live in
 [`docs/`](docs/).
 
-Status: **Phase 11 (T10 hardening), the last MVP task**. Auth, tenancy, catalog, inventory, checkout (POS till, shifts,
-returns/voids), reports and audit trail, purchasing, and the hardening slice (printed receipts and Z-reports, receipt
-settings, API rate limit, security headers, Arabic RTL coverage) are built. Details and what is next:
+Status: **MVP tasks T1–T10 built, plus shop onboarding**. Auth, tenancy (self-serve shop setup, staff, branches and
+tills), catalog, inventory, checkout (POS till, shifts, returns/voids), reports and audit trail, purchasing, and the
+hardening slice (printed receipts and Z-reports, receipt settings, API rate limit, security headers, Arabic RTL coverage)
+are built. Details and what is next:
 [`docs/planning/phase-status.md`](docs/planning/phase-status.md) and [`docs/planning/roadmap.md`](docs/planning/roadmap.md).
 
 ## Prerequisites
