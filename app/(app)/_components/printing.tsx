@@ -17,7 +17,11 @@ export function usePrinter(): { print: (node: ReactNode) => void; portal: ReactN
     // After commit: the portal is in the DOM, so the browser prints it.
     if (!job) return;
     for (const root of document.querySelectorAll(".print-root[data-active]")) root.removeAttribute("data-active");
-    rootRef.current?.setAttribute("data-active", "");
+    const root = rootRef.current;
+    if (root) {
+      root.setAttribute("data-active", "");
+      sizeReceiptPage(root);
+    }
     window.print();
   }, [job]);
 
@@ -32,6 +36,38 @@ export function usePrinter(): { print: (node: ReactNode) => void; portal: ReactN
         )
       : null,
   };
+}
+
+const PX_PER_MM = 96 / 25.4;
+const PAGE_STYLE_ID = "print-receipt-page";
+
+/**
+ * `@page receipt` sized to the slip: 80 mm wide and as tall as its content (plus 4 mm so a
+ * rounding error never spills onto a second page). A PDF then matches the slip, and a roll
+ * printer feeds no blank paper.
+ */
+export function receiptPageCss(contentHeightPx: number): string {
+  const heightMm = Math.ceil(contentHeightPx / PX_PER_MM) + 4;
+  return `@page receipt { size: 80mm ${heightMm}mm; margin: 0; }`;
+}
+
+/** Measures a receipt slip in `root` (hidden on screen, so laid out off-screen for a moment) and sizes the page. */
+function sizeReceiptPage(root: HTMLElement): void {
+  const slip = root.querySelector<HTMLElement>(".print-receipt");
+  if (!slip) return;
+  const previous = root.getAttribute("style");
+  root.setAttribute("style", "display:block;position:fixed;top:0;left:-10000px;visibility:hidden");
+  const height = slip.getBoundingClientRect().height;
+  if (previous === null) root.removeAttribute("style");
+  else root.setAttribute("style", previous);
+
+  let style = document.getElementById(PAGE_STYLE_ID);
+  if (!style) {
+    style = document.createElement("style");
+    style.id = PAGE_STYLE_ID;
+    document.head.append(style);
+  }
+  style.textContent = receiptPageCss(height);
 }
 
 /** A button that prints server-rendered `children` (for example the A4 purchase order, T10 H10). */
