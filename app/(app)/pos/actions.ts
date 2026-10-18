@@ -10,9 +10,17 @@ import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { toErrorBody, type ErrorBody } from "@/lib/errors";
 import { getRequestId } from "@/lib/http";
-import { closeShift, openShift, type ShiftCloseSummary, type ShiftSummary } from "@/modules/registers";
+import {
+  addCashMovement,
+  closeShift,
+  openShift,
+  type CashMovementSummary,
+  type ShiftCloseSummary,
+  type ShiftSummary,
+} from "@/modules/registers";
 import {
   createSale,
+  type CashMovementInput,
   type CloseShiftInput,
   type OpenShiftInput,
   type SaleDetail,
@@ -53,4 +61,12 @@ export async function closeShiftAction(
   input: z.input<typeof CloseShiftInput>,
 ): Promise<PosActionResult<ShiftCloseSummary>> {
   return run((ctx, meta) => closeShift(ctx, shiftId, input, meta));
+}
+
+/** Records a pay-in, pay-out or drop. There is no replay, so the screen keeps its button disabled while this runs. */
+export async function addCashMovementAction(
+  shiftId: string,
+  input: z.input<typeof CashMovementInput>,
+): Promise<PosActionResult<CashMovementSummary>> {
+  return run((ctx, meta) => addCashMovement(ctx, shiftId, input, meta));
 }

@@ -30,8 +30,8 @@
   [phase-8/shift-close-spec.md](phase-8/shift-close-spec.md). BUILT on `phase-8/checkout` (2026-10-12): close and cash
   movement services and routes, shift row lock shared with sales, and the till close screen (expected cash before the
   count, note for a difference, summary). No migration. Deviations (state-based close replay, no `/api/shifts/current`)
-  and the screen are in [phase-8/shift-close-data-model-and-api.md](phase-8/shift-close-data-model-and-api.md). Not
-  built: pay-in/pay-out/drop screen (API only), shift list (T9).
+  and the screen are in [phase-8/shift-close-data-model-and-api.md](phase-8/shift-close-data-model-and-api.md). The
+  pay-in/pay-out/drop screen on `/pos` was added 2026-10-19 (§8 there); the shift list came with T9.
 
 - Phase 8 / T8: returns, refunds and voids. Spec approved by the owner (2026-10-12):
   [phase-8/returns-void-spec.md](phase-8/returns-void-spec.md). BUILT on `phase-8/checkout`: partial refunds with

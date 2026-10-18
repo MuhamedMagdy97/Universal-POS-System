@@ -81,3 +81,35 @@ test.describe("cashier closing a shift", () => {
     await expect(page.getByTestId("close-difference")).toContainText("0.00");
   });
 });
+
+test.describe("cash in and out of the drawer", () => {
+  test.use({ storageState: storageStateFor("cashierA") });
+
+  test("pay-ins, pay-outs and drops move the expected cash", async ({ page }) => {
+    const { registerId } = await runFixtures();
+
+    await page.goto(`/pos?branch=${MAIN}&register=${registerId}`);
+    await page.getByLabel(/Opening cash in the drawer/).fill("100");
+    await page.getByRole("button", { name: "Open shift" }).click();
+
+    async function record(type: string, amount: string, reason: string) {
+      await page.getByRole("button", { name: "Cash in / out" }).click();
+      const panel = page.getByRole("region", { name: "Cash in or out of the drawer" });
+      await panel.getByRole("radio", { name: type }).check();
+      await panel.getByLabel(/^Amount/).fill(amount);
+      const submit = panel.getByRole("button", { name: "Record" });
+      await expect(submit).toBeDisabled();
+      await panel.getByLabel("Reason").fill(reason);
+      await submit.click();
+      await expect(page.getByText("Recorded.")).toBeVisible();
+    }
+
+    // 100 opening + 30 in − 10 out − 50 dropped = 70 expected.
+    await record("Pay-in", "30", "Change from the bank");
+    await record("Pay-out", "10", "Milk for the shop");
+    await record("Drop to safe", "50", "Mid-shift drop");
+
+    await page.getByRole("button", { name: "Close shift" }).click();
+    await expect(page.getByTestId("close-expected")).toContainText("70.00");
+  });
+});

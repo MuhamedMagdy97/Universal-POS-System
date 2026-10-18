@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { canSubmitClose, closeErrorKey, countPreview } from "@/app/(app)/pos/_lib/close";
+import {
+  canSubmitClose,
+  closeErrorKey,
+  countPreview,
+  movementDraft,
+  movementErrorKey,
+  movementTypesFor,
+} from "@/app/(app)/pos/_lib/close";
 import type { ErrorBody } from "@/lib/errors";
 
 /**
@@ -69,5 +76,44 @@ describe("close error messages", () => {
     expect(closeErrorKey(error("FORBIDDEN"))).toBe("pos.close.forbidden");
     expect(closeErrorKey(error("NOT_FOUND"))).toBe("pos.close.notFound");
     expect(closeErrorKey(error("INTERNAL"))).toBe("pos.error.generic");
+  });
+});
+
+describe("cash movements", () => {
+  const error = (code: ErrorBody["code"], reason?: string): ErrorBody => ({
+    code,
+    message: "x",
+    details: reason ? { reason } : null,
+  });
+
+  it("offers pay-outs and drops only to roles that can close a shift", () => {
+    expect(movementTypesFor(true)).toEqual(["PAY_IN", "PAY_OUT", "DROP"]);
+    expect(movementTypesFor(false)).toEqual(["PAY_IN"]);
+  });
+
+  it("builds the body in minor units with a trimmed reason", () => {
+    expect(movementDraft("PAY_OUT", "٥٠.٥", "  Milk  ", "EGP")).toEqual({
+      type: "PAY_OUT",
+      amountMinor: 5050,
+      reason: "Milk",
+    });
+  });
+
+  it("needs an amount above zero and a reason of at most 200 characters", () => {
+    expect(movementDraft("PAY_IN", "0", "Float top-up", "EGP")).toBeNull();
+    expect(movementDraft("PAY_IN", "-5", "Float top-up", "EGP")).toBeNull();
+    expect(movementDraft("PAY_IN", "abc", "Float top-up", "EGP")).toBeNull();
+    expect(movementDraft("PAY_IN", "50", "   ", "EGP")).toBeNull();
+    expect(movementDraft("PAY_IN", "50", "x".repeat(201), "EGP")).toBeNull();
+    expect(movementDraft("PAY_IN", "50", "x".repeat(200), "EGP")).not.toBeNull();
+  });
+
+  it("maps errors, and warns before a retry when the reply was lost", () => {
+    expect(movementErrorKey(error("FORBIDDEN"))).toBe("pos.cash.forbidden");
+    expect(movementErrorKey(error("NOT_FOUND"))).toBe("pos.close.notFound");
+    expect(movementErrorKey(error("VALIDATION_FAILED"))).toBe("pos.cash.invalid");
+    expect(movementErrorKey(error("CONFLICT", "SHIFT_NOT_OPEN"))).toBe("pos.close.alreadyClosed");
+    expect(movementErrorKey(error("INTERNAL"))).toBe("pos.cash.unknown");
+    expect(movementErrorKey(error("CONFLICT"))).toBe("pos.error.generic");
   });
 });
