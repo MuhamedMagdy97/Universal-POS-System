@@ -62,4 +62,16 @@ Tests: `tests/unit/pos-close-helpers.test.ts` (count, note rule, error map), `te
 (service), `tests/integration/sales-routes.test.ts` (routes: 401/403/404/422/200/201/409), `tests/e2e/pos-close.spec.ts`
 (short count with note, exact count).
 
-Not built: a screen for pay-in, pay-out and drop (the API exists), and a shift list or Z-report (T9/T10).
+Not built at T7: a shift list or Z-report (built later in T9/T10).
+
+## 8. Cash in / out screen (as built, 2026-10-19)
+
+`/pos` shows **Cash in / out** next to **Close shift** while a shift is open. The panel takes a type (Pay-in, Pay-out,
+Drop to safe), an amount in major units (above zero) and a reason (1–200 characters), and calls the cash-movements API
+through a Server Action. Pay-out and Drop are offered only to roles with `registers.close`; the service checks again.
+Because the API has no replay (§5), **Record** is disabled while a request is in flight. A lost reply is not retried:
+the screen says to check the shift totals first and reloads. After a movement the page refreshes, so the close panel's
+expected cash includes it.
+
+Tests: `tests/unit/pos-close-helpers.test.ts` (types per role, draft, error map) and `tests/e2e/pos-close.spec.ts`
+(pay-in 30, pay-out 10, drop 50 on an opening of 100 → expected 70).

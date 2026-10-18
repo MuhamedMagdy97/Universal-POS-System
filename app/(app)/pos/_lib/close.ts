@@ -46,3 +46,35 @@ export function closeErrorKey(error: ErrorBody): MessageKey {
       return "pos.error.generic";
   }
 }
+
+export type CashMovementType = "PAY_IN" | "PAY_OUT" | "DROP";
+
+/** Types this role may record: pay-ins need `sales.create`, pay-outs and drops `registers.close` (shift-close spec S5). */
+export function movementTypesFor(canCloseShift: boolean): CashMovementType[] {
+  return canCloseShift ? ["PAY_IN", "PAY_OUT", "DROP"] : ["PAY_IN"];
+}
+
+/** The body the cash-movements API expects, or null until the amount is above zero and a reason is typed. */
+export function movementDraft(
+  type: CashMovementType,
+  amountRaw: string,
+  reason: string,
+  currency: CurrencyCode,
+): { type: CashMovementType; amountMinor: number; reason: string } | null {
+  const amountMinor = parseCash(amountRaw, currency);
+  const trimmed = reason.trim();
+  if (amountMinor === null || amountMinor < 1 || trimmed === "" || trimmed.length > 200) return null;
+  return { type, amountMinor, reason: trimmed };
+}
+
+/** Maps a cash movement error to a message. */
+export function movementErrorKey(error: ErrorBody): MessageKey {
+  if (error.code === "FORBIDDEN") return "pos.cash.forbidden";
+  if (error.code === "NOT_FOUND") return "pos.close.notFound";
+  if (error.code === "VALIDATION_FAILED") return "pos.cash.invalid";
+  const reason = (error.details as { reason?: string } | null)?.reason;
+  if (reason === "SHIFT_NOT_OPEN") return "pos.close.alreadyClosed";
+  // No reply from the server: the movement may have been recorded, and a retry would record it twice.
+  if (error.code === "INTERNAL") return "pos.cash.unknown";
+  return "pos.error.generic";
+}

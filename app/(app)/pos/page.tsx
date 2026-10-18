@@ -5,6 +5,7 @@ import { RegisterPicker } from "./_components/register-picker";
 import { OpenShiftForm } from "./_components/open-shift-form";
 import { Till } from "./_components/till";
 import { CloseShift } from "./_components/close-shift";
+import { CashMovement } from "./_components/cash-movement";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -92,15 +93,24 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
             <p className="text-sm text-muted">
               {tr("pos.shift.openSince", { time: new Date(shift.openedAt).toLocaleString(locale) })}
             </p>
-            {canCloseShift && shiftCash ? (
-              <CloseShift
-                key={shift.id}
+            <div className="flex flex-wrap items-start gap-3">
+              <CashMovement
+                key={`cash-${shift.id}`}
                 locale={locale}
                 shiftId={shift.id}
                 currency={settings.currency}
-                cash={shiftCash}
+                canCloseShift={canCloseShift}
               />
-            ) : null}
+              {canCloseShift && shiftCash ? (
+                <CloseShift
+                  key={shift.id}
+                  locale={locale}
+                  shiftId={shift.id}
+                  currency={settings.currency}
+                  cash={shiftCash}
+                />
+              ) : null}
+            </div>
           </div>
           <Till key={register.id} locale={locale} branchId={branch.id} registerId={register.id} settings={settings} />
         </>
