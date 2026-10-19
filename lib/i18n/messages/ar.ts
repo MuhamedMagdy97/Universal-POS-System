@@ -291,6 +291,10 @@ export const ar: Messages = {
   "pos.pay.remaining": "المتبقي",
   "pos.pay.splitShort":
     "المبالغ لا تغطي الإجمالي. لا يجوز أن تتجاوزه البطاقة أو المحفظة، والباقي يُعطى من النقدية فقط.",
+  "pos.pay.exact": "المبلغ المضبوط (F8)",
+  "pos.stock.onHand": "المتوفر: {qty}",
+  "pos.keys.hint":
+    "المفاتيح: F2 البحث · F4 النقدية · F8 المبلغ المضبوط · + / − كمية السطر المحدد · Esc إغلاق · Enter بحث أو تحصيل",
   "pos.receipt.title": "بيع رقم {number}",
   "pos.receipt.paid": "المدفوع",
   "pos.receipt.change": "الباقي",

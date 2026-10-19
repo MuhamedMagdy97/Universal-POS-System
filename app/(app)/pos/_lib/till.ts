@@ -193,3 +193,44 @@ export function shortLines(error: ErrorBody, cart: readonly CartLine[]): CartLin
   const keys = new Set(details.lines.map((line) => lineKey(line)));
   return cart.filter((line) => keys.has(lineKey(line)));
 }
+
+/** Cash that pays exactly: the total, or in a split what card and wallet leave unpaid (never below 0). */
+export function exactCashMinor(totalMinor: number, tenders: readonly SplitTender[] = []): number {
+  const nonCashMinor = tenders.reduce((sum, t) => (t.method === "CASH" ? sum : sum + (t.amountMinor ?? 0)), 0);
+  return Math.max(totalMinor - nonCashMinor, 0);
+}
+
+/** Whether the branch holds less than this line needs (or nothing at all). Shown only; the server decides the sale. */
+export function stockShort(onHand: number, qty: number): boolean {
+  return onHand < Math.max(qty, 1);
+}
+
+/** +/- on the selected line; the quantity never drops below 1 (use × to remove a line). */
+export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): CartLine[] {
+  return cart.map((line) => (lineKey(line) === key ? { ...line, qty: Math.max(line.qty + delta, 1) } : line));
+}
+
+export type TillShortcut = "search" | "cash" | "exact" | "close" | "inc" | "dec";
+
+/**
+ * Till keys (docs/user/cashier.md): F2 search, F4 cash, F8 exact cash, Esc close, + and - change
+ * the selected line. + and - are typed text inside a field, so they act only outside one.
+ */
+export function tillShortcut(key: string, inField: boolean): TillShortcut | null {
+  switch (key) {
+    case "F2":
+      return "search";
+    case "F4":
+      return "cash";
+    case "F8":
+      return "exact";
+    case "Escape":
+      return "close";
+    case "+":
+      return inField ? null : "inc";
+    case "-":
+      return inField ? null : "dec";
+    default:
+      return null;
+  }
+}

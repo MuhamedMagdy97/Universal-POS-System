@@ -139,7 +139,13 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
   }
 
   return (
-    <section aria-labelledby="close-title" className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4">
+    <section
+      aria-labelledby="close-title"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) reset();
+      }}
+      className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4"
+    >
       <h2 id="close-title" className="text-xl font-semibold">
         {tr("pos.close.title")}
       </h2>

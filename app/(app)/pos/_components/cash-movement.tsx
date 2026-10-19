@@ -87,7 +87,13 @@ export function CashMovement({ locale, shiftId, currency, canCloseShift }: Props
   }
 
   return (
-    <section aria-labelledby="cash-title" className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4">
+    <section
+      aria-labelledby="cash-title"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !pending) reset();
+      }}
+      className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4"
+    >
       <h2 id="cash-title" className="text-xl font-semibold">
         {tr("pos.cash.title")}
       </h2>

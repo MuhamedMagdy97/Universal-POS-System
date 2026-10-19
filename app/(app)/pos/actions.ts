@@ -26,6 +26,7 @@ import {
   type SaleDetail,
   type SaleInput,
 } from "@/modules/sales";
+import { getTillOnHand, type TillStockInput } from "@/modules/inventory/till-stock";
 
 export type PosActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody };
 
@@ -69,4 +70,9 @@ export async function addCashMovementAction(
   input: z.input<typeof CashMovementInput>,
 ): Promise<PosActionResult<CashMovementSummary>> {
   return run((ctx, meta) => addCashMovement(ctx, shiftId, input, meta));
+}
+
+/** On-hand at the till's branch for the given items, in the same order as `refs`. Read-only: it never blocks a sale. */
+export async function tillStockAction(input: z.input<typeof TillStockInput>): Promise<PosActionResult<number[]>> {
+  return run((ctx) => getTillOnHand(ctx, input));
 }

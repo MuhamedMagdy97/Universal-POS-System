@@ -1,18 +1,20 @@
 "use client";
 
-import { Fragment, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, toMajorString } from "@/lib/money";
 import type { SaleDetail } from "@/modules/sales";
 import type { PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
-import { createSaleAction } from "../actions";
+import { createSaleAction, tillStockAction } from "../actions";
 import {
   addToCart,
+  bumpQty,
   canCharge,
   displayName,
+  exactCashMinor,
   keepKeyAfter,
   lineKey,
   parseCash,
@@ -23,6 +25,8 @@ import {
   saleErrorKey,
   setLineQty,
   shortLines,
+  stockShort,
+  tillShortcut,
   type CartLine,
   type TillItem,
   type TillSettings,
@@ -51,6 +55,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  // The cash box on screen: "Cash received", or the cash row of a split.
+  const cashRef = useRef<HTMLInputElement>(null);
   const money = (minor: number) => formatMoney(minor, settings.currency, locale);
 
   const [query, setQuery] = useState("");
@@ -68,6 +74,10 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const [receipt, setReceipt] = useState<SaleDetail | null>(null);
   // The sale just finished, for "Reprint last receipt" once the next cart starts (T10 H4).
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
+  // On-hand at this branch by line key, as loaded when the item was found. Display only.
+  const [stock, setStock] = useState<Record<string, number>>({});
+  // The line + and - act on: the one last added or focused, else the last line.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const preview = previewCart(cart, settings);
   const totalMinor = preview.ok ? preview.totalMinor : 0;
@@ -87,13 +97,81 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
           reference,
         });
   const ready = canCharge(cart, preview, plan) && !pending;
+  const selected =
+    selectedKey && cart.some((line) => lineKey(line) === selectedKey)
+      ? selectedKey
+      : cart.length > 0
+        ? lineKey(cart[cart.length - 1])
+        : null;
 
   function focusSearch() {
     searchRef.current?.focus();
   }
 
+  /** Loads on-hand for these items; a failure just leaves the stock out. */
+  async function loadStock(items: readonly TillItem[]) {
+    if (items.length === 0) return;
+    const result = await safeAction(() =>
+      tillStockAction({
+        branchId,
+        refs: items.map((item) => ({ productId: item.productId, variantId: item.variantId })),
+      }),
+    );
+    if (!result.ok) return;
+    const found = result.data;
+    setStock((current) => {
+      const next = { ...current };
+      items.forEach((item, index) => (next[lineKey(item)] = found[index]));
+      return next;
+    });
+  }
+
+  /** Exact cash (F8): fills the cash box with what is still due in cash. */
+  function fillExactCash() {
+    if (totalMinor === 0) return;
+    if (method === "SPLIT") {
+      const due = exactCashMinor(totalMinor, splitTenders);
+      setSplitRaw((current) => ({ ...current, CASH: due > 0 ? toMajorString(due, settings.currency) : "" }));
+    } else {
+      setMethod("CASH");
+      setCashRaw(toMajorString(totalMinor, settings.currency));
+    }
+    // The box may only render after the method switch.
+    requestAnimationFrame(() => cashRef.current?.focus());
+  }
+
+  useEffect(() => {
+    if (receipt) return;
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const editable = target?.closest("input, textarea, select, [contenteditable='true']");
+      // The search box right after a scan is empty, so + and - still work there.
+      const inField = editable !== null && editable !== undefined && !(editable === searchRef.current && query === "");
+      const action = tillShortcut(event.key, inField);
+      if (!action) return;
+      if (action === "close") {
+        if (results === null) return;
+        setResults(null);
+        setQuery("");
+        focusSearch();
+        return;
+      }
+      event.preventDefault();
+      if (action === "search") focusSearch();
+      else if (action === "cash") {
+        if (totalMinor === 0) return;
+        if (method !== "SPLIT") setMethod("CASH");
+        requestAnimationFrame(() => cashRef.current?.focus());
+      } else if (action === "exact") fillExactCash();
+      else if (selected) setCart((current) => bumpQty(current, selected, action === "inc" ? 1 : -1));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   function add(item: TillItem) {
     setCart((current) => addToCart(current, item));
+    setSelectedKey(lineKey(item));
     setResults(null);
     setQuery("");
     setError(null);
@@ -116,6 +194,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     // A scan that finds exactly one item goes straight into the cart.
     if (items.length === 1) add(items[0]);
     else setResults(items);
+    void loadStock(items);
   }
 
   function newSale() {
@@ -125,6 +204,9 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setSplitRaw(NO_SPLIT);
     setSplitRef(NO_SPLIT);
     setMethod("CASH");
+    // Stock moved with the sale: reload it as items are scanned again.
+    setStock({});
+    setSelectedKey(null);
     if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
     setError(null);
@@ -162,6 +244,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         .map((line) => displayName(line, locale))
         .join(", ");
       setError(tr("pos.error.insufficient", { items }));
+      void loadStock(cart);
     } else {
       setError(plain(locale, key));
     }
@@ -279,6 +362,9 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
             {tr("pos.search.submit")}
           </button>
         </div>
+        <p className="text-xs text-muted" data-testid="till-keys">
+          {tr("pos.keys.hint")}
+        </p>
 
         {results !== null ? (
           results.length === 0 ? (
@@ -294,6 +380,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
+                    <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} />
                     <span dir="ltr">{money(item.unitPriceMinor)}</span>
                     <button
                       type="button"
@@ -331,12 +418,17 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                 const key = lineKey(line);
                 const name = displayName(line, locale);
                 return (
-                  <tr key={key} className="border-t border-border">
+                  <tr
+                    key={key}
+                    data-selected={key === selected}
+                    className="border-t border-border data-[selected=true]:bg-foreground/5"
+                  >
                     <td className="py-2">
                       {name}{" "}
                       <span dir="ltr" className="text-muted">
                         {line.sku}
                       </span>
+                      <StockNote locale={locale} onHand={stock[key]} qty={line.qty} block />
                     </td>
                     <td>
                       <input
@@ -346,6 +438,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                         aria-invalid={line.qty < 1}
                         value={line.qty === 0 ? "" : line.qty}
                         onChange={(e) => setCart((current) => setLineQty(current, key, e.target.value))}
+                        onFocus={() => setSelectedKey(key)}
                         className="w-20 rounded-md border border-border bg-background px-2 py-1"
                       />
                     </td>
@@ -444,6 +537,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                           {tr("pos.pay.amount", { method: name })} ({settings.currency})
                         </span>
                         <input
+                          ref={option.value === "CASH" ? cashRef : undefined}
                           dir="ltr"
                           inputMode="decimal"
                           value={splitRaw[option.value]}
@@ -451,7 +545,9 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                           className="rounded-md border border-border bg-background px-3 py-2"
                         />
                       </label>
-                      {option.value !== "CASH" ? (
+                      {option.value === "CASH" ? (
+                        <ExactCashButton locale={locale} onClick={fillExactCash} />
+                      ) : (
                         <label className="flex flex-1 flex-col gap-1">
                           <span>{tr("pos.pay.referenceFor", { method: name })}</span>
                           <input
@@ -461,7 +557,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                             className="rounded-md border border-border bg-background px-3 py-2"
                           />
                         </label>
-                      ) : null}
+                      )}
                     </div>
                   );
                 })}
@@ -486,18 +582,22 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
               </>
             ) : method === "CASH" ? (
               <>
-                <label className="flex flex-col gap-1">
-                  <span>
-                    {tr("pos.pay.received")} ({settings.currency})
-                  </span>
-                  <input
-                    dir="ltr"
-                    inputMode="decimal"
-                    value={cashRaw}
-                    onChange={(e) => setCashRaw(e.target.value)}
-                    className="rounded-md border border-border bg-background px-3 py-2"
-                  />
-                </label>
+                <div className="flex flex-wrap gap-2">
+                  <label className="flex flex-1 flex-col gap-1">
+                    <span>
+                      {tr("pos.pay.received")} ({settings.currency})
+                    </span>
+                    <input
+                      ref={cashRef}
+                      dir="ltr"
+                      inputMode="decimal"
+                      value={cashRaw}
+                      onChange={(e) => setCashRaw(e.target.value)}
+                      className="rounded-md border border-border bg-background px-3 py-2"
+                    />
+                  </label>
+                  <ExactCashButton locale={locale} onClick={fillExactCash} />
+                </div>
                 {plan ? (
                   <p>
                     {tr("pos.pay.change")}:{" "}
@@ -542,5 +642,26 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         </button>
       </form>
     </div>
+  );
+}
+
+function ExactCashButton({ locale, onClick }: { locale: Locale; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="self-end rounded-md border border-border px-3 py-2">
+      {translator(locale)("pos.pay.exact")}
+    </button>
+  );
+}
+
+/** On-hand at this branch; red when it is zero, negative or below the line's quantity. Nothing until loaded. */
+function StockNote({ locale, onHand, qty, block }: { locale: Locale; onHand?: number; qty: number; block?: boolean }) {
+  if (onHand === undefined) return null;
+  return (
+    <span
+      data-testid="till-stock"
+      className={`text-sm ${block ? "block " : ""}${stockShort(onHand, qty) ? "font-semibold text-red-700" : "text-muted"}`}
+    >
+      {translator(locale)("pos.stock.onHand", { qty: String(onHand) })}
+    </span>
   );
 }
