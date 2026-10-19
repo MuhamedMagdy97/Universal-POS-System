@@ -54,6 +54,7 @@ describe("sales summary", () => {
     expect(report.rows[0]).toEqual({
       day: DAY,
       salesCount: 4,
+      discountsMinor: 0,
       grossMinor: 42_480,
       vatMinor: vat,
       netMinor: 42_480 - vat,

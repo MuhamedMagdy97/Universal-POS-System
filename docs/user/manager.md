@@ -10,6 +10,10 @@ labels are in brackets.
 Same as a cashier: **Till** [نقطة البيع] → pick branch and register → **Open shift** → sell → **Close shift**. You can
 also record **Pay-out** and **Drop to safe**, and close a shift someone else opened (e.g. at end of day).
 
+**Discounts** work as in the [cashier guide](cashier.md#discounts) (F6 on a line, F7 on the sale), but you have no
+limit: you can take up to 100% off. When a cashier's discount is refused ("over your limit"), ring the sale up on a
+till yourself. Every discounted sale, and every refused discount, is in the audit trail with what was asked for.
+
 ## Returns: find a sale
 
 1. Press **Returns** [المرتجعات].
@@ -22,7 +26,8 @@ also record **Pay-out** and **Drop to safe**, and close a shift someone else ope
 
 ## Refund some or all items
 
-A refund gives money back for chosen lines and puts the items back into the branch's stock.
+A refund gives money back for chosen lines and puts the items back into the branch's stock. For a discounted line it
+gives back what the customer paid, not the shelf price: the line shows "Discounted {amount} · paid {amount}".
 
 1. In **Refund qty**, type how many of each line to refund (up to what is left; "Refunded" shows what was already
    refunded).

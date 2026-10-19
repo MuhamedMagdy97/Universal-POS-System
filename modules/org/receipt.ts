@@ -5,7 +5,10 @@ import { getDb } from "@/lib/db";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { requirePermission } from "./access";
 
-/** The six receipt fields on `Organization` (T10 H3). `settings.manage` reads and writes them. */
+/**
+ * The six receipt fields on `Organization` (T10 H3) and the cashier discount limit (discounts-spec DC8).
+ * `settings.manage` reads and writes them.
+ */
 
 const Text = (max: number) =>
   z
@@ -23,6 +26,7 @@ export const ReceiptSettingsInput = z
     receiptPhone: Text(40),
     receiptHeader: Text(200),
     receiptFooter: Text(200),
+    maxCashierDiscountBp: z.number().int().min(0).max(10_000),
   })
   .partial()
   .strict();
@@ -35,6 +39,7 @@ export type ReceiptSettings = {
   receiptPhone: string | null;
   receiptHeader: string | null;
   receiptFooter: string | null;
+  maxCashierDiscountBp: number;
 };
 
 const SELECT = {
@@ -45,6 +50,7 @@ const SELECT = {
   receiptPhone: true,
   receiptHeader: true,
   receiptFooter: true,
+  maxCashierDiscountBp: true,
 } as const;
 
 function requireSettings(ctx: TenantContext, operation: string, meta?: AuditRequestMeta): Promise<void> {

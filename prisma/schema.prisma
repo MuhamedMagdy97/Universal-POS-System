@@ -256,6 +256,8 @@ model Organization {
   lastSaleNo         Int             @default(0)
   // Last issued purchase order number (T5): bumped in the PO create transaction, like lastSaleNo.
   lastPoNo           Int             @default(0)
+  // Most a cashier (discounts.apply only) may take off, in basis points; 1000 = 10% (discounts-spec DC8).
+  maxCashierDiscountBp Int           @default(1000)
   // Receipt fields
   legalName          String?
   taxNumber          String?

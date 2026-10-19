@@ -2,11 +2,12 @@
 
 import { useState, type FormEvent } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
+import { parsePercentBp } from "@/lib/money";
 import type { ReceiptSettings } from "@/modules/org";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { saveReceiptSettingsAction } from "../actions";
 
-type Field = Exclude<keyof ReceiptSettings, "name">;
+type Field = Exclude<keyof ReceiptSettings, "name" | "maxCashierDiscountBp">;
 
 const FIELDS: { key: Field; label: MessageKey; max: number; ltr?: boolean }[] = [
   { key: "legalName", label: "settings.receipt.legalName", max: 120 },
@@ -17,20 +18,23 @@ const FIELDS: { key: Field; label: MessageKey; max: number; ltr?: boolean }[] = 
   { key: "receiptFooter", label: "settings.receipt.footer", max: 200 },
 ];
 
-/** The six receipt fields (T10 H3). An empty field is saved as "not printed". */
+/** The six receipt fields (T10 H3), and the cashier discount limit (discounts-spec DC8). An empty field is saved as "not printed". */
 export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initial: ReceiptSettings }) {
   const tr = translator(locale);
   const [values, setValues] = useState<Record<Field, string>>(
     () => Object.fromEntries(FIELDS.map(({ key }) => [key, initial[key] ?? ""])) as Record<Field, string>,
   );
+  const [limitRaw, setLimitRaw] = useState(String(initial.maxCashierDiscountBp / 100));
+  const limitBp = parsePercentBp(limitRaw);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<"saved" | "error" | null>(null);
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (limitBp === null) return;
     setPending(true);
     setStatus(null);
-    const result = await safeAction(() => saveReceiptSettingsAction(values));
+    const result = await safeAction(() => saveReceiptSettingsAction({ ...values, maxCashierDiscountBp: limitBp }));
     setPending(false);
     setStatus(result.ok ? "saved" : "error");
   }
@@ -51,6 +55,22 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
           />
         </label>
       ))}
+      <label className="flex flex-col gap-1">
+        <span>{tr("settings.discount.limit")}</span>
+        <input
+          name="maxCashierDiscount"
+          dir="ltr"
+          inputMode="decimal"
+          value={limitRaw}
+          aria-invalid={limitBp === null}
+          aria-describedby="discount-limit-hint"
+          onChange={(e) => setLimitRaw(e.target.value)}
+          className="w-32 rounded-md border border-border bg-background px-3 py-2"
+        />
+        <span id="discount-limit-hint" className="text-sm text-muted">
+          {tr("settings.discount.limitHint")}
+        </span>
+      </label>
       {status === "saved" ? (
         <p role="status" className="text-green-800">
           {tr("settings.receipt.saved")}
@@ -63,7 +83,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
       ) : null}
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || limitBp === null}
         className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
       >
         {pending ? tr("settings.receipt.saving") : tr("settings.receipt.save")}

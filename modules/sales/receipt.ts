@@ -40,7 +40,10 @@ export type ReceiptDoc = {
   registerName: string;
   /** Refund or void reason. */
   reason: string | null;
-  lines: { name: string; nameAr: string | null; qty: number; lineTotalMinor: number }[];
+  /** `discountMinor`: what the line was discounted, shown under it on a sale or void slip (discounts-spec DC14). */
+  lines: { name: string; nameAr: string | null; qty: number; discountMinor: number; lineTotalMinor: number }[];
+  /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
+  discountMinor: number;
   subtotalMinor: number;
   vatMinor: number;
   totalMinor: number;
@@ -98,6 +101,7 @@ export async function getReceipt(
     name: item.nameSnapshot,
     nameAr: item.nameArSnapshot,
     qty: item.qty,
+    discountMinor: item.discountMinor,
     lineTotalMinor: item.lineTotalMinor,
   }));
   const rates = (bps: number[]) => [...new Set(bps)].sort((a, b) => a - b);
@@ -117,6 +121,7 @@ export async function getReceipt(
         name: source?.nameSnapshot ?? "",
         nameAr: source?.nameArSnapshot ?? null,
         qty: item.qty,
+        discountMinor: 0,
         lineTotalMinor: item.amountMinor,
       };
     });
@@ -126,6 +131,7 @@ export async function getReceipt(
       staffName: await userName(refund.processedById),
       reason: refund.reason,
       lines,
+      discountMinor: 0,
       subtotalMinor: refund.totalMinor - refund.vatMinor,
       vatMinor: refund.vatMinor,
       totalMinor: refund.totalMinor,
@@ -142,6 +148,7 @@ export async function getReceipt(
       staffName: await userName((isVoid ? sale.voidedById : null) ?? sale.cashierId),
       reason: isVoid ? sale.voidReason : null,
       lines: saleLines,
+      discountMinor: sale.discountMinor,
       subtotalMinor: sale.subtotalMinor,
       vatMinor: sale.vatMinor,
       totalMinor: sale.totalMinor,

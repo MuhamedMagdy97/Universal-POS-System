@@ -17,7 +17,8 @@ Gate on action grants, never role-name string checks in business logic:
 - Manager: products.read, inventory.* (read included), sales.create, registers.open/close, sales.void, refunds,
   discounts.override, purchases.receive (their branches; T5 P1), reports.view. Managers can work a till so they can cover a register and refund at it
   (owner decision 2026-10-12, T8 follow-up).
-- Cashier: products.read, sales.create, registers.open/close (+ discounts.apply only if granted).
+- Cashier: products.read, sales.create, registers.open/close, discounts.apply (up to the shop's cashier discount limit,
+  default 10%; discounts-spec DC7–DC8). Manager and Owner discount without a limit (`discounts.override`).
 - Reporting: reports.view, inventory.read (read-only stock; D5).
 
 Branch scoping enforced alongside role checks, server-side.

@@ -39,5 +39,5 @@ and their data is refused as "not found".
 
 ## What isn't there yet
 
-See [known limitations](../product/known-limitations.md): for example no offline selling, no discounts, no tax
+See [known limitations](../product/known-limitations.md): for example no offline selling, no promotions or coupons, no tax
 e-invoices (ZATCA / Egypt e-receipt), no customer records, no email (password resets are done by an owner or admin).

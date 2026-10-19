@@ -93,6 +93,7 @@ const EG: Country = {
       day: DAY,
       // S1 + S2 + S3 + S5 = 228.00 + 228.00 + 50.00 + 57.00 = 563.00; VAT 28.00 + 28.00 + 3.68 + 7.00 = 66.68.
       salesCount: 4,
+      discountsMinor: 0,
       grossMinor: 56_300,
       vatMinor: 6_668,
       netMinor: 49_632,
@@ -230,6 +231,7 @@ const SA: Country = {
       day: DAY,
       // 230.00 + 230.00 + 50.00 + 57.50 = 567.50; VAT 30.00 + 30.00 + 3.91 + 7.50 = 71.41.
       salesCount: 4,
+      discountsMinor: 0,
       grossMinor: 56_750,
       vatMinor: 7_141,
       netMinor: 49_609,

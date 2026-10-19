@@ -21,6 +21,8 @@ export type PaymentMethodName = (typeof PAYMENT_METHODS)[number];
 export type SalesSummaryRow = {
   day: string;
   salesCount: number;
+  /** Taken off shelf prices on these sales (discounts-spec DC15); `grossMinor` is already after it. */
+  discountsMinor: number;
   grossMinor: number;
   vatMinor: number;
   netMinor: number;
@@ -33,11 +35,11 @@ export type SalesSummaryRow = {
 
 export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[]> {
   const rows = await getDb().$queryRaw<
-    { day: string; sn: Big; sg: Big; sv: Big; snet: Big; rn: Big; ra: Big; vn: Big; va: Big }[]
+    { day: string; sn: Big; sd: Big; sg: Big; sv: Big; snet: Big; rn: Big; ra: Big; vn: Big; va: Big }[]
   >`
     WITH s AS (
       SELECT ${localDay(col("s", "createdAt"), scope.zone)} AS day, COUNT(*) AS n, SUM(s."totalMinor") AS gross,
-             SUM(s."vatMinor") AS vat, SUM(s."subtotalMinor") AS net
+             SUM(s."discountMinor") AS disc, SUM(s."vatMinor") AS vat, SUM(s."subtotalMinor") AS net
       FROM "Sale" s
       WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
       GROUP BY 1
@@ -52,7 +54,7 @@ export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[
       WHERE ${inScope("s", scope)} AND s."status" = 'VOIDED' AND ${inRange(col("s", "voidedAt"), scope)}
       GROUP BY 1
     ), days AS (SELECT day FROM s UNION SELECT day FROM r UNION SELECT day FROM v)
-    SELECT d.day, s.n AS sn, s.gross AS sg, s.vat AS sv, s.net AS snet, r.n AS rn, r.amount AS ra, v.n AS vn, v.amount AS va
+    SELECT d.day, s.n AS sn, s.disc AS sd, s.gross AS sg, s.vat AS sv, s.net AS snet, r.n AS rn, r.amount AS ra, v.n AS vn, v.amount AS va
     FROM days d LEFT JOIN s USING (day) LEFT JOIN r USING (day) LEFT JOIN v USING (day)
     ORDER BY d.day`;
   return rows.map((row) => {
@@ -61,6 +63,7 @@ export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[
     return {
       day: row.day,
       salesCount: num(row.sn),
+      discountsMinor: num(row.sd),
       grossMinor,
       vatMinor: num(row.sv),
       netMinor: num(row.snet),

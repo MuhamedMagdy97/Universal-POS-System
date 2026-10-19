@@ -67,7 +67,23 @@ One till has at most one open shift. Anyone allowed to sell can sell on an open 
      gives change." **Exact cash** next to the cash amount fills in what card and wallet leave unpaid.
 5. Press **Charge {total}** [تحصيل]. A sale that totals 0 shows **Complete free sale** [إتمام بيع مجاني] instead.
 
-There are no discounts and no customer names at the till.
+There are no customer names at the till.
+
+### Discounts
+
+You can take money off one line, or off the whole sale, as a percent or an amount.
+
+- **Line:** press **Discount** [خصم] on the line, or select the line and press **F6**.
+- **Whole sale:** press **Sale discount (F7)** [خصم على البيع] under the totals, or press **F7**.
+- In the box, type the number and pick **%** or **Amount**. Press Enter or **Apply** [تطبيق]. **Remove** [إزالة] (or an
+  empty box) takes the discount off; Esc closes the box without changing anything.
+- The line shows "Discount −{amount}" and the totals show **Discount** [الخصم]. A sale discount is shared across the
+  lines in proportion to their prices, so a later refund gives back exactly what the customer paid for each item.
+- VAT is worked out on the discounted price. The receipt shows each line's discount and the total discount.
+- **Your limit:** the box shows "Your limit: {limit}" (10% unless the owner changed it). No line may be discounted
+  more than that, and the whole sale not more than that in total, so a line discount and a sale discount together
+  count against the same limit. Over it, "These discounts are over your limit of {limit}. Ask a manager." shows and
+  **Charge** stays off. Managers and the owner have no limit.
 
 ### Keyboard
 
@@ -78,9 +94,11 @@ The keys are also listed under the search box.
 | Enter | In the search box: find (a scanner sends it). In a payment box: charge. |
 | F2 | Go to the search box. |
 | F4 | Pay in cash: picks **Cash** and goes to the cash box (the cash row in a split). |
+| F6 | Discount on the selected line. |
+| F7 | Discount on the whole sale. |
 | F8 | **Exact cash**: fills the cash box with what is due in cash. Press Enter to charge. |
 | + / − | Add or take 1 from the selected line (not below 1). They work outside a box, or in the empty search box. |
-| Esc | Close the search results list, or cancel **Cash in / out** and **Close shift**. |
+| Esc | Close the discount box or the search results list, or cancel **Cash in / out** and **Close shift**. |
 
 Refusals after **Charge**:
 
@@ -91,6 +109,8 @@ Refusals after **Charge**:
 | "An item in the sale can no longer be sold. Remove it and try again." | It was archived while you were selling. |
 | "The payment does not match the total." | Re-enter the payment. |
 | "This sale is too large to record." | Split it into smaller sales. |
+| "This discount is over your limit. Ask a manager." | Lower the discount, or ask a manager to ring up the sale. |
+| "A discount is larger than the amount it comes off." | Lower the discount. |
 | "This sale was already sent with different items. Start a new sale." | Press **Clear sale** and scan again. |
 | "Something went wrong. Try again." | Press **Charge** again; the same sale is not recorded twice. |
 
@@ -140,4 +160,4 @@ Refusals:
 
 ## What isn't there
 
-No offline mode (the till needs the internet), no discounts, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).
+No offline mode (the till needs the internet), no automatic promotions or coupons, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).

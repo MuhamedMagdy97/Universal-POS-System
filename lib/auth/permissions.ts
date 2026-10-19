@@ -61,8 +61,14 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchases.receive",
     "reports.view",
   ]),
-  // discounts.apply is granted per cashier later (T6); not part of the default.
-  CASHIER: new Set<Permission>(["products.read", "sales.create", "registers.open", "registers.close"]),
+  // discounts.apply: cashiers discount up to the shop's maxCashierDiscountBp (discounts-spec DC7, DC8).
+  CASHIER: new Set<Permission>([
+    "products.read",
+    "sales.create",
+    "registers.open",
+    "registers.close",
+    "discounts.apply",
+  ]),
   // Reporting reads stock (D5) but cannot change it.
   REPORTING: new Set<Permission>(["reports.view", "inventory.read"]),
 };

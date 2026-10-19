@@ -219,6 +219,14 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                     <span dir="ltr" className="text-muted">
                       {line.sku}
                     </span>
+                    {line.discountMinor > 0 ? (
+                      <span className="block text-sm text-muted">
+                        {tr("returns.lines.discounted", {
+                          discount: money(line.discountMinor),
+                          paid: money(line.lineTotalMinor),
+                        })}
+                      </span>
+                    ) : null}
                   </td>
                   <td dir="ltr" className="text-end">
                     {line.qty}

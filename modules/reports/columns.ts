@@ -41,6 +41,7 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
   "sales-summary": [
     c("day", "reports.col.day", "day"),
     c("salesCount", "reports.col.salesCount", "int"),
+    c("discountsMinor", "reports.col.discounts", "money"),
     c("grossMinor", "reports.col.gross", "money"),
     c("vatMinor", "reports.col.vat", "money"),
     c("netMinor", "reports.col.net", "money"),

@@ -18,6 +18,8 @@ export type ReturnLine = {
   name: string;
   nameAr: string | null;
   qty: number;
+  /** What the line was discounted at the sale; `lineTotalMinor` is already the paid amount (discounts-spec DC13). */
+  discountMinor: number;
   lineTotalMinor: number;
   refundedQty: number;
   refundedAmountMinor: number;
@@ -109,6 +111,7 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       name: item.nameSnapshot,
       nameAr: item.nameArSnapshot,
       qty: item.qty,
+      discountMinor: item.discountMinor,
       lineTotalMinor: item.lineTotalMinor,
       refundedQty: refunded.get(item.id)?.qty ?? 0,
       refundedAmountMinor: refunded.get(item.id)?.amountMinor ?? 0,

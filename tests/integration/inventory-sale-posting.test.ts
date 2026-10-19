@@ -114,6 +114,26 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
+describe("discounts on a linked till (discounts-spec DC16)", () => {
+  it("sells at the discounted price and fulfils the full quantity", async () => {
+    const shop = await linkedShop("Post Discount");
+    const body = { ...sale(shop, [[0, 2]], 1800), discount: { kind: "PERCENT" as const, percentBp: 1000 } };
+    const { sale: made } = await createSale(shop.cashier, body, saleKey());
+    expect(made).toMatchObject({ totalMinor: 1800, discountMinor: 200 });
+    expect(onHandIms(shop, 0)).toBe(8);
+    const rows = await postingsOf(shop.org.id);
+    expect(rows.map((r) => [r.kind, r.status, r.qty])).toEqual([["FULFIL", "DONE", 2]]);
+  });
+
+  it("refuses a cashier over the limit before holding anything in the inventory system", async () => {
+    const shop = await linkedShop("Post Discount Limit");
+    const body = { ...sale(shop, [[0, 1]], 500), discount: { kind: "PERCENT" as const, percentBp: 5000 } };
+    await expectAppError(createSale(shop.cashier, body, saleKey()), 403, "DISCOUNT_LIMIT");
+    expect(reserveCalls()).toBe(0);
+    expect(available(shop, 0)).toBe(10);
+  });
+});
+
 describe("a sale on a linked till (spec I12, I13)", () => {
   it("reserves every line, commits without POS stock, fulfils once, and replays without new IMS calls", async () => {
     const shop = await linkedShop("Post Sale");
