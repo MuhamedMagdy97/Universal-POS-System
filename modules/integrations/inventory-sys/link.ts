@@ -12,6 +12,7 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import type { InventorySource } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { imsGet, type ImsLink } from "./client";
+import { drainPostings } from "./postings";
 import { open, seal } from "./secret";
 import { syncWithLock, type SyncSummary } from "./sync";
 
@@ -31,7 +32,25 @@ export type InventoryLinkStatus = {
     lastSyncSummary: Partial<SyncSummary>;
     syncRunning: boolean;
   } | null;
+  /** Each branch and the IMS warehouse it sells from (I5). */
+  branches: { id: string; name: string; code: string; isActive: boolean; warehouseId: string | null }[];
+  /** Inventory-system calls not yet made (retried) and refused (they wait for a person). */
+  postings: { pending: number; failed: number };
 };
+
+export type ImsWarehouse = { id: string; code: string; name: string; status: string };
+
+export const BranchMapInput = z.strictObject({
+  map: z
+    .array(z.strictObject({ branchId: z.uuid(), warehouseId: z.uuid().nullable() }))
+    .min(1)
+    .max(200)
+    .refine((rows) => new Set(rows.map((row) => row.branchId)).size === rows.length, "Each branch once")
+    .refine((rows) => {
+      const ids = rows.flatMap((row) => (row.warehouseId ? [row.warehouseId] : []));
+      return new Set(ids).size === ids.length;
+    }, "Two branches cannot share a warehouse"),
+});
 
 export type CheckResult = { ok: true } | { ok: false; problem: "UNREACHABLE" | "REFUSED" | "UNEXPECTED" };
 
@@ -89,12 +108,12 @@ function encryptionKey(): { key: Buffer; keyId: string } | null {
 
 type LinkRow = NonNullable<Awaited<ReturnType<typeof loadLink>>>;
 
-function loadLink(orgId: string) {
+export function loadLink(orgId: string) {
   return getDb().inventoryLink.findUnique({ where: { orgId } });
 }
 
 /** Decrypts the key for one call. A missing or rotated server key answers 409 KEY_UNREADABLE. */
-function openLink(row: LinkRow): ImsLink {
+export function openLink(row: LinkRow): ImsLink {
   const secret = encryptionKey();
   try {
     if (!secret || secret.keyId !== row.apiKeyKeyId) throw new Error("key id");
@@ -107,12 +126,25 @@ function openLink(row: LinkRow): ImsLink {
 export async function getInventoryLinkStatus(ctx: TenantContext): Promise<InventoryLinkStatus> {
   await requirePermission(ctx, "settings.manage", "inventory.read");
   const db = getDb();
-  const [org, row] = await Promise.all([
+  const [org, row, branches, postings] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: ctx.orgId }, select: { inventorySource: true } }),
     loadLink(ctx.orgId),
+    db.branch.findMany({
+      where: { orgId: ctx.orgId },
+      orderBy: { code: "asc" },
+      select: { id: true, name: true, code: true, isActive: true, externalWarehouseId: true },
+    }),
+    db.externalStockPosting.groupBy({
+      by: ["status"],
+      where: { orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } },
+      _count: { _all: true },
+    }),
   ]);
   const iso = (d: Date | null) => d?.toISOString() ?? null;
+  const count = (status: string) => postings.find((p) => p.status === status)?._count._all ?? 0;
   return {
+    branches: branches.map(({ externalWarehouseId, ...branch }) => ({ ...branch, warehouseId: externalWarehouseId })),
+    postings: { pending: count("PENDING"), failed: count("FAILED") },
     source: org.inventorySource,
     encryptionReady: encryptionKey() !== null,
     canManage: hasPermission(ctx.role, "integrations.manage"),
@@ -239,6 +271,13 @@ export async function setInventorySource(
     if (await tx.registerShift.count({ where: { orgId: ctx.orgId, status: "OPEN" } })) {
       throw conflict("OPEN_SHIFTS", "Close every open shift first");
     }
+    // I21: sales, refunds or voids still owed to the inventory system would be lost.
+    if (
+      source === "BUILT_IN" &&
+      (await tx.externalStockPosting.count({ where: { orgId: ctx.orgId, status: "PENDING" } }))
+    ) {
+      throw conflict("PENDING_POSTINGS", "Wait until every sale and refund has reached the inventory system");
+    }
     if (
       source === "EXTERNAL" &&
       (await tx.purchaseOrder.count({
@@ -278,5 +317,86 @@ export async function syncInventoryNow(ctx: TenantContext, meta?: AuditRequestMe
   if (org.inventorySource !== "EXTERNAL" || !row) {
     throw conflict("NOT_LINKED", "Switch the shop to the inventory system first");
   }
-  return syncWithLock(ctx, meta, openLink(row));
+  const link = openLink(row);
+  // Also sends what is still owed (I19); the scheduler route does the same every minute.
+  await drainPostings({ orgId: ctx.orgId }).catch(() => undefined);
+  return syncWithLock(ctx, meta, link);
+}
+
+/** The IMS's warehouses for the branch map (I5). Owner and Admin; null when the IMS cannot be read. */
+export async function listInventoryWarehouses(ctx: TenantContext): Promise<ImsWarehouse[] | null> {
+  await requirePermission(ctx, "settings.manage", "inventory.warehouses");
+  const row = await loadLink(ctx.orgId);
+  if (!row) return null;
+  try {
+    const res = await imsGet<{ items: ImsWarehouse[] }>(openLink(row), "/api/warehouses", 5_000);
+    return res.items.map(({ id, code, name, status }) => ({ id, code, name, status }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Maps branches to IMS warehouses (I5): each branch sells from at most one active warehouse, never
+ * shared. `warehouseId: null` unmaps (that branch cannot sell while the shop is linked).
+ */
+export async function mapInventoryBranches(
+  ctx: TenantContext,
+  input: unknown,
+  meta?: AuditRequestMeta,
+): Promise<InventoryLinkStatus["branches"]> {
+  await requirePermission(ctx, "integrations.manage", "inventory.branches", meta);
+  const { map } = BranchMapInput.parse(input);
+  const row = await loadLink(ctx.orgId);
+  if (!row) throw notFound("Inventory link");
+  const wanted = map.flatMap((m) => (m.warehouseId ? [m.warehouseId] : []));
+  if (wanted.length > 0) {
+    const res = await imsGet<{ items: ImsWarehouse[] }>(openLink(row), "/api/warehouses", 5_000);
+    const active = new Set(res.items.filter((w) => w.status === "active").map((w) => w.id));
+    const unknown = wanted.filter((id) => !active.has(id));
+    if (unknown.length > 0) {
+      throw new AppError("VALIDATION_FAILED", "Choose an active warehouse of the inventory system", {
+        reason: "WAREHOUSE_UNKNOWN",
+        warehouseIds: unknown,
+      });
+    }
+  }
+  try {
+    await getDb().$transaction(async (tx) => {
+      const branches = await tx.branch.findMany({
+        where: { orgId: ctx.orgId, id: { in: map.map((m) => m.branchId) } },
+        select: { id: true, externalWarehouseId: true },
+      });
+      if (branches.length !== map.length) throw notFound("Branch");
+      // Clear first, so swapping two branches' warehouses does not trip the unique index.
+      await tx.branch.updateMany({
+        where: { orgId: ctx.orgId, id: { in: map.map((m) => m.branchId) } },
+        data: { externalWarehouseId: null },
+      });
+      for (const m of map) {
+        if (m.warehouseId) {
+          await tx.branch.update({ where: { id: m.branchId }, data: { externalWarehouseId: m.warehouseId } });
+        }
+      }
+      await record(tx, {
+        ctx,
+        meta,
+        action: "integration.inventory.branch_mapped",
+        entityType: "InventoryLink",
+        entityId: ctx.orgId,
+        metadata: {
+          changes: map
+            .map((m) => ({ ...m, from: branches.find((b) => b.id === m.branchId)?.externalWarehouseId ?? null }))
+            .filter((m) => m.from !== m.warehouseId),
+        },
+      });
+    });
+  } catch (err) {
+    // A branch left out of `map` already sells from that warehouse.
+    if ((err as { code?: unknown } | null)?.code === "P2002") {
+      throw conflict("WAREHOUSE_TAKEN", "Another branch already sells from this warehouse");
+    }
+    throw err;
+  }
+  return (await getInventoryLinkStatus(ctx)).branches;
 }

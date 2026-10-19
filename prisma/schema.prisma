@@ -113,6 +113,19 @@ enum InventorySource {
   EXTERNAL
 }
 
+// Phase 13 slice 2 (I12–I15): what an inventory-system call is for.
+enum PostingKind {
+  FULFIL
+  CANCEL
+  RETURN
+}
+
+enum PostingStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
 enum AdjustmentReason {
   DAMAGED
   EXPIRED
@@ -233,6 +246,7 @@ model Organization {
   updatedAt          DateTime        @updatedAt
 
   inventoryLink      InventoryLink?
+  stockPostings      ExternalStockPosting[]
   branches           Branch[]
   registers          Register[]
   memberships        Membership[]
@@ -281,15 +295,51 @@ model InventoryLink {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
 }
 
+// Phase 13 slice 2 (I12–I15): one inventory-system call that must happen after a POS commit (a
+// sale's fulfil, a refund's or void's return, the cancel of a refused sale's reservations). Written
+// in the POS transaction, sent after it and retried until DONE; FAILED waits for a person.
+model ExternalStockPosting {
+  id                 String        @id @default(uuid()) @db.Uuid
+  orgId              String        @db.Uuid
+  kind               PostingKind
+  // "Sale" | "Refund" (their uuid), or "SaleAttempt" (hash of a refused sale's Idempotency-Key).
+  sourceType         String
+  sourceId           String
+  // The merged sale line from 1 (FULFIL), the attempt number (SaleAttempt), else 0.
+  lineNo             Int           @default(0)
+  saleItemId         String?       @db.Uuid
+  qty                Int           @default(0)
+  idempotencyKey     String
+  reservationId      String?
+  reservationVersion Int?
+  externalOrderRefId String?
+  externalReturnId   String?
+  status             PostingStatus @default(PENDING)
+  attempts           Int           @default(0)
+  nextAttemptAt      DateTime      @default(now())
+  // The IMS `code` only, never its body.
+  lastErrorCode      String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  @@unique([orgId, idempotencyKey])
+  @@index([status, nextAttemptAt])
+  @@index([orgId, sourceType, sourceId])
+}
+
 model Branch {
-  id        String   @id @default(uuid()) @db.Uuid
-  orgId     String   @db.Uuid
-  name      String
-  code      String
-  address   String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(uuid()) @db.Uuid
+  orgId               String   @db.Uuid
+  name                String
+  code                String
+  address             String?
+  isActive            Boolean  @default(true)
+  // Phase 13 (I5): the inventory-system warehouse this branch sells from when the shop is linked.
+  externalWarehouseId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   org                Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
   registers          Register[]

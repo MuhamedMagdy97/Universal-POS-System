@@ -14,6 +14,8 @@ export const ERROR_STATUS = {
   RATE_LIMITED: 429,
   INTERNAL: 500,
   DB_UNAVAILABLE: 503,
+  // A shop linked to the inventory system cannot reach it (integration spec I17): the sale was not made.
+  INVENTORY_UNAVAILABLE: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;

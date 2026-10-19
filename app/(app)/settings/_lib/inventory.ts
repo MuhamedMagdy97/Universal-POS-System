@@ -16,6 +16,9 @@ const REASONS = [
   "INVENTORY_UNAVAILABLE",
   "INVENTORY_LINK_BROKEN",
   "INVENTORY_REJECTED",
+  "PENDING_POSTINGS",
+  "WAREHOUSE_UNKNOWN",
+  "WAREHOUSE_TAKEN",
 ] as const;
 
 export function inventoryErrorKey(error: ErrorBody): MessageKey {

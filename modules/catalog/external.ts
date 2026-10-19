@@ -253,3 +253,27 @@ export async function archiveUnlisted(
   for (const row of rows) await audit(w, "catalog.product.archived", "Product", row.id, { sku: row.sku });
   return rows.length;
 }
+
+/**
+ * The inventory-system variant id of each item (sale posting, stock at the till), in input order;
+ * null for an item the sync never linked. Tx-aware, no permission check: the caller authorises first.
+ */
+export async function externalVariantIdsOf(
+  client: Pick<Prisma.TransactionClient, "product" | "productVariant">,
+  orgId: string,
+  refs: readonly { productId: string; variantId: string | null }[],
+): Promise<(string | null)[]> {
+  const [products, variants] = await Promise.all([
+    client.product.findMany({
+      where: { orgId, id: { in: refs.map((ref) => ref.productId) } },
+      select: { id: true, externalVariantId: true },
+    }),
+    client.productVariant.findMany({
+      where: { orgId, id: { in: refs.flatMap((ref) => (ref.variantId ? [ref.variantId] : [])) } },
+      select: { id: true, externalVariantId: true },
+    }),
+  ]);
+  const byProduct = new Map(products.map((row) => [row.id, row.externalVariantId]));
+  const byVariant = new Map(variants.map((row) => [row.id, row.externalVariantId]));
+  return refs.map((ref) => (ref.variantId ? byVariant.get(ref.variantId) : byProduct.get(ref.productId)) ?? null);
+}

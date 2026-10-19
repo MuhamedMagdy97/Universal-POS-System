@@ -6,6 +6,8 @@ import { AppError, notFound } from "@/lib/errors";
 import { divideRoundHalfUp } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { recordMovements } from "@/modules/inventory";
+import { postAfterCommit, recordRefundReturn, recordVoidReturn } from "@/modules/integrations/inventory-sys/postings";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { Uuid } from "@/modules/inventory/schemas";
 import { lockShift } from "@/modules/registers";
 import { isUniqueViolation, requireBranch, requirePermission, requireRegister } from "./access";
@@ -17,6 +19,8 @@ import { IdempotencyKey, RefundInput, VoidInput } from "./schemas";
  * Refunds of some lines of a completed sale and voids of whole sales (T8, returns-void-spec.md).
  * A refund and a void both take the shift row lock, then the sale row lock, then the inventory
  * locks, the same order as a sale. Closed shifts are never changed (business rule 9).
+ * A shop linked to the inventory system writes no POS stock: the goods go back as an IMS sales
+ * return (or a cancelled hold), queued in the same transaction and never blocked by an outage (I14, I15).
  */
 
 type Tx = Prisma.TransactionClient;
@@ -58,8 +62,9 @@ export async function refundSale(
   const replayed = await replayRefund(db, ctx, key, requestHash);
   if (replayed) return replayed;
 
+  let result: RefundResult;
   try {
-    return await db.$transaction((tx) => writeRefund(tx, ctx, saleId, key, requestHash, parsed, meta));
+    result = await db.$transaction((tx) => writeRefund(tx, ctx, saleId, key, requestHash, parsed, meta));
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
     // A concurrent request with the same key won the race: answer it as a replay.
@@ -67,6 +72,8 @@ export async function refundSale(
     if (winner) return winner;
     throw err;
   }
+  if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") await postAfterCommit(ctx.orgId, [result.refund.id, saleId]);
+  return result;
 }
 
 /**
@@ -83,7 +90,7 @@ export async function voidSale(
   const parsed = VoidInput.parse(input);
   const scope = await requireSaleInScope(ctx, saleId);
 
-  return getDb().$transaction(async (tx) => {
+  const result = await getDb().$transaction(async (tx) => {
     // Lock order: shift, then sale. The shift id comes from the sale, read before the lock.
     const current = await tx.sale.findFirst({ where: { id: saleId, orgId: ctx.orgId }, select: { shiftId: true } });
     if (!current) throw notFound("Sale");
@@ -115,14 +122,18 @@ export async function voidSale(
       where: { orgId: ctx.orgId, saleId },
       select: { productId: true, variantId: true, qty: true },
     });
-    await recordMovements(tx, ctx, {
-      branchId: scope.branchId,
-      reason: "SALE_VOID",
-      refType: "Sale",
-      refId: saleId,
-      policy: "allow",
-      lines: items.map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
-    });
+    if ((await inventorySourceOf(ctx.orgId, tx)) === "EXTERNAL") {
+      await recordVoidReturn(tx, ctx.orgId, saleId);
+    } else {
+      await recordMovements(tx, ctx, {
+        branchId: scope.branchId,
+        reason: "SALE_VOID",
+        refType: "Sale",
+        refId: saleId,
+        policy: "allow",
+        lines: items.map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
+      });
+    }
     await tx.sale.update({
       where: { id: saleId },
       data: { status: "VOIDED", voidedAt: new Date(), voidedById: ctx.userId, voidReason: parsed.reason },
@@ -137,6 +148,8 @@ export async function voidSale(
     });
     return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };
   });
+  if (result.created && (await inventorySourceOf(ctx.orgId)) === "EXTERNAL") await postAfterCommit(ctx.orgId, [saleId]);
+  return result;
 }
 
 async function writeRefund(
@@ -253,17 +266,21 @@ async function writeRefund(
     })),
   });
 
-  await recordMovements(tx, ctx, {
-    branchId: scope.branchId,
-    reason: "REFUND",
-    refType: "Refund",
-    refId: refund.id,
-    policy: "allow",
-    lines: lines.map((line) => {
-      const item = byId.get(line.saleItemId) as (typeof items)[number];
-      return { ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty };
-    }),
-  });
+  if ((await inventorySourceOf(ctx.orgId, tx)) === "EXTERNAL") {
+    await recordRefundReturn(tx, ctx.orgId, refund.id, key);
+  } else {
+    await recordMovements(tx, ctx, {
+      branchId: scope.branchId,
+      reason: "REFUND",
+      refType: "Refund",
+      refId: refund.id,
+      policy: "allow",
+      lines: lines.map((line) => {
+        const item = byId.get(line.saleItemId) as (typeof items)[number];
+        return { ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty };
+      }),
+    });
+  }
   await record(tx, {
     ctx,
     meta,

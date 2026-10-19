@@ -2,10 +2,19 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
+import { AppError } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getSellableItems } from "@/modules/catalog";
 import { recordMovements } from "@/modules/inventory";
+import {
+  postAfterCommit,
+  recordSaleFulfils,
+  releaseSale,
+  reserveSale,
+  type HeldSale,
+} from "@/modules/integrations/inventory-sys/postings";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { lockShift } from "@/modules/registers";
 import { requireBranch, requirePermission, requireRegister, isUniqueViolation } from "./access";
 import { salesConflict } from "./errors";
@@ -16,6 +25,8 @@ import { priceLine, settlePayments, totalsOf, type PricedLine } from "./totals";
  * Creates a sale (T6, checkout-data-model-and-api.md). One transaction: lock the org counter,
  * check the open shift, price every line on the server, settle payments, write the stock
  * movements through the inventory seam, then write the sale, its snapshots and the audit row.
+ * A shop linked to the inventory system reserves in it before the transaction and fulfils after
+ * commit instead of writing POS stock (integration spec I12; modules/integrations/inventory-sys/postings.ts).
  */
 
 type Tx = Prisma.TransactionClient;
@@ -94,18 +105,55 @@ export async function createSale(
 
   const requestHash = requestHashOf(parsed);
   const db = getDb();
+  const linked = (await inventorySourceOf(ctx.orgId)) === "EXTERNAL";
   const replayed = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
-  if (replayed) return replayed;
+  if (replayed) {
+    // A crash after commit may have left the fulfils unsent.
+    if (linked) await postAfterCommit(ctx.orgId, [replayed.sale.id]);
+    return replayed;
+  }
 
+  let held: HeldSale | null = null;
+  if (linked) {
+    // Refuse what the POS can refuse on its own before holding anything in the inventory system.
+    await requireOpenShift(db, ctx, parsed.branchId, parsed.registerId);
+    const lines = mergeLines(parsed.lines);
+    await getSellableItems(
+      db,
+      ctx.orgId,
+      lines.map((line) => line.ref),
+    );
+    held = await reserveSale(ctx.orgId, parsed.branchId, idempotencyKey, lines);
+  }
+
+  let result: CreateSaleResult;
   try {
-    return await db.$transaction((tx) => writeSale(tx, ctx, parsed, idempotencyKey, requestHash, meta));
+    result = await db.$transaction((tx) => writeSale(tx, ctx, parsed, idempotencyKey, requestHash, held, meta));
   } catch (err) {
     // A concurrent request with the same key won the unique index. Our transaction rolled back.
-    if (!isUniqueViolation(err)) throw err;
-    const winner = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
-    if (winner) return winner;
+    if (isUniqueViolation(err)) {
+      const winner = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
+      if (winner) return winner;
+      throw err;
+    }
+    if (held) {
+      // One that committed while we failed holds the same reservations: keep them.
+      const winner = await replayIfKnown(db, ctx, idempotencyKey, requestHash).catch(() => null);
+      if (winner) return winner;
+      await releaseSale(held);
+    }
     throw err;
   }
+  if (held) await postAfterCommit(ctx.orgId, [result.sale.id]);
+  return result;
+}
+
+async function requireOpenShift(db: Db, ctx: TenantContext, branchId: string, registerId: string): Promise<void> {
+  const open = await db.registerShift.findFirst({
+    where: { orgId: ctx.orgId, branchId, registerId, status: "OPEN" },
+    select: { id: true },
+  });
+  if (!open) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
 }
 
 async function replayIfKnown(
@@ -131,6 +179,7 @@ async function writeSale(
   input: ReturnType<typeof SaleInput.parse>,
   idempotencyKey: string,
   requestHash: string,
+  held: HeldSale | null,
   meta: AuditRequestMeta | undefined,
 ): Promise<CreateSaleResult> {
   await requireRegister(tx, ctx.orgId, input.branchId, input.registerId);
@@ -149,8 +198,7 @@ async function writeSale(
   if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
 
   // Takes the org row lock, bumps the sale counter and reads the org's sale settings. A rollback
-  // gives the number back, so numbers have no gaps. A shop linked to the inventory system never blocks on
-  // POS stock (integration spec I18): until sale posting lands (slice 2) its POS ledger is history only.
+  // gives the number back, so numbers have no gaps.
   const [org] = await tx.$queryRaw<
     {
       lastSaleNo: number;
@@ -158,12 +206,19 @@ async function writeSale(
       vatRateBp: number;
       pricesIncludeVat: boolean;
       blockNegativeStock: boolean;
+      linked: boolean;
     }[]
   >`
     UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + 1
     WHERE "id" = ${ctx.orgId}::uuid
     RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat",
-      "blockNegativeStock" AND "inventorySource" = 'BUILT_IN' AS "blockNegativeStock"`;
+      "blockNegativeStock", "inventorySource" = 'EXTERNAL' AS "linked"`;
+  // The source cannot change with a shift open (setInventorySource); refuse rather than post wrong.
+  if (org.linked !== (held !== null)) {
+    throw new AppError("CONFLICT", "The shop's inventory source changed; try again", {
+      reason: "INVENTORY_SOURCE_CHANGED",
+    });
+  }
 
   const lines = mergeLines(input.lines);
   const items = await getSellableItems(
@@ -182,14 +237,17 @@ async function writeSale(
   const settlement = settlePayments(totals.totalMinor, input.payments);
 
   const saleId = randomUUID();
-  await recordMovements(tx, ctx, {
-    branchId: input.branchId,
-    reason: "SALE",
-    refType: "Sale",
-    refId: saleId,
-    policy: org.blockNegativeStock ? "block" : "allow",
-    lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
-  });
+  const saleItemIds = items.map(() => randomUUID());
+  if (!held) {
+    await recordMovements(tx, ctx, {
+      branchId: input.branchId,
+      reason: "SALE",
+      refType: "Sale",
+      refId: saleId,
+      policy: org.blockNegativeStock ? "block" : "allow",
+      lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
+    });
+  }
 
   const number = String(org.lastSaleNo).padStart(6, "0");
   await tx.sale.create({
@@ -214,6 +272,7 @@ async function writeSale(
   });
   await tx.saleItem.createMany({
     data: items.map((item, index) => ({
+      id: saleItemIds[index],
       orgId: ctx.orgId,
       saleId,
       productId: item.productId,
@@ -254,8 +313,10 @@ async function writeSale(
       changeMinor: settlement.changeMinor,
       lineCount: items.length,
       paymentMethods: settlement.payments.map((payment) => payment.method),
+      ...(held && { inventoryReservationIds: held.lines.map((line) => line.reservationId) }),
     },
   });
+  if (held) await recordSaleFulfils(tx, held, saleId, saleItemIds);
 
   return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };
 }

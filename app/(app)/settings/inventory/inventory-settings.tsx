@@ -2,11 +2,12 @@
 
 import { useState, type FormEvent } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
-import type { InventoryLinkStatus } from "@/modules/integrations/inventory-sys";
+import type { ImsWarehouse, InventoryLinkStatus } from "@/modules/integrations/inventory-sys";
 import { ConfirmDialog } from "../../catalog/_components/confirm-dialog";
 import { plain, safeAction, type ActionResult } from "../../inventory/_lib/form";
 import {
   checkInventoryLinkAction,
+  mapInventoryBranchesAction,
   saveInventoryLinkAction,
   setInventorySourceAction,
   syncInventoryAction,
@@ -18,8 +19,19 @@ type Notice = { tone: "ok" | "error"; key: MessageKey } | null;
 const input = "rounded-md border border-border bg-background px-3 py-2";
 const button = "self-start rounded-md border border-border px-4 py-2 disabled:opacity-50";
 
-/** Link form, connection test, the source toggle and "Sync now". The API key field always starts empty. */
-export function InventorySettings({ locale, status }: { locale: Locale; status: InventoryLinkStatus }) {
+/**
+ * Link form, connection test, the source toggle, the branch → warehouse map and "Sync now". The API
+ * key field always starts empty.
+ */
+export function InventorySettings({
+  locale,
+  status,
+  warehouses,
+}: {
+  locale: Locale;
+  status: InventoryLinkStatus;
+  warehouses: ImsWarehouse[] | null;
+}) {
   const tr = translator(locale);
   const { link, canManage, source } = status;
   const [baseUrl, setBaseUrl] = useState(link?.baseUrl ?? "");
@@ -28,6 +40,10 @@ export function InventorySettings({ locale, status }: { locale: Locale; status: 
   const [notice, setNotice] = useState<Notice>(null);
   const [confirming, setConfirming] = useState(false);
   const target = source === "EXTERNAL" ? "BUILT_IN" : "EXTERNAL";
+  const activeBranches = status.branches.filter((branch) => branch.isActive);
+  const [branchMap, setBranchMap] = useState<Record<string, string>>(() =>
+    Object.fromEntries(status.branches.map((branch) => [branch.id, branch.warehouseId ?? ""])),
+  );
 
   async function act<T>(run: () => Promise<ActionResult<T>>, okKey: (data: T) => Notice): Promise<void> {
     setPending(true);
@@ -137,6 +153,65 @@ export function InventorySettings({ locale, status }: { locale: Locale; status: 
         </p>
       </section>
 
+      {link?.lastCheckOk ? (
+        <section aria-labelledby="inv-branches" className="flex flex-col gap-2">
+          <h2 id="inv-branches" className="text-lg font-medium">
+            {tr("settings.inventory.branches")}
+          </h2>
+          <p className="text-sm text-muted">{tr("settings.inventory.branches.intro")}</p>
+          {warehouses === null ? (
+            <p role="alert">{tr("settings.inventory.branches.unavailable")}</p>
+          ) : (
+            <>
+              {activeBranches.map((branch) => (
+                <label key={branch.id} className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-40">
+                    {branch.name} ({branch.code})
+                  </span>
+                  <select
+                    name={`warehouse-${branch.code}`}
+                    className={input}
+                    disabled={!canManage || pending}
+                    value={branchMap[branch.id] ?? ""}
+                    onChange={(e) => setBranchMap({ ...branchMap, [branch.id]: e.target.value })}
+                  >
+                    <option value="">{tr("settings.inventory.branches.none")}</option>
+                    {warehouses
+                      .filter((w) => w.status === "active" || w.id === branchMap[branch.id])
+                      .map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.code} · {w.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              ))}
+              {canManage && activeBranches.length > 0 ? (
+                <button
+                  type="button"
+                  className={button}
+                  disabled={pending}
+                  onClick={() =>
+                    act(
+                      () =>
+                        mapInventoryBranchesAction(
+                          activeBranches.map((branch) => ({
+                            branchId: branch.id,
+                            warehouseId: branchMap[branch.id] || null,
+                          })),
+                        ),
+                      () => ({ tone: "ok", key: "settings.inventory.branches.saved" }),
+                    )
+                  }
+                >
+                  {tr("settings.inventory.branches.save")}
+                </button>
+              ) : null}
+            </>
+          )}
+        </section>
+      ) : null}
+
       {source === "EXTERNAL" ? (
         <section aria-labelledby="inv-sync" className="flex flex-col gap-2">
           <h2 id="inv-sync" className="text-lg font-medium">
@@ -154,6 +229,11 @@ export function InventorySettings({ locale, status }: { locale: Locale; status: 
                   })
                 : tr("settings.inventory.sync.failed")}
           </p>
+          {status.postings.pending + status.postings.failed > 0 ? (
+            <p data-testid="inventory-postings" role="status" className="text-sm">
+              {tr("settings.inventory.postings", status.postings)}
+            </p>
+          ) : null}
           <button
             type="button"
             className={button}

@@ -21,10 +21,10 @@ inventory system at `D:/inventory sys` (read only, never modified from here).
 
 | Slice | Scope | Spec | Status |
 |---|---|---|---|
-| 1 | Toggle, link settings, connection check, catalog sync (pull, "Sync now"), read-only guards | I1–I4, I6–I11, I18, I22 (part) | **Built** (this PR) |
-| 2 | Sale posting: branch → warehouse map, reserve before / fulfil after, outbox, till messages | I5, I12, I13, I17 | Next |
-| 3 | Refunds and voids as IMS sales returns / cancels, queued | I14, I15 | |
-| 4 | Stock from the IMS on the item page; scheduler route (retries + 15-minute sync) | I16, I19 | |
+| 1 | Toggle, link settings, connection check, catalog sync (pull, "Sync now"), read-only guards | I1–I4, I6–I11, I18, I22 (part) | **Built** (PR #34) |
+| 2 | Sale posting: branch → warehouse map, reserve before / fulfil after, outbox, till messages; **also** refunds and voids (slice 3), stock at the till and the retry route (part of slice 4) | I5, I12–I15, I16 (till), I17, I19 (part) | **Built** (this PR) |
+| 3 | Refunds and voids as IMS sales returns / cancels, queued | I14, I15 | Built with slice 2 |
+| 4 | Stock from the IMS on the item page; the 15-minute sync in the scheduler route | I16, I19 | Next |
 | 5 | Guided enable for an existing shop: dry run, CSV of POS on-hand | I20 | |
 | 6 | Secrets sweep, perf (5 000 products, 10-line sale), manual run against the real IMS | R3, R4, I23 | |
 
@@ -117,3 +117,74 @@ catalog sync fails as a whole on an outage, keeps every product already applied,
 - E2E (`tests/e2e/inventory-integration.spec.ts`, fake IMS on `E2E_PORT + 1`): an owner links a fresh shop,
   switches, syncs, and sees the read-only catalog and stock screens, in English and Arabic (RTL); Admin and
   Cashier access.
+
+## Slice 2 as built (2026-10-19)
+
+Sale posting, refunds and voids (slices 2 and 3), stock at the till, and the retry route. Built-in shops are
+unchanged: every new path runs only when `inventorySource = EXTERNAL`.
+
+- **Data:** migration `inventory_sale_posting` — enums `PostingKind` (`FULFIL`, `CANCEL`, `RETURN`) and
+  `PostingStatus`, table `ExternalStockPosting` (the outbox: kind, source, line, qty, idempotency key, IMS
+  reservation id + version, order ref, return id, status, attempts, `nextAttemptAt`, last IMS code; unique per org
+  and key), `Branch.externalWarehouseId` with a partial unique index per org. Created with `--create-only`, the
+  generated `DROP INDEX "POItem_one_line_per_item"` removed.
+- **Module:** `modules/integrations/inventory-sys/postings.ts` — `reserveSale`, `releaseSale`,
+  `recordSaleFulfils`, `recordRefundReturn`, `recordVoidReturn`, `postAfterCommit`, `drainPostings`,
+  `availableAtBranch`. `client.ts` gained `imsPost` (`Idempotency-Key` header; the IMS `code` and
+  `details.available` / `details.status` are kept, never the body). The catalog seam gained
+  `externalVariantIdsOf`.
+- **Sale** (`modules/sales/create.ts`): replay by key first (a replay of a linked sale also sends any fulfil left
+  unsent); then shift open, items sellable, branch mapped, every item linked — all before any IMS call; reserve all
+  merged lines (4 at a time, 5 s per call, 10 s per sale); commit with no POS movements, the `FULFIL` rows and the
+  reservation ids in `sale.created`; fulfil after commit (2 s budget, the rest stays `PENDING`). A transaction that
+  fails after reserving releases the holds, unless a concurrent request with the same key committed (it holds the
+  same reservations).
+- **Refund / void** (`modules/sales/refunds.ts`): no POS movements; one `RETURN` row in the transaction, sent after
+  commit. A refund's return lists the refunded lines' reservations (`pos_refund`, "POS refund of sale 000123"); it
+  waits while the sale has a `PENDING` fulfil. A void: each fulfil not yet sent is turned into a cancel of its hold
+  (`pos:sale:{saleId}:void:{n}`), and one return (`pos_void`) takes back the lines already fulfilled.
+- **Second guard:** `recordMovements` refuses for a linked shop (`MANAGED_BY_INVENTORY`).
+- **Errors:** new code `INVENTORY_UNAVAILABLE` (503) in `lib/errors.ts`; reasons `INVENTORY_LINK_BROKEN` (409),
+  `INVENTORY_BRANCH_UNMAPPED` (409), `INVENTORY_REJECTED` (409); short stock is the existing `409
+  INSUFFICIENT_STOCK` with the IMS's available quantity as `lines[].onHand`; an archived, discontinued or missing
+  IMS item is `422 ITEM_NOT_SELLABLE`. The till shows the three new EN/AR messages and keeps the sale key after
+  `INVENTORY_UNAVAILABLE`, so Retry reuses the IMS keys.
+- **Branch map:** `GET|PUT /api/integrations/inventory/branches` and a table on Settings → Inventory system (shown
+  once the connection check passed): each active branch → one active IMS warehouse (`GET /api/warehouses`), never
+  two on one; Owner changes it, audited `integration.inventory.branch_mapped`. The status shows postings waiting
+  and refused.
+- **Retries:** `POST /api/internal/inventory/run` (header `x-cron-secret`, constant-time compare, 404 while the
+  optional `CRON_SECRET` is unset, no session) drains due postings of every linked shop; "Sync now" drains the
+  shop's postings first. Backoff 1, 2, 5, 15, 30, 60 min; an IMS refusal (4xx other than the I17 outage answers)
+  marks the row `FAILED`.
+- **Unlink** (`PUT …/source` to `BUILT_IN`) is refused with `PENDING_POSTINGS` while any posting is pending (I21).
+
+### Where slice 2 departs from the spec (owner pre-approved "as recommended")
+
+| Spec | As built | Why |
+|---|---|---|
+| Task brief: "post sales to `POST /api/pos-sales`" | Reservations, as I12 decided. | `pos-sales` is one IMS transaction per line; I12 rejected it. |
+| I13 keys `pos:{saleKey}:r:{n}` | `pos:{saleKey}:{attempt}:r:{n}` (and `:f:`, `:cancel`); `externalOrderId` = `sha256(saleKey)[0:32]:{attempt}`. | A refused sale cancels its holds; a retry with the same till key would otherwise replay the cancelled reservations and commit a sale whose fulfils can never succeed. The attempt is the count of `SaleAttempt` cancel rows for that key, so a crash before commit (no row) still replays the same holds (R2). The hash keeps `externalOrderId` within the IMS's 100 characters. |
+| I16 "the till shows no stock" | The till shows the IMS's **available** quantity at the branch's warehouse (`GET /api/availability`, 4 at a time, 3 s, per scan); unknown (unmapped, unlinked item, IMS down) shows nothing. | Asked for in the slice-2 brief. `/api/availability` is not under the IMS's 300/min limit (that covers `/api/reservations` and `/api/pos-sales`). |
+| I19 | The route drains postings only; the 15-minute catalog sync and the "older than 10 minutes" flag are not in it yet. | Slice 4. The status page shows the pending and refused counts. |
+| I22 `.posting.failed` / `.posting.resolved` audit | Not written; `lastErrorCode` and the status counts carry it. | With the postings list and Retry button (slice 4). |
+| I4 write permissions | Still not probed; a key without `sales.reserve` answers `INVENTORY_LINK_BROKEN` at the first sale. | IMS D3 (`GET /api/me`). |
+| Holds of an attempt whose every reserve timed out | Not cancelled (no order id is known); they expire after the IMS's `pos` TTL (900 s). | Rare; the stock is held, never sold. |
+| A refunded line whose fulfil `FAILED` | Left out of the IMS return. | Nothing of it was taken in the IMS. |
+
+### Tests (slice 2)
+
+- Integration (`tests/integration/inventory-sale-posting.test.ts`, fake IMS with reservations, fulfil, cancel,
+  order cancel, sales returns, availability, warehouses and the IMS's idempotency rule): a 3-line sale reserves,
+  commits with no POS stock rows, fulfils once, replays with no new IMS call; crash between reserve and commit then
+  retry holds nothing twice; a short line refuses the whole sale with the IMS's quantity, cancels the others, and
+  the same cart and key sell on retry with fresh holds; outage (network, 503, the IMS's `409 conflict` on one line)
+  → 503 and the other line's hold cancelled; refused key and unmapped branch; a failing transaction releases the
+  holds; a failed fulfil stays `PENDING` and drains later; `recordMovements` refuses; refund → return, refund
+  during an outage → queued then sent, refund before fulfil → waits; void of a fulfilled sale → return, of an
+  unfulfilled one → holds cancelled; till availability and its outage; branch map access, unknown and shared
+  warehouses, swap; unlink refused with pending postings; scheduler route secret and drain.
+- Unit: the till's new messages and key keeping.
+- E2E (`tests/e2e/inventory-sale.spec.ts`, fake IMS on `E2E_PORT + 2`): an owner links a fresh shop, maps its
+  branch, switches, sees the IMS stock at the till and sells; in Arabic (RTL) the IMS stops, the sale is refused
+  with the outage message, and Retry sells once it is back.

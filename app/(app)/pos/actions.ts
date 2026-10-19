@@ -73,6 +73,8 @@ export async function addCashMovementAction(
 }
 
 /** On-hand at the till's branch for the given items, in the same order as `refs`. Read-only: it never blocks a sale. */
-export async function tillStockAction(input: z.input<typeof TillStockInput>): Promise<PosActionResult<number[]>> {
+export async function tillStockAction(
+  input: z.input<typeof TillStockInput>,
+): Promise<PosActionResult<(number | null)[]>> {
   return run((ctx) => getTillOnHand(ctx, input));
 }

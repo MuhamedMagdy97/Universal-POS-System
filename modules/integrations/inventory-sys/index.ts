@@ -6,13 +6,18 @@
 export {
   checkInventoryLink,
   getInventoryLinkStatus,
+  listInventoryWarehouses,
+  mapInventoryBranches,
+  BranchMapInput,
   InventoryLinkInput,
   InventorySourceInput,
   saveInventoryLink,
   setInventorySource,
   syncInventoryNow,
   type CheckResult,
+  type ImsWarehouse,
   type InventoryLinkStatus,
 } from "./link";
+export { drainPostings } from "./postings";
 export type { SyncSummary } from "./sync";
 export { assertBuiltIn, inventorySourceOf, managedByInventory } from "./source";

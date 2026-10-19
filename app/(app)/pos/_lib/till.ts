@@ -168,6 +168,13 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.error.notSellable";
     case "AMOUNT_TOO_LARGE":
       return "pos.error.tooLarge";
+    // A shop linked to the inventory system (integration spec I17).
+    case "INVENTORY_UNAVAILABLE":
+      return "pos.error.inventoryUnavailable";
+    case "INVENTORY_LINK_BROKEN":
+      return "pos.error.inventoryLinkBroken";
+    case "INVENTORY_BRANCH_UNMAPPED":
+      return "pos.error.inventoryBranchUnmapped";
     default:
       return "pos.error.generic";
   }
@@ -177,10 +184,11 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
  * Whether the next attempt must reuse this cart's Idempotency-Key. Only when the outcome is
  * unknown (a dropped connection or a 500) could the sale exist, and a retry must replay it. Any
  * other error means nothing was written, so a fresh key lets the cashier fix the cart and retry
- * without an IDEMPOTENCY_CONFLICT.
+ * without an IDEMPOTENCY_CONFLICT. An unreachable inventory system keeps it too (integration spec
+ * I17): Retry then reuses the same inventory-system keys.
  */
 export function keepKeyAfter(error: ErrorBody): boolean {
-  return error.code === "INTERNAL" || error.code === "DB_UNAVAILABLE";
+  return error.code === "INTERNAL" || error.code === "DB_UNAVAILABLE" || error.code === "INVENTORY_UNAVAILABLE";
 }
 
 /** Cart lines named in an INSUFFICIENT_STOCK error, for the message. */

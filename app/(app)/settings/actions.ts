@@ -22,6 +22,7 @@ import {
 } from "@/modules/org";
 import {
   checkInventoryLink,
+  mapInventoryBranches,
   saveInventoryLink,
   setInventorySource,
   syncInventoryNow,
@@ -140,6 +141,16 @@ export async function setInventorySourceAction(
   return run("/settings/inventory", async (ctx, meta) => ({
     syncError: (await setInventorySource(ctx, { source }, meta)).syncError,
   }));
+}
+
+/** Branch → inventory-system warehouse (Phase 13 slice 2, I5). */
+export async function mapInventoryBranchesAction(
+  map: { branchId: string; warehouseId: string | null }[],
+): Promise<ActionResult<null>> {
+  return run("/settings/inventory", async (ctx, meta) => {
+    await mapInventoryBranches(ctx, { map }, meta);
+    return null;
+  });
 }
 
 export async function syncInventoryAction(): Promise<ActionResult<SyncSummary>> {

@@ -24,6 +24,8 @@ const configSchema = z.object({
     )
     .optional(),
   INTEGRATION_ENCRYPTION_KEY_ID: z.string().min(1).max(20).default("k1"),
+  // Phase 13 (I19): the header the scheduler sends to /api/internal/inventory/run. Optional.
+  CRON_SECRET: z.string().min(32, "CRON_SECRET must be at least 32 characters").optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
