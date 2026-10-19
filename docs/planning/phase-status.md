@@ -100,6 +100,12 @@
   till exact-cash button, on-hand stock and keyboard shortcuts (PR #31); reorder points, low-stock list with CSV
   and dashboard tile (PR #30, [spec](low-stock/low-stock-spec.md)).
 
+- 2026-10-20 batch: category sync from the inventory system (PR #40); purchase returns against a received PO with
+  A4 print and returned/net columns on the purchases report (PR #42, [spec](purchase-returns/purchase-returns-spec.md));
+  stock counts per branch posted as count corrections against live stock (PR #41,
+  [spec](stock-counts/stock-counts-spec.md)); discounts at the till with a cashier limit, in receipts, refunds and
+  reports (PR #43, [spec](discounts/discounts-spec.md)).
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

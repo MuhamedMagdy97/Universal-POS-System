@@ -31,14 +31,14 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Inventory
 
-- No stock counts or count sessions, no two-step (in-transit) transfers, no low-stock notifications (the list and
+- No count sheets or freezing sales during a stock count, no two-step (in-transit) transfers, no low-stock notifications (the list and
   dashboard tile are on screen only), no cost valuation or COGS, no CSV import, no settings screen for `blockNegativeStock`. [phase-7/inventory-spec §5]
 - The opening-stock grid saves at most 100 items at a time. The transfer form has no scan shortcut beyond Enter in
   the search box. [phase-7/inventory-as-built, deferred minors]
 
 ## Checkout (POS till)
 
-- No discounts (`discountMinor` is always 0). [phase-8/checkout-spec Q3]
+- No discount codes, promotions or price rules: discounts are typed at the till (line or sale, amount or percent). [discounts/discounts-spec]
 - A cashier can reprint only the last sale on their screen; older receipts are reprinted by a Manager or Owner from
   Returns. [phase-11/hardening-spec, user guide review]
 
@@ -59,7 +59,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Purchasing
 
-- No purchase returns, supplier payments, balances or invoices, input VAT, receiving without a PO, barcode labels,
+- Purchase returns only against a received PO (none without one). No supplier payments, balances or invoices, input VAT, receiving without a PO, barcode labels,
   emailing a PO, or multi-currency. [phase-10/purchasing-spec §2, phase-status]
 
 ## Printing and hardening
@@ -75,7 +75,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Inventory system link (Phase 13)
 
-- Categories are not synced. The scheduled catalog sync and posting retries need the host to call
+- Categories deeper than three levels fold into their third-level ancestor. The scheduled catalog sync and posting retries need the host to call
   `/api/internal/inventory/run` every minute with `CRON_SECRET`; there is no built-in scheduler or webhook.
 - The connection check cannot confirm the API key may reserve stock (the inventory system has no "who am I" route);
   a key without that permission is reported at the first sale.
