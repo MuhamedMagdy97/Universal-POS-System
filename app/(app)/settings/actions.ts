@@ -23,6 +23,7 @@ import {
 import {
   checkInventoryLink,
   mapInventoryBranches,
+  retryInventoryPosting,
   saveInventoryLink,
   setInventorySource,
   syncInventoryNow,
@@ -155,4 +156,11 @@ export async function mapInventoryBranchesAction(
 
 export async function syncInventoryAction(): Promise<ActionResult<SyncSummary>> {
   return run("/settings/inventory", (ctx, meta) => syncInventoryNow(ctx, meta));
+}
+
+/** Retry one inventory-system posting (Phase 13 slice 4, I22): due now, then the shop's postings are sent. */
+export async function retryInventoryPostingAction(
+  postingId: string,
+): Promise<ActionResult<{ status: "PENDING" | "DONE" | "FAILED" }>> {
+  return run("/settings/inventory", (ctx, meta) => retryInventoryPosting(ctx, postingId, meta));
 }

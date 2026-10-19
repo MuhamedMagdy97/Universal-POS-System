@@ -22,9 +22,9 @@ inventory system at `D:/inventory sys` (read only, never modified from here).
 | Slice | Scope | Spec | Status |
 |---|---|---|---|
 | 1 | Toggle, link settings, connection check, catalog sync (pull, "Sync now"), read-only guards | I1–I4, I6–I11, I18, I22 (part) | **Built** (PR #34) |
-| 2 | Sale posting: branch → warehouse map, reserve before / fulfil after, outbox, till messages; **also** refunds and voids (slice 3), stock at the till and the retry route (part of slice 4) | I5, I12–I15, I16 (till), I17, I19 (part) | **Built** (this PR) |
+| 2 | Sale posting: branch → warehouse map, reserve before / fulfil after, outbox, till messages; **also** refunds and voids (slice 3), stock at the till and the retry route (part of slice 4) | I5, I12–I15, I16 (till), I17, I19 (part) | **Built** (PR #36) |
 | 3 | Refunds and voids as IMS sales returns / cancels, queued | I14, I15 | Built with slice 2 |
-| 4 | Stock from the IMS on the item page; the 15-minute sync in the scheduler route | I16, I19 | Next |
+| 4 | The 15-minute sync in the scheduler route, the 10-minute flag, the postings list and Retry, posting audit; stock on the item page deferred | I19, I22 (I16 deferred) | **Built** (slice 4 PR) |
 | 5 | Guided enable for an existing shop: dry run, CSV of POS on-hand | I20 | |
 | 6 | Secrets sweep, perf (5 000 products, 10-line sale), manual run against the real IMS | R3, R4, I23 | |
 
@@ -188,3 +188,57 @@ unchanged: every new path runs only when `inventorySource = EXTERNAL`.
 - E2E (`tests/e2e/inventory-sale.spec.ts`, fake IMS on `E2E_PORT + 2`): an owner links a fresh shop, maps its
   branch, switches, sees the IMS stock at the till and sells; in Arabic (RTL) the IMS stops, the sale is refused
   with the outage message, and Retry sells once it is back.
+
+## Slice 4 as built (2026-10-19)
+
+The scheduled catalog sync, the "older than 10 minutes" flag, the postings list with Retry, and the posting
+audit. No migration. Built-in shops are unchanged: the scheduler only looks at links of `EXTERNAL` shops, and the
+postings list only shows once a link is saved.
+
+- **Scheduler** (`POST /api/internal/inventory/run`, `runInventorySchedule` in `link.ts`): drains due postings
+  as before, then syncs the catalog of every linked shop whose `lastSyncStartedAt` is null or over 15 minutes old
+  (I6, I19), oldest first, one shop after another. The per-org claim (`syncLockedUntil`) still applies: a shop
+  whose "Sync now" is running is skipped (not counted as failed). A failed sync is recorded and audited as for
+  "Sync now"; the claim sets `lastSyncStartedAt`, so the shop is retried 15 minutes later. Answers
+  `{ sent, synced, failed, stale }`.
+- **No actor** (I22): `AuditActor.userId` may be null; scheduled syncs and drain audits write `actorUserId = null`.
+- **10-minute flag** (I19, R1): a posting `PENDING` with `createdAt` over 10 minutes ago is *stale*. The status
+  carries `postings.stale` and Settings → Inventory system shows an alert line; the list marks each such row.
+- **Postings list** (Settings → Inventory system, EN/AR; `GET /api/integrations/inventory/postings?page=N`):
+  `PENDING` and `FAILED` postings of the shop, oldest first, 20 a page — kind, the sale (or "refund of sale …", or
+  "a sale that was not completed" for a refused sale's cancel), status, attempts, last IMS code, next attempt in the
+  shop's timezone. `settings.manage` (Owner, Admin), tenant-scoped (another shop's id answers 404).
+- **Retry** (`POST /api/integrations/inventory/postings/{id}/retry`, `settings.manage`): a `FAILED` or waiting
+  posting becomes `PENDING` due now (attempts kept), audited `integration.inventory.posting.retried` with the
+  person, then the shop's due postings are drained (10 s budget); answers the posting's status afterwards.
+- **Audit** (I22): `.posting.failed` when its first retry failed too (`attempts = 2`), or at
+  once when the IMS refused it for good (`FAILED` on the first attempt); metadata: kind, source, line, attempts,
+  IMS code, status. `.posting.resolved` when a posting that had failed is sent.
+- **I4 write permissions:** the IMS (`D:/inventory sys`, read only) has **no** `GET /api/me` or other "who am I"
+  route for an API key (only `/api/auth/[...all]`, Better-Auth sessions). The check stays as slice 1 built it;
+  probing writes would hold or move stock. Needs IMS D3.
+
+### Where slice 4 departs from the spec (owner pre-approved "as recommended")
+
+| Spec | As built | Why |
+|---|---|---|
+| I16 stock on the back-office item page | Not built. | The slice-4 brief named the scheduler, the postings list and the I4 probe; the till already shows IMS stock (slice 2). |
+| I19 "flagged on … the dashboard" | Flagged on Settings → Inventory system (status line and list) and in the scheduler's answer; not on the dashboard. | One place to act on it (Retry is there). |
+| I22 `.posting.failed` "after the first retry" | Also at once for a permanent refusal (`422`/`404`), which never retries. | A refused posting waits for a person; the audit says so straight away. |
+| I22 `.posting.resolved` | Written for any posting sent after a failure, including one that failed only once (no `.posting.failed` before it). | Keeps the rule on the row alone (no flag column). |
+| Retry permission | `settings.manage` (Owner, Admin); also a new `integration.inventory.posting.retried` audit. | Spec: Owner/Admin act on the status page; the person who pressed Retry is recorded. |
+| Scheduler shops | Synced one after another in one run. | A slow IMS delays the next shop to the next minute's run; parallel runs if many linked shops share a deploy. |
+| I4 write permissions | Not probed. | No `GET /api/me` in the IMS (D3). |
+
+### Tests (slice 4)
+
+- Integration (in `tests/integration/inventory-sale-posting.test.ts`, fake IMS): the scheduler syncs a shop only
+  when its last sync is over 15 minutes old, with no actor, and not again at once; skips a claimed shop; records an
+  outage as a failed sync; the stale count in the status, list and scheduler answer; `.posting.failed` once after
+  the first retry fails and `.posting.resolved` once sent; a `422`-refused fulfil is listed with its sale number,
+  Owner/Admin retry it (refused again stays `FAILED`; accepted → `DONE`, IMS stock taken), cashiers get 403,
+  another shop 404; paging 20 at a time.
+- Unit: an audit row with no actor.
+- E2E (`tests/e2e/inventory-postings.spec.ts`, fake IMS on `E2E_PORT + 3`): a linked shop sells while the IMS
+  refuses the fulfil; the refused posting is listed with the sale number; in Arabic (RTL) Retry sends it, the IMS
+  stock drops and the list empties.

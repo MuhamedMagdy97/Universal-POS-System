@@ -34,8 +34,8 @@ export type InventoryLinkStatus = {
   } | null;
   /** Each branch and the IMS warehouse it sells from (I5). */
   branches: { id: string; name: string; code: string; isActive: boolean; warehouseId: string | null }[];
-  /** Inventory-system calls not yet made (retried) and refused (they wait for a person). */
-  postings: { pending: number; failed: number };
+  /** Inventory-system calls not yet made (retried), refused (they wait for a person), and pending over 10 minutes. */
+  postings: { pending: number; failed: number; stale: number };
 };
 
 export type ImsWarehouse = { id: string; code: string; name: string; status: string };
@@ -126,7 +126,7 @@ export function openLink(row: LinkRow): ImsLink {
 export async function getInventoryLinkStatus(ctx: TenantContext): Promise<InventoryLinkStatus> {
   await requirePermission(ctx, "settings.manage", "inventory.read");
   const db = getDb();
-  const [org, row, branches, postings] = await Promise.all([
+  const [org, row, branches, postings, stale] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: ctx.orgId }, select: { inventorySource: true } }),
     loadLink(ctx.orgId),
     db.branch.findMany({
@@ -139,12 +139,15 @@ export async function getInventoryLinkStatus(ctx: TenantContext): Promise<Invent
       where: { orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } },
       _count: { _all: true },
     }),
+    db.externalStockPosting.count({
+      where: { orgId: ctx.orgId, status: "PENDING", createdAt: { lt: new Date(Date.now() - STALE_MS) } },
+    }),
   ]);
   const iso = (d: Date | null) => d?.toISOString() ?? null;
   const count = (status: string) => postings.find((p) => p.status === status)?._count._all ?? 0;
   return {
     branches: branches.map(({ externalWarehouseId, ...branch }) => ({ ...branch, warehouseId: externalWarehouseId })),
-    postings: { pending: count("PENDING"), failed: count("FAILED") },
+    postings: { pending: count("PENDING"), failed: count("FAILED"), stale },
     source: org.inventorySource,
     encryptionReady: encryptionKey() !== null,
     canManage: hasPermission(ctx.role, "integrations.manage"),
@@ -162,7 +165,11 @@ export async function getInventoryLinkStatus(ctx: TenantContext): Promise<Invent
   };
 }
 
-/** I4 (slice 1): the key is accepted and may read products and stock. Write permissions are checked by slice 2. */
+/**
+ * I4: the key is accepted and may read products and stock. Write permissions (`sales.reserve`, …) are
+ * not probed: the IMS has no "who am I" route (D3 `GET /api/me`, checked slice 4) and a write probe
+ * would hold or move stock. A key without them answers INVENTORY_LINK_BROKEN at the first sale.
+ */
 async function probe(link: ImsLink): Promise<CheckResult> {
   try {
     await imsGet(link, "/api/products?page=1&per_page=1", 5_000);
@@ -399,4 +406,140 @@ export async function mapInventoryBranches(
     throw err;
   }
   return (await getInventoryLinkStatus(ctx)).branches;
+}
+
+const STALE_MS = 10 * 60_000;
+const SYNC_EVERY_MS = 15 * 60_000;
+const POSTINGS_PAGE = 20;
+
+export type InventoryPosting = {
+  id: string;
+  kind: "FULFIL" | "CANCEL" | "RETURN";
+  status: "PENDING" | "FAILED";
+  /** The POS document: a sale (its fulfils, a void's return), a refund of a sale, or a refused sale's holds. */
+  document: "SALE" | "REFUND" | "REFUSED_SALE";
+  saleNumber: string | null;
+  attempts: number;
+  lastErrorCode: string | null;
+  nextAttemptAt: string;
+  createdAt: string;
+  /** Still pending after 10 minutes (I19): a fulfil's reservation expires at 15. */
+  stale: boolean;
+};
+
+/** Postings waiting or refused, oldest first, 20 a page (Owner, Admin). */
+export async function listInventoryPostings(
+  ctx: TenantContext,
+  page = 1,
+): Promise<{ items: InventoryPosting[]; page: number; hasMore: boolean }> {
+  await requirePermission(ctx, "settings.manage", "inventory.postings");
+  const db = getDb();
+  const current = Number.isInteger(page) && page > 0 ? page : 1;
+  const rows = await db.externalStockPosting.findMany({
+    where: { orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    skip: (current - 1) * POSTINGS_PAGE,
+    take: POSTINGS_PAGE + 1,
+  });
+  const shown = rows.slice(0, POSTINGS_PAGE);
+  const refundIds = shown.filter((row) => row.sourceType === "Refund").map((row) => row.sourceId);
+  const refunds = await db.refund.findMany({
+    where: { orgId: ctx.orgId, id: { in: refundIds } },
+    select: { id: true, saleId: true },
+  });
+  const saleIdOf = (row: (typeof shown)[number]) =>
+    row.sourceType === "Sale" ? row.sourceId : refunds.find((refund) => refund.id === row.sourceId)?.saleId;
+  const saleIds = shown.flatMap((row) => saleIdOf(row) ?? []);
+  const sales = await db.sale.findMany({
+    where: { orgId: ctx.orgId, id: { in: saleIds } },
+    select: { id: true, number: true },
+  });
+  const staleBefore = Date.now() - STALE_MS;
+  return {
+    page: current,
+    hasMore: rows.length > POSTINGS_PAGE,
+    items: shown.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      status: row.status as InventoryPosting["status"],
+      document: row.sourceType === "Refund" ? "REFUND" : row.sourceType === "Sale" ? "SALE" : "REFUSED_SALE",
+      saleNumber: sales.find((sale) => sale.id === saleIdOf(row))?.number ?? null,
+      attempts: row.attempts,
+      lastErrorCode: row.lastErrorCode,
+      nextAttemptAt: row.nextAttemptAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+      stale: row.status === "PENDING" && row.createdAt.getTime() < staleBefore,
+    })),
+  };
+}
+
+/**
+ * Retry (I22, Owner and Admin): a refused or waiting posting is due now; then the shop's due
+ * postings are sent. Answers the posting's status afterwards.
+ */
+export async function retryInventoryPosting(
+  ctx: TenantContext,
+  postingId: unknown,
+  meta?: AuditRequestMeta,
+): Promise<{ status: "PENDING" | "DONE" | "FAILED" }> {
+  await requirePermission(ctx, "settings.manage", "inventory.posting.retry", meta);
+  const id = z.uuid().safeParse(postingId);
+  if (!id.success) throw notFound("Posting");
+  const db = getDb();
+  await db.$transaction(async (tx) => {
+    const row = await tx.externalStockPosting.findFirst({
+      where: { id: id.data, orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } },
+    });
+    if (!row) throw notFound("Posting");
+    await tx.externalStockPosting.update({
+      where: { id: row.id },
+      data: { status: "PENDING", nextAttemptAt: new Date() },
+    });
+    await record(tx, {
+      ctx,
+      meta,
+      action: "integration.inventory.posting.retried",
+      entityType: "ExternalStockPosting",
+      entityId: row.id,
+      metadata: { kind: row.kind, from: row.status, attempts: row.attempts, code: row.lastErrorCode },
+    });
+  });
+  await drainPostings({ orgId: ctx.orgId, timeoutMs: 10_000 }).catch(() => undefined);
+  const after = await db.externalStockPosting.findUniqueOrThrow({ where: { id: id.data }, select: { status: true } });
+  return { status: after.status };
+}
+
+/**
+ * The scheduler's run (I19), every minute: sends due postings of every linked shop, then syncs the
+ * catalog of each linked shop whose last sync started over 15 minutes ago (the per-org claim still
+ * applies, so a running "Sync now" is left alone). No actor: audit rows carry no user (I22).
+ */
+export async function runInventorySchedule(): Promise<{ sent: number; synced: number; failed: number; stale: number }> {
+  const db = getDb();
+  const { sent } = await drainPostings();
+  const due = await db.inventoryLink.findMany({
+    where: {
+      org: { inventorySource: "EXTERNAL" },
+      OR: [{ lastSyncStartedAt: null }, { lastSyncStartedAt: { lt: new Date(Date.now() - SYNC_EVERY_MS) } }],
+    },
+    orderBy: { lastSyncStartedAt: { sort: "asc", nulls: "first" } },
+  });
+  let synced = 0;
+  let failed = 0;
+  // ponytail: shops sync one after another; a slow IMS delays the next shop to the next minute's run.
+  for (const row of due) {
+    try {
+      await syncWithLock({ orgId: row.orgId, branchId: null, userId: null }, undefined, openLink(row));
+      synced += 1;
+    } catch (err) {
+      // SYNC_RUNNING: another run holds the claim. Anything else is recorded on the link and audited.
+      if ((err instanceof AppError ? (err.details as { reason?: string }) : null)?.reason !== "SYNC_RUNNING") {
+        failed += 1;
+      }
+    }
+  }
+  const stale = await db.externalStockPosting.count({
+    where: { status: "PENDING", createdAt: { lt: new Date(Date.now() - STALE_MS) } },
+  });
+  return { sent, synced, failed, stale };
 }

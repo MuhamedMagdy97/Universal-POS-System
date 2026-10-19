@@ -234,6 +234,11 @@ export function InventorySettings({
               {tr("settings.inventory.postings", status.postings)}
             </p>
           ) : null}
+          {status.postings.stale > 0 ? (
+            <p data-testid="inventory-postings-stale" role="alert" className="text-sm text-red-700">
+              {tr("settings.inventory.postings.stale", { stale: status.postings.stale })}
+            </p>
+          ) : null}
           <button
             type="button"
             className={button}
