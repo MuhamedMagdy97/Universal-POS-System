@@ -419,6 +419,8 @@ model Category {
   nameAr    String?
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
+  // Inventory-system category id (category sync); unique per org (partial index in SQL).
+  externalCategoryId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

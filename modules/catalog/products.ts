@@ -252,12 +252,18 @@ export async function insertProduct(
 
 /** Fields the inventory system owns when the shop is linked (integration spec I8); the rest stay POS-owned. */
 export function syncedProductChanges(
-  current: Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor">,
-  patch: Partial<Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor">>,
+  current: Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor" | "categoryId">,
+  patch: Partial<Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor" | "categoryId">>,
 ): string[] {
-  const { sku, name, priceMinor, costMinor } = current;
-  const next = { sku: patch.sku, name: patch.name, priceMinor: patch.priceMinor, costMinor: patch.costMinor };
-  return Object.keys(diffFields({ sku, name, priceMinor, costMinor }, next));
+  const { sku, name, priceMinor, costMinor, categoryId } = current;
+  const next = {
+    sku: patch.sku,
+    name: patch.name,
+    priceMinor: patch.priceMinor,
+    costMinor: patch.costMinor,
+    categoryId: patch.categoryId,
+  };
+  return Object.keys(diffFields({ sku, name, priceMinor, costMinor, categoryId }, next));
 }
 
 export type ProductRecord = NonNullable<Awaited<ReturnType<Tx["product"]["findFirst"]>>>;

@@ -5,6 +5,7 @@ import { isForbidden, loadCatalogContext } from "../_lib/context";
 import { flattenCategories } from "../_lib/category-options";
 import { CatalogPage, CatalogSubnav, PermissionDenied, TableSkeleton } from "../_components/shell";
 import { CategoriesManager } from "../_components/categories-manager";
+import { ManagedNotice } from "../../_components/managed-notice";
 
 export default function CategoriesPage() {
   return (
@@ -17,7 +18,7 @@ export default function CategoriesPage() {
 async function CategoriesContent() {
   const page = await loadCatalogContext("/catalog/categories");
   if (page.kind === "denied") return <PermissionDenied locale={page.locale} />;
-  const { ctx, locale, can } = page;
+  const { ctx, locale, can, managed } = page;
   const tr = translator(locale);
 
   let tree;
@@ -44,6 +45,7 @@ async function CategoriesContent() {
         <h1 className="text-2xl font-semibold">{tr("catalog.categories.title")}</h1>
         <CatalogSubnav locale={locale} current="categories" />
       </div>
+      {managed ? <ManagedNotice locale={locale} area="categories" /> : null}
       <CategoriesManager
         // Remount after a server refresh so rows reflect the new tree.
         key={rows.map((r) => `${r.id}:${r.updatedAt}`).join("|")}

@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { classify } from "@/modules/integrations/inventory-sys/client";
-import { mapImsProduct, toMinor, type ImsProduct } from "@/modules/integrations/inventory-sys/mapping";
+import {
+  mapImsCategories,
+  mapImsProduct,
+  toMinor,
+  type ImsProduct,
+} from "@/modules/integrations/inventory-sys/mapping";
 import { open, seal } from "@/modules/integrations/inventory-sys/secret";
 import { inventoryErrorKey } from "@/app/(app)/settings/_lib/inventory";
 
@@ -153,5 +158,46 @@ describe("inventoryErrorKey", () => {
     expect(inventoryErrorKey({ code: "INTERNAL", message: "", details: { reason: "NOPE" } })).toBe(
       "settings.inventory.error.generic",
     );
+  });
+});
+
+describe("mapImsCategories", () => {
+  const row = (id: string, parentId: string | null, name = id, archived = false) => ({
+    id,
+    parentId,
+    name,
+    sort: 1,
+    archived,
+  });
+
+  it("keeps three levels, folds deeper ones into the third, parents first", () => {
+    // Children listed before parents still come out parents first.
+    const { categories, folded, notes } = mapImsCategories([
+      row("d4", "c3"),
+      row("c3", "b2"),
+      row("e5", "d4"),
+      row("b2", "a1"),
+      row("a1", null, "  Drinks  ", true),
+    ]);
+    expect(categories.map((c) => [c.externalCategoryId, c.externalParentId, c.depth])).toEqual([
+      ["a1", null, 1],
+      ["b2", "a1", 2],
+      ["c3", "b2", 3],
+    ]);
+    expect(categories[0]).toMatchObject({ name: "Drinks", isActive: false, sortOrder: 1 });
+    expect([...folded]).toEqual([
+      ["d4", "c3"],
+      ["e5", "c3"],
+    ]);
+    expect(notes).toEqual(["CATEGORY_FOLDED:d4", "CATEGORY_FOLDED:e5"]);
+  });
+
+  it("treats an unknown parent as a root", () => {
+    expect(mapImsCategories([row("x", "missing")]).categories[0]).toMatchObject({ externalParentId: null, depth: 1 });
+  });
+
+  it("carries the product's category id", () => {
+    expect(mapImsProduct(product({ categoryId: "c1" })).item?.externalCategoryId).toBe("c1");
+    expect(mapImsProduct(product()).item?.externalCategoryId).toBeNull();
   });
 });

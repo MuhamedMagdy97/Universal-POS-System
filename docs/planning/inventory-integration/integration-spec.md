@@ -10,7 +10,8 @@ inventory system at `D:/inventory sys` (read only, never modified from here).
 - **Optional, per shop.** `Organization.inventorySource` is `BUILT_IN` (default) or `EXTERNAL`. A POS-only shop
   sees no change: built-in stock, purchasing and transfers keep working, and nothing in the POS depends on the IMS
   being installed or reachable (I1).
-- **IMS is master when linked.** Products, variants, barcodes and prices sync **down** and are read-only in the POS.
+- **IMS is master when linked.** Products, variants, barcodes, prices and categories sync **down** and are read-only
+  in the POS.
   The POS never pushes catalog changes up (out of scope).
 - **Stock quantities are never copied into POS stock tables.** Stock is read from the IMS on demand (slice 4) and
   taken in the IMS by sale posting (slice 2).
@@ -27,6 +28,7 @@ inventory system at `D:/inventory sys` (read only, never modified from here).
 | 4 | The 15-minute sync in the scheduler route, the 10-minute flag, the postings list and Retry, posting audit; stock on the item page deferred | I19, I22 (I16 deferred) | **Built** (slice 4 PR) |
 | 5 | Guided enable for an existing shop: dry run, CSV of POS on-hand | I20 | |
 | 6 | Secrets sweep, perf (5 000 products, 10-line sale), manual run against the real IMS | R3, R4, I23 | |
+| — | Category sync: the IMS category tree and each product's category, read-only when linked | I8 (categories) | **Built** (category sync PR) |
 
 ### Sale posting (slice 2)
 
@@ -95,7 +97,7 @@ catalog sync fails as a whole on an outage, keeps every product already applied,
 | I4 connection check | Checks the key reads products and stock. Write permissions (`sales.reserve`, `sales.fulfil`, …) and the currency match are not probed. | They cannot be probed without writing; slice 2 adds them (or IMS D3 `GET /api/me`). |
 | I6 schedule | "Sync now" and the first sync at enable only. | The 15-minute run needs the scheduler route (slice 4, I19). |
 | I7 shape change | A product that changed shape (variants ↔ none, or unit) is skipped and listed, not re-created. | Re-creating needs SKU renames on the old rows; rare; handled with slice 5. |
-| I8 categories | Not synced; categories and a product's category stay **POS-owned** and editable when linked. | Keeps categories usable until category sync (slice 5). |
+| I8 categories | Not synced; categories and a product's category stay **POS-owned** and editable when linked. | Superseded by category sync (below). |
 | I8 POS-owned fields in the UI | Arabic name, VAT category and category are editable through the API when linked, but the product form is read-only. | Small form change, with slice 5. |
 | I9 not-sellable reason | Stored and enforced (`isActive = false`), not yet shown in the catalog list. | With the catalog form change. |
 | I17 error codes | IMS failures in settings/sync answer `409` with `details.reason` (`INVENTORY_UNAVAILABLE`, `INVENTORY_LINK_BROKEN`, `INVENTORY_REJECTED`). | The till's `503 INVENTORY_UNAVAILABLE` needs a new code in `lib/errors.ts` (slice 2). |
@@ -242,3 +244,50 @@ postings list only shows once a link is saved.
 - E2E (`tests/e2e/inventory-postings.spec.ts`, fake IMS on `E2E_PORT + 3`): a linked shop sells while the IMS
   refuses the fulfil; the refused posting is listed with the sale number; in Arabic (RTL) Retry sends it, the IMS
   stock drops and the list empties.
+
+## Category sync as built (2026-10-19)
+
+Categories now come from the IMS for a linked shop; built-in shops are unchanged (every new path runs only from the
+sync, and the guards only refuse when `inventorySource = EXTERNAL`).
+
+- **IMS side** (`D:/inventory sys`, read only): `GET /api/categories?includeArchived=true` answers
+  `{ items }`, a flat list in tree order (`path`) with `id`, `parentId`, `name` (1–100 characters, no `/`),
+  `depth` (1–5), `sort`, `archived`; it needs `products.view`, which the sync key already has. The product detail
+  (`GET /api/products/{id}`) carries `categoryId`. Sibling names are unique per parent, case-**sensitive**.
+- **Data:** migration `inventory_category_sync` — `Category.externalCategoryId` with a partial unique index per org.
+  Created with `--create-only`, the generated `DROP INDEX "POItem_one_line_per_item"` removed.
+- **Sync** (`sync.ts` → `syncCategories`, writes in `modules/catalog/external.ts`): before the products, read the
+  whole tree (archived included), map it (`mapImsCategories`, pure), apply parents first, one category per
+  transaction: the linked row, else an unlinked POS category with the same name (case-insensitive) under the same
+  parent is **adopted** (keeps its id), else created. Name, parent, sort order and archived state follow the IMS.
+  Then every active POS category not linked to a listed IMS category (removed there, or POS-only and not adopted)
+  is archived. Each product's `categoryId` follows its IMS `categoryId` (none or unknown → no category), including
+  products adopted by SKU. Audit: the usual `catalog.category.created|updated|archived|restored` and
+  `catalog.product.updated` (`changes.categoryId`) with `metadata.source = "inventory-sync"`. The summary gains
+  `categories: { listed, created, updated, unchanged, archived }`.
+- **Guards:** `createCategory`, `updateCategory`, `archiveCategory`, `restoreCategory` answer
+  `409 MANAGED_BY_INVENTORY` for a linked shop; a product's `categoryId` joined the synced fields
+  (`syncedProductChanges`), so changing it answers `409 MANAGED_BY_INVENTORY` with `fields: ["categoryId"]`.
+- **Screen:** Catalog → Categories shows "Categories are managed in the inventory system." (EN/AR) and hides add,
+  rename and archive (they already followed `can.create` / `can.update`, which are off when linked).
+
+### Where category sync departs from the spec (owner pre-approved "as recommended")
+
+| Spec | As built | Why |
+|---|---|---|
+| I8 Arabic category name | The category's Arabic name stays as it was but cannot be edited while linked (all category writes refused). | The task refuses rename; the categories screen hides edits when linked. A nameAr-only edit can be allowed later like products' POS-owned fields. |
+| Depth | The IMS nests 5 levels, the POS 3: an IMS category at level 4 or 5 is not created; it and its products fold into its level-3 ancestor (note `CATEGORY_FOLDED:{id}`). | Keeps the POS's depth rule; no product loses its category. |
+| Name clash | The IMS allows `Snacks` and `snacks` as siblings, the POS does not: the second (in the IMS's order) is skipped (`CATEGORY_NAME_TAKEN`), its products have no category, and its children become roots. A rename that would clash with a sibling (for example two categories swapping names) is skipped the same way until it no longer clashes. | One category per transaction; never blocks the product sync. |
+| Product sort/filter | Unchanged: the till and catalog filters read POS categories, now the synced ones. | — |
+
+### Tests (category sync)
+
+- Unit (`tests/unit/inventory-sys.test.ts`): `mapImsCategories` keeps three levels, folds deeper ones, orders
+  parents first, treats an unknown parent as a root; the product mapping carries `categoryId`.
+- Integration (`tests/integration/inventory-sys.test.ts`, fake IMS now serves `GET /api/categories`): first sync
+  builds the tree, adopts by name, folds levels 4–5, keeps archived IMS categories archived, archives POS-only
+  ones and files products (an adopted product loses its POS category); re-sync renames, moves, archives and
+  restores with audit and re-files products; a sibling-name clash is skipped; category writes and a product's
+  category change are refused when linked, a built-in shop still creates categories.
+- E2E (`tests/e2e/inventory-integration.spec.ts`): after the first sync the categories screen lists the synced
+  category with the managed notice and no add/rename buttons, in English and Arabic (RTL).

@@ -1,8 +1,8 @@
 import "server-only";
 /**
  * Catalog writes for the inventory-system sync (integration spec I7–I11). The inventory system is
- * master, so synced fields are overwritten; POS-owned fields (Arabic names, VAT category, category,
- * variant sort order) are never touched. Called by modules/integrations/inventory-sys only, one
+ * master, so synced fields (and, since category sync, categories and a product's category) are
+ * overwritten; POS-owned fields (Arabic names, VAT category, variant sort order) are never touched. Called by modules/integrations/inventory-sys only, one
  * product per transaction. Audit rows are the usual catalog actions with `metadata.source`.
  */
 import type { AuditActor, AuditRequestMeta } from "@/modules/audit";
@@ -28,12 +28,24 @@ export type ExternalVariant = {
 /** A product without variants carries its one IMS variant inline (`variants: null`). */
 export type ExternalItem = Omit<ExternalVariant, "externalVariantId"> & {
   externalProductId: string;
+  /** IMS category id; resolved to the POS category by `applyExternalItem`'s `categoryIds`. */
+  externalCategoryId: string | null;
   externalVariantId: string | null;
   unitType: "EACH" | "KG";
   variants: ExternalVariant[] | null;
 };
 
 export type ApplyOutcome = "created" | "updated" | "unchanged";
+
+/** One IMS category, already fitted to the POS tree (depth ≤ 3); parents are applied before children. */
+export type ExternalCategory = {
+  externalCategoryId: string;
+  externalParentId: string | null;
+  name: string;
+  isActive: boolean;
+  sortOrder: number;
+  depth: number;
+};
 
 /** The product exists in the POS with another shape (variants ↔ none, or unit): left alone and reported. */
 export class ShapeChanged extends Error {}
@@ -120,6 +132,8 @@ export async function applyExternalItem(
   actor: AuditActor,
   meta: AuditRequestMeta | undefined,
   item: ExternalItem,
+  /** IMS category id → POS category id (from `applyExternalCategory`); unknown ids leave the product uncategorised. */
+  categoryIds: ReadonlyMap<string, string> = new Map(),
 ): Promise<ApplyOutcome> {
   const w: Writer = { tx, actor, meta };
   const orgId = actor.orgId;
@@ -140,6 +154,7 @@ export async function applyExternalItem(
     costMinor: item.costMinor,
     isActive: item.isActive,
     notSellableReason: item.notSellableReason,
+    categoryId: (item.externalCategoryId && categoryIds.get(item.externalCategoryId)) || null,
     externalProductId: item.externalProductId,
     externalVariantId: item.externalVariantId,
   };
@@ -251,6 +266,84 @@ export async function archiveUnlisted(
   });
   const w: Writer = { tx, actor, meta };
   for (const row of rows) await audit(w, "catalog.product.archived", "Product", row.id, { sku: row.sku });
+  return rows.length;
+}
+
+/**
+ * Creates or updates one synced category inside `tx`; returns its POS id. Linked row first; otherwise
+ * adopts an unlinked POS category with the same name (case-insensitive) under the same parent, like
+ * products adopt by SKU. `parentId` is the POS id of the IMS parent (null for a root, or a parent that
+ * could not be applied). A sibling-name clash throws P2002; the caller skips that category.
+ */
+export async function applyExternalCategory(
+  tx: Tx,
+  actor: AuditActor,
+  meta: AuditRequestMeta | undefined,
+  category: ExternalCategory,
+  parentId: string | null,
+): Promise<{ id: string; outcome: ApplyOutcome }> {
+  const w: Writer = { tx, actor, meta };
+  const orgId = actor.orgId;
+  const existing =
+    (await tx.category.findFirst({ where: { orgId, externalCategoryId: category.externalCategoryId } })) ??
+    (await tx.category.findFirst({
+      where: { orgId, externalCategoryId: null, parentId, name: { equals: category.name, mode: "insensitive" } },
+    }));
+  const fields = {
+    name: category.name,
+    parentId,
+    isActive: category.isActive,
+    sortOrder: category.sortOrder,
+    externalCategoryId: category.externalCategoryId,
+  };
+  if (!existing) {
+    const created = await tx.category.create({ data: { orgId, ...fields } });
+    await audit(w, "catalog.category.created", "Category", created.id, {
+      name: created.name,
+      parentId,
+      externalCategoryId: category.externalCategoryId,
+    });
+    return { id: created.id, outcome: "created" };
+  }
+  const { isActive, ...diff } = changes(existing as unknown as Record<string, unknown>, fields);
+  if (!isActive && Object.keys(diff).length === 0) return { id: existing.id, outcome: "unchanged" };
+  await tx.category.update({ where: { id: existing.id }, data: fields });
+  if (Object.keys(diff).length > 0) {
+    await audit(w, "catalog.category.updated", "Category", existing.id, { name: fields.name, parentId, changes: diff });
+  }
+  if (isActive) {
+    await audit(w, `catalog.category.${fields.isActive ? "restored" : "archived"}`, "Category", existing.id, {
+      name: fields.name,
+      parentId,
+    });
+  }
+  return { id: existing.id, outcome: "updated" };
+}
+
+/**
+ * Every active category the inventory system did not list (removed there, or POS-only and not adopted) is
+ * archived; products keep their category (R5). Returns the count.
+ */
+export async function archiveUnlistedCategories(
+  tx: Tx,
+  actor: AuditActor,
+  meta: AuditRequestMeta | undefined,
+  listedExternalCategoryIds: string[],
+): Promise<number> {
+  const rows = await tx.category.findMany({
+    where: {
+      orgId: actor.orgId,
+      isActive: true,
+      OR: [{ externalCategoryId: null }, { externalCategoryId: { notIn: listedExternalCategoryIds } }],
+    },
+    select: { id: true, name: true, parentId: true },
+  });
+  if (rows.length === 0) return 0;
+  await tx.category.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { isActive: false } });
+  const w: Writer = { tx, actor, meta };
+  for (const row of rows) {
+    await audit(w, "catalog.category.archived", "Category", row.id, { name: row.name, parentId: row.parentId });
+  }
   return rows.length;
 }
 

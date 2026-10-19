@@ -872,6 +872,7 @@ export const en = {
   "settings.inventory.error.forbidden": "You cannot change this.",
   "settings.inventory.error.generic": "Something went wrong. Try again.",
   "managed.catalog": "Products are managed in the inventory system.",
+  "managed.categories": "Categories are managed in the inventory system.",
   "managed.stock":
     "Stock, purchasing and transfers are managed in the inventory system. Figures here are POS history only.",
   "onboarding.title": "Set up your shop",
