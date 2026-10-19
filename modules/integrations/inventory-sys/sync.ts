@@ -72,6 +72,12 @@ async function syncCategories(
     } catch (err) {
       if ((err as { code?: unknown })?.code !== "P2002") throw err;
       skip(category.externalCategoryId, "CATEGORY_NAME_TAKEN");
+      // Already linked from an earlier sync: keep it as it was (not archived, products stay filed).
+      const linked = await getDb().category.findFirst({
+        where: { orgId: actor.orgId, externalCategoryId: category.externalCategoryId },
+        select: { id: true },
+      });
+      if (linked) ids.set(category.externalCategoryId, linked.id);
     }
   }
   summary.categories.archived = await getDb().$transaction((tx) =>
