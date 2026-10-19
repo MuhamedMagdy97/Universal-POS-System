@@ -23,8 +23,8 @@ Real lines from a server whose database was down:
 {"time":"2026-10-18T23:56:13.063Z","level":"error","msg":"request failed","requestId":"20bc93e1-c618-4ca7-befd-717bce2a0d2a","code":"DB_UNAVAILABLE","error":{"name":"AppError","message":"Database is unavailable"},"path":"/api/health"}
 ```
 
-Screens use Server Actions, which do not go through the route wrapper: most action failures show on screen and are
-not logged. Business events (sales, refunds, voids, shift open/close and cash movements, stock moves, purchasing, staff and
+Screens use Server Actions. Their server failures (5xx) are logged as `action failed` with the screen area
+(`"action":"pos"`, `"catalog"`, …); rejections such as a 422 or 409 show on screen only. Business events (sales, refunds, voids, shift open/close and cash movements, stock moves, purchasing, staff and
 settings changes, permission denials, API rate-limit hits) are in the audit trail (`/audit`, Owner and Admin), not the log.
 
 ## Request ids
@@ -58,7 +58,7 @@ Every API error is `{ code, message, details }` ([`lib/errors.ts`](../../lib/err
 | `VALIDATION_FAILED`    | 422  | bad JSON or a field rule; `details` lists `path`, `code`, `message` per problem                 |
 | `RATE_LIMITED`         | 429  | over the limit; `details.retryAfterSeconds` and a `Retry-After` header say when to retry        |
 | `INTERNAL`             | 500  | unexpected; the log line with the same `requestId` has the error                               |
-| `DB_UNAVAILABLE`       | 503  | `/api/health` could not reach the database, or the config is invalid                            |
+| `DB_UNAVAILABLE`       | 503  | the database did not answer a ping (any route or Server Action), or the config is invalid       |
 
 ## Rate limits
 
@@ -102,8 +102,9 @@ and restart.
 The database is unreachable: wrong host or port in `DATABASE_URL`, server down, or (local Docker) the port is not
 published. Check `docker ps --filter name=pos-postgres` shows `0.0.0.0:5432->5432/tcp`.
 
-While the database is gone, business API routes answer 500 `INTERNAL` ("Failed to get session" in the log), not
-503. The app reconnects by itself once the database is back; no restart. Sales whose outcome was unknown are retried
+While the database is gone, business API routes and Server Actions answer 503 `DB_UNAVAILABLE` too: an unexpected
+error is checked with a 2 s database ping, and a failed ping turns it into a 503 (the log keeps the original error,
+often "Failed to get session"). The app reconnects by itself once the database is back; no restart. Sales whose outcome was unknown are retried
 with the same `Idempotency-Key` ([failure recovery](failure-recovery.md)).
 
 ### Sign-in returns 403

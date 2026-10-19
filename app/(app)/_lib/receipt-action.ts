@@ -5,8 +5,8 @@
  */
 import { headers } from "next/headers";
 import { requireTenant } from "@/lib/auth/tenant";
-import { toErrorBody, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import type { ErrorBody } from "@/lib/errors";
+import { actionError, getRequestId } from "@/lib/http";
 import { getZReport, type ZReport } from "@/modules/registers";
 import { getReceipt, type ReceiptDoc, type ReceiptRequest } from "@/modules/sales";
 
@@ -18,7 +18,7 @@ export async function receiptAction(saleId: string, request: ReceiptRequest): Pr
     const ctx = await requireTenant(h);
     return { ok: true, data: await getReceipt(ctx, saleId, request, { requestId: getRequestId(h) }) };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "receipt") };
   }
 }
 
@@ -30,6 +30,6 @@ export async function zReportAction(shiftId: string): Promise<ZReportActionResul
     const ctx = await requireTenant(await headers());
     return { ok: true, data: await getZReport(ctx, shiftId) };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "receipt") };
   }
 }

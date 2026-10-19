@@ -8,8 +8,8 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
-import { toErrorBody, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import type { ErrorBody } from "@/lib/errors";
+import { actionError, getRequestId } from "@/lib/http";
 import {
   addCashMovement,
   closeShift,
@@ -37,7 +37,7 @@ async function run<T>(
     const ctx = await requireTenant(h);
     return { ok: true, data: await fn(ctx, { requestId: getRequestId(h) }) };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "pos") };
   }
 }
 

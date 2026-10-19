@@ -74,7 +74,3 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 - No scheduled backups or point-in-time recovery set up in the repo; no deploy scripts or production environment.
   Migrations are forward-only. [operations/backup-restore, operations/deploy-and-rollback]
-- Server Action failures are mostly not written to the server log (only Route Handler failures are).
-  [operations/troubleshooting]
-- While the database is unreachable, business API routes answer 500 `INTERNAL`, not 503; only `/api/health` answers
-  503. The till retries both the same way. [operations/failure-recovery]

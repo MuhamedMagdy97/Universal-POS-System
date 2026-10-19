@@ -8,8 +8,8 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
-import { toErrorBody, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import type { ErrorBody } from "@/lib/errors";
+import { actionError, getRequestId } from "@/lib/http";
 import {
   adjustStock,
   recordOpeningBalances,
@@ -33,7 +33,7 @@ async function run<T>(
     revalidatePath(INVENTORY_PATH);
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "inventory") };
   }
 }
 
