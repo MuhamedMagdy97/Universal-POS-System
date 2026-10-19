@@ -140,3 +140,34 @@ export async function safeAction<T>(run: () => Promise<ActionResult<T>>): Promis
     return { ok: false, error: { code: "INTERNAL", message: "Request failed", details: null } };
   }
 }
+
+/** Stock count messages (stock-counts-spec C2–C9); anything else uses the shared inventory wording. */
+export function countErrorKey(error: ErrorBody): MessageKey {
+  switch ((error.details as { reason?: string } | null)?.reason) {
+    case "INSUFFICIENT_STOCK":
+      return "inventory.error.countInsufficient";
+    case "COUNT_STATE":
+      return "inventory.error.countState";
+    case "COUNT_OPEN":
+      return "inventory.error.countOpen";
+    case "ITEM_NOT_IN_COUNT":
+      return "inventory.error.notInCount";
+    case "COUNT_EMPTY":
+      return "inventory.error.countEmpty";
+    default:
+      return errorMessageKey(error);
+  }
+}
+
+/**
+ * The item a scanned code means among stock-search results: the only result, else the one whose
+ * primary barcode or SKU is exactly the code. Null when it is ambiguous (the screen lists them).
+ */
+export function pickScanned<R extends { primaryBarcode: string | null; sku: string }>(
+  code: string,
+  rows: readonly R[],
+): R | null {
+  if (rows.length === 1) return rows[0];
+  const exact = rows.filter((row) => row.primaryBarcode === code || row.sku === code.toUpperCase());
+  return exact.length === 1 ? exact[0] : null;
+}

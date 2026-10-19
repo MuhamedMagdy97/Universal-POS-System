@@ -11,7 +11,18 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import type { ErrorBody } from "@/lib/errors";
 import { actionError, getRequestId } from "@/lib/http";
 import {
+  addCountItems,
   adjustStock,
+  cancelCount,
+  createCount,
+  postCount,
+  recordCountEntry,
+  removeCountItem,
+  startCount,
+  type CountCreateInput,
+  type CountEntryInput,
+  type CountItemInput,
+  type CountItemsInput,
   recordOpeningBalances,
   setReorderPoint,
   transferStock,
@@ -53,4 +64,34 @@ export async function recordOpeningAction(input: z.input<typeof OpeningInput>) {
 
 export async function setReorderPointAction(input: z.input<typeof ReorderPointInput>) {
   return run((ctx, meta) => setReorderPoint(ctx, input, meta));
+}
+
+// ── Stock counts ──
+
+export async function createCountAction(input: z.input<typeof CountCreateInput>) {
+  return run((ctx, meta) => createCount(ctx, input, meta));
+}
+
+export async function addCountItemsAction(countId: string, input: z.input<typeof CountItemsInput>) {
+  return run((ctx, meta) => addCountItems(ctx, countId, input, meta));
+}
+
+export async function removeCountItemAction(countId: string, input: z.input<typeof CountItemInput>) {
+  return run((ctx, meta) => removeCountItem(ctx, countId, input, meta));
+}
+
+export async function startCountAction(countId: string) {
+  return run((ctx, meta) => startCount(ctx, countId, meta));
+}
+
+export async function recordCountEntryAction(countId: string, input: z.input<typeof CountEntryInput>) {
+  return run((ctx, meta) => recordCountEntry(ctx, countId, input, meta));
+}
+
+export async function postCountAction(countId: string) {
+  return run((ctx, meta) => postCount(ctx, countId, meta));
+}
+
+export async function cancelCountAction(countId: string) {
+  return run((ctx, meta) => cancelCount(ctx, countId, meta));
 }

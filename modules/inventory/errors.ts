@@ -51,3 +51,28 @@ export function idempotencyConflict(): AppError {
     reason: "IDEMPOTENCY_CONFLICT",
   });
 }
+
+/** The count is not in a status that allows this step (C1). */
+export function countState(status: string): AppError {
+  return new AppError("CONFLICT", "This count cannot be changed in its current status", {
+    reason: "COUNT_STATE",
+    status,
+  });
+}
+
+/** The branch already has a draft or counting count (C3). */
+export function countOpen(): AppError {
+  return new AppError("CONFLICT", "This branch already has an open count", { reason: "COUNT_OPEN" });
+}
+
+/** The item is outside the count's scope (C2). */
+export function itemNotInCount(): AppError {
+  return new AppError("VALIDATION_FAILED", "This item is not part of this count", { reason: "ITEM_NOT_IN_COUNT" });
+}
+
+/** A chosen-items count needs at least one item before it starts. */
+export function countEmpty(): AppError {
+  return new AppError("VALIDATION_FAILED", "Add at least one item before you start counting", {
+    reason: "COUNT_EMPTY",
+  });
+}
