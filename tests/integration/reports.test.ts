@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import type { Db } from "@/lib/db";
-import { getReport, REPORT_NAMES, type ReportRow } from "@/modules/reports";
+import { canRunReport, getReport, REPORT_NAMES, type ReportRow } from "@/modules/reports";
 import { previewShiftCash } from "@/modules/registers";
 import { createTenant, createMember, createProduct, expectAppError, testDb } from "./helpers";
 import {
@@ -217,8 +217,8 @@ describe("refunds and voids", () => {
 describe("scope", () => {
   it("never shows a branch-limited manager another branch's numbers (R5)", async () => {
     const scoped = await createScopedMember(db, f.orgId, "MANAGER", [f.branchA]);
-    // Purchases needs purchases.manage, so a manager is refused before any branch check (T5 P5).
-    for (const report of REPORT_NAMES.filter((name) => name !== "purchases")) {
+    // Purchases and profit need a second grant, so a manager is refused before any branch check (T5 P5, P12 M7).
+    for (const report of REPORT_NAMES.filter((name) => canRunReport(scoped, name))) {
       await expectAppError(getReport(scoped, report, { branchId: f.branchB, from: DAY, to: DAY }), 404);
     }
     const mine = await getReport(scoped, "sales-summary", { from: DAY, to: DAY });

@@ -12,6 +12,9 @@ export const REPORT_NAMES = [
   "refunds-voids",
   "vat",
   "purchases",
+  "profit-products",
+  "profit-categories",
+  "profit-days",
 ] as const;
 export type ReportName = (typeof REPORT_NAMES)[number];
 

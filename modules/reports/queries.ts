@@ -2,6 +2,7 @@ import "server-only";
 import { getDb } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { divideRoundHalfUp } from "@/lib/money";
+import { marginBp } from "./columns";
 import { col, inRange, inScope, localDay, num, type ReportScope } from "./sql";
 
 /**
@@ -217,6 +218,142 @@ export async function categories(scope: ReportScope): Promise<CategoriesRow[]> {
   return rows
     .map((row) => ({ categoryId: row.categoryId, name: row.name ?? "", nameAr: row.nameAr, ...lineTotals(row) }))
     .sort(byNetDesc);
+}
+
+// ---------- profit: products, categories, days (P12) ----------
+
+/**
+ * `lineFacts` with net-of-VAT revenue and cost (profit-margin-spec.md M1–M5). A sale line's cost
+ * is its `unitCostMinor × qty`; a refund line reverses `unitCostMinor × refunded qty` of the sale
+ * line it refunds, on the refund's day. `cost` is NULL when the sale line has no cost (M2, M6).
+ * Products and categories skip the local-day conversion they do not group by.
+ */
+function profitFacts(scope: ReportScope, byDay: boolean): Prisma.Sql {
+  const saleDay = byDay ? localDay(col("s", "createdAt"), scope.zone) : Prisma.sql`NULL::text`;
+  const refundDay = byDay ? localDay(col("r", "createdAt"), scope.zone) : Prisma.sql`NULL::text`;
+  return Prisma.sql`
+    SELECT si."productId", si."variantId", ${saleDay} AS day, si."qty" AS sq, 0 AS rq,
+           (si."lineTotalMinor" - si."vatMinor")::bigint AS net,
+           si."unitCostMinor"::bigint * si."qty" AS cost,
+           CASE WHEN si."unitCostMinor" IS NULL THEN 1 ELSE 0 END AS nc
+    FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
+    WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
+    UNION ALL
+    SELECT si."productId", si."variantId", ${refundDay}, 0, ri."qty",
+           -(ri."amountMinor" - ri."vatMinor")::bigint,
+           -(si."unitCostMinor"::bigint * ri."qty"),
+           0
+    FROM "RefundItem" ri
+    JOIN "Refund" r ON r."orgId" = ri."orgId" AND r."id" = ri."refundId"
+    JOIN "SaleItem" si ON si."orgId" = ri."orgId" AND si."id" = ri."saleItemId"
+    WHERE ${inScope("r", scope)} AND ${inRange(col("r", "createdAt"), scope)}`;
+}
+
+const PROFIT_SUMS = Prisma.sql`SUM(f.sq) AS sq, SUM(f.rq) AS rq, SUM(f.net) AS net,
+  SUM(f.net) FILTER (WHERE f.cost IS NOT NULL) AS netc, SUM(f.cost) AS cost, SUM(f.nc) AS nc`;
+
+type ProfitSums = { sq: Big; rq: Big; net: Big; netc: Big; cost: Big; nc: Big };
+
+export type ProfitTotals = {
+  qtySold: number;
+  qtyRefunded: number;
+  netRevenueMinor: number;
+  revenueNoCostMinor: number;
+  costMinor: number;
+  grossProfitMinor: number;
+  marginBp: number | null;
+};
+
+/** Profit and margin only over revenue that has a cost; the rest is shown apart (M2, M5). */
+function profitTotals(row: ProfitSums): ProfitTotals {
+  const netRevenueMinor = num(row.net);
+  const withCost = num(row.netc);
+  const costMinor = num(row.cost);
+  const grossProfitMinor = withCost - costMinor;
+  return {
+    qtySold: num(row.sq),
+    qtyRefunded: num(row.rq),
+    netRevenueMinor,
+    revenueNoCostMinor: netRevenueMinor - withCost,
+    costMinor,
+    grossProfitMinor,
+    marginBp: marginBp(grossProfitMinor, withCost),
+  };
+}
+
+const byProfitDesc = <T extends { grossProfitMinor: number; netRevenueMinor: number; name: string }>(a: T, b: T) =>
+  b.grossProfitMinor - a.grossProfitMinor || b.netRevenueMinor - a.netRevenueMinor || a.name.localeCompare(b.name);
+
+export type ProfitProductsRow = ProfitTotals & {
+  productId: string;
+  variantId: string | null;
+  sku: string;
+  name: string;
+  nameAr: string | null;
+};
+
+/** Names and SKU are the current catalog ones, as in `products`. */
+export async function profitProducts(scope: ReportScope): Promise<ProfitProductsRow[]> {
+  const rows = await getDb().$queryRaw<
+    (ProfitSums & {
+      productId: string;
+      variantId: string | null;
+      psku: string;
+      pname: string;
+      pnameAr: string | null;
+      vsku: string | null;
+      vname: string | null;
+      vnameAr: string | null;
+    })[]
+  >`
+    WITH f AS (${profitFacts(scope, false)}),
+    k AS (SELECT f."productId", f."variantId", ${PROFIT_SUMS} FROM f GROUP BY 1, 2)
+    SELECT k.*, p."sku" AS psku, p."name" AS pname, p."nameAr" AS "pnameAr",
+           v."sku" AS vsku, v."name" AS vname, v."nameAr" AS "vnameAr"
+    FROM k
+    JOIN "Product" p ON p."orgId" = ${scope.orgId}::uuid AND p."id" = k."productId"
+    LEFT JOIN "ProductVariant" v ON v."orgId" = ${scope.orgId}::uuid AND v."id" = k."variantId"`;
+  return rows
+    .map((row) => ({
+      productId: row.productId,
+      variantId: row.variantId,
+      sku: row.vsku ?? row.psku,
+      name: row.vname === null ? row.pname : `${row.pname} — ${row.vname}`,
+      nameAr:
+        row.pnameAr === null ? null : row.vname === null ? row.pnameAr : `${row.pnameAr} — ${row.vnameAr ?? row.vname}`,
+      ...profitTotals(row),
+    }))
+    .sort(byProfitDesc);
+}
+
+export type ProfitCategoriesRow = ProfitTotals & { categoryId: string | null; name: string; nameAr: string | null };
+
+/** By the product's current category, as in `categories`. */
+export async function profitCategories(scope: ReportScope): Promise<ProfitCategoriesRow[]> {
+  const rows = await getDb().$queryRaw<
+    (ProfitSums & { categoryId: string | null; name: string | null; nameAr: string | null })[]
+  >`
+    WITH f AS (${profitFacts(scope, false)}),
+    k AS (
+      SELECT p."categoryId", ${PROFIT_SUMS}
+      FROM f JOIN "Product" p ON p."orgId" = ${scope.orgId}::uuid AND p."id" = f."productId"
+      GROUP BY 1
+    )
+    SELECT k.*, c."name", c."nameAr"
+    FROM k LEFT JOIN "Category" c ON c."orgId" = ${scope.orgId}::uuid AND c."id" = k."categoryId"`;
+  return rows
+    .map((row) => ({ categoryId: row.categoryId, name: row.name ?? "", nameAr: row.nameAr, ...profitTotals(row) }))
+    .sort(byProfitDesc);
+}
+
+export type ProfitDaysRow = ProfitTotals & { day: string; linesNoCost: number };
+
+/** By the shop's local day; a refund counts on its own day, so a day can lose money (M3). */
+export async function profitDays(scope: ReportScope): Promise<ProfitDaysRow[]> {
+  const rows = await getDb().$queryRaw<(ProfitSums & { day: string })[]>`
+    WITH f AS (${profitFacts(scope, true)})
+    SELECT f.day, ${PROFIT_SUMS} FROM f GROUP BY 1 ORDER BY 1`;
+  return rows.map((row) => ({ day: row.day, ...profitTotals(row), linesNoCost: num(row.nc) }));
 }
 
 export type VatRow = {

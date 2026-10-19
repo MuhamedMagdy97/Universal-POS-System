@@ -501,6 +501,18 @@ export const en = {
   "reports.col.receipts": "Receipts",
   "reports.col.units": "Units",
   "reports.col.purchaseValue": "Purchase value",
+  // Profit and margin (P12)
+  "reports.tab.profit-products": "Profit by product",
+  "reports.tab.profit-categories": "Profit by category",
+  "reports.tab.profit-days": "Profit by day",
+  "reports.col.netRevenueExVat": "Net revenue (ex VAT)",
+  "reports.col.revenueNoCost": "Revenue without cost",
+  "reports.col.cost": "Cost",
+  "reports.col.grossProfit": "Gross profit",
+  "reports.col.margin": "Margin",
+  "reports.col.linesNoCost": "Lines without cost",
+  "reports.profit.missingCost":
+    "Some items were sold without a cost. Their revenue is shown separately and left out of profit.",
   "reports.branch": "Branch",
   "reports.branch.all": "All my branches",
   "reports.from": "From",

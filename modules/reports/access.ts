@@ -19,7 +19,13 @@ type Area = "reports" | "audit";
 const PERMISSION_FOR: Record<Area, Permission> = { reports: "reports.view", audit: "users.manage" };
 
 /** Reports that show cost need a second grant on top of reports.view (T5 P5). */
-const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = { purchases: "purchases.manage" };
+const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = {
+  purchases: "purchases.manage",
+  // Profit shows cost: only those who see cost elsewhere (canSeeCost), P12 M7.
+  "profit-products": "products.update",
+  "profit-categories": "products.update",
+  "profit-days": "products.update",
+};
 
 /** Whether the caller may run `report` (the picker hides the others). */
 export function canRunReport(ctx: Pick<TenantContext, "role">, report: ReportName): boolean {

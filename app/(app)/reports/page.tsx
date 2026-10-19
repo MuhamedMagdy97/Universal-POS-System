@@ -11,6 +11,7 @@ import {
   branchesInScope,
   canRunReport,
   getReport,
+  isProfitReport,
   QUICK_RANGES,
   quickRange,
   REPORT_COLUMNS,
@@ -22,7 +23,7 @@ import { PrintZReportButton } from "../_components/zreport-print";
 import { cellText, csvHref, isDiscrepancy, isNumeric, reportHref, toQuickRange, toReportName } from "./_lib/format";
 
 /**
- * Reports (T9): eight canned reports for a branch (or all of the user's branches) and a date
+ * Reports (T9, profit P12): canned reports for a branch (or all of the user's branches) and a date
  * range, driven by the URL so every view is a link. `reports.view` only; the service re-checks
  * permission and branch scope.
  */
@@ -186,6 +187,12 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
       {error ? (
         <p role="alert" className="text-red-700">
           {tr(error === "range" ? "reports.error.range" : "reports.error.branch")}
+        </p>
+      ) : null}
+
+      {result && isProfitReport(report) && (result.totals.revenueNoCostMinor ?? 0) !== 0 ? (
+        <p role="note" className="text-sm text-amber-700">
+          {tr("reports.profit.missingCost")}
         </p>
       ) : null}
 

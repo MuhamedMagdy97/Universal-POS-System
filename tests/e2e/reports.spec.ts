@@ -85,6 +85,53 @@ test.describe("admin", () => {
   });
 });
 
+test.describe("profit (P12)", () => {
+  test.use({ storageState: storageStateFor("adminA") });
+
+  test("shows today's profit by product with its cost, margin and CSV, then in Arabic", async ({
+    page,
+    browser,
+    context,
+  }) => {
+    // createRunProduct costs the item 500 (EGP 5.00): 2 × 10.00 incl. 14% VAT = 17.54 net, 10.00 cost.
+    const { sku } = await sellTwo(browser);
+
+    await page.goto("/reports?report=profit-products&range=today");
+    await expect(page.getByRole("link", { name: "Profit by product" })).toHaveAttribute("aria-current", "page");
+    const row = page.getByRole("row").filter({ hasText: sku });
+    await expect(row).toBeVisible();
+    await expect(row.getByRole("cell").nth(2)).toHaveText("2");
+    await expect(row).toContainText("17.54");
+    await expect(row).toContainText("10.00");
+    await expect(row).toContainText("7.54");
+    await expect(row).toContainText("43.0%");
+
+    const download = page.waitForEvent("download");
+    await page.getByRole("link", { name: "Export CSV" }).click();
+    expect((await download).suggestedFilename()).toMatch(/^profit-products_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/);
+
+    await context.addCookies([{ name: "pos_locale", value: "ar", url: page.url() }]);
+    await page.goto("/reports?report=profit-days&range=today");
+    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+    await expect(page.getByRole("link", { name: "الربح حسب اليوم" })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("columnheader", { name: "إجمالي الربح" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "هامش الربح" })).toBeVisible();
+  });
+
+  for (const user of ["managerA", "reportingA"] as const) {
+    test.describe(user, () => {
+      test.use({ storageState: storageStateFor(user) });
+
+      test("sees no profit report and is sent to the default one", async ({ page }) => {
+        await page.goto("/reports?report=profit-products&range=today");
+        await expect(page.getByRole("link", { name: "Sales summary" })).toHaveAttribute("aria-current", "page");
+        await expect(page.getByRole("link", { name: /^Profit by/ })).toHaveCount(0);
+        await expect(page.getByRole("columnheader", { name: "Gross profit" })).toHaveCount(0);
+      });
+    });
+  }
+});
+
 test.describe("cashier", () => {
   test.use({ storageState: storageStateFor("cashierA") });
 

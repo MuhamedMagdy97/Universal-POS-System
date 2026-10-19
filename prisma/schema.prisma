@@ -656,6 +656,9 @@ model SaleItem {
   vatRateBp      Int
   vatMinor       Int
   lineTotalMinor Int
+  // Cost per unit before VAT at the moment of sale (P12 M1). NULL = unknown: cost 0 or a sale
+  // made before P12 (M2, M6). Never returned by the sales API or the receipt (M10).
+  unitCostMinor  Int?
 
   org         Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
   sale        Sale            @relation(fields: [orgId, saleId], references: [orgId, id], onDelete: Restrict)
