@@ -6,6 +6,7 @@ import {
   keepKeyAfter,
   parseCash,
   planPayment,
+  planSplit,
   previewCart,
   removeLine,
   saleErrorKey,
@@ -113,6 +114,38 @@ describe("payment", () => {
       payments: [],
       changeMinor: 0,
     });
+  });
+
+  it("plans a split: card/wallet up to the total, cash covers the rest with change", () => {
+    const cash = (amountMinor: number | null) => ({ method: "CASH" as const, amountMinor, reference: "" });
+    const card = (amountMinor: number | null, reference = "") => ({
+      method: "CARD_MANUAL" as const,
+      amountMinor,
+      reference,
+    });
+    const wallet = (amountMinor: number | null) => ({ method: "WALLET" as const, amountMinor, reference: "" });
+
+    expect(planSplit(1000, [cash(700), card(400, " R1 "), wallet(0)])).toEqual({
+      payments: [
+        { method: "CASH", amountMinor: 700 },
+        { method: "CARD_MANUAL", amountMinor: 400, reference: "R1" },
+      ],
+      changeMinor: 100,
+    });
+    expect(planSplit(1000, [cash(0), card(600), wallet(400)])).toEqual({
+      payments: [
+        { method: "CARD_MANUAL", amountMinor: 600 },
+        { method: "WALLET", amountMinor: 400 },
+      ],
+      changeMinor: 0,
+    });
+    // Short, over-paid by card, unreadable, or cash with nothing left to pay.
+    expect(planSplit(1000, [cash(500), card(400), wallet(0)])).toBeNull();
+    expect(planSplit(1000, [cash(0), card(1100), wallet(0)])).toBeNull();
+    expect(planSplit(1000, [cash(null), card(1000), wallet(0)])).toBeNull();
+    expect(planSplit(1000, [cash(100), card(1000), wallet(0)])).toBeNull();
+    expect(planSplit(1000, [cash(0), card(0), wallet(0)])).toBeNull();
+    expect(planSplit(0, [cash(0), card(0), wallet(0)])).toEqual({ payments: [], changeMinor: 0 });
   });
 
   it("enables the charge only for a valid cart and a covered payment", () => {

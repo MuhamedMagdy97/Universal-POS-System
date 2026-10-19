@@ -285,6 +285,12 @@ export const ar: Messages = {
   "pos.pay.charge": "تحصيل {total}",
   "pos.pay.charging": "جارٍ التحصيل…",
   "pos.pay.free": "إتمام بيع مجاني",
+  "pos.pay.split": "تقسيم",
+  "pos.pay.amount": "المبلغ ({method})",
+  "pos.pay.referenceFor": "مرجع {method} (اختياري)",
+  "pos.pay.remaining": "المتبقي",
+  "pos.pay.splitShort":
+    "المبالغ لا تغطي الإجمالي. لا يجوز أن تتجاوزه البطاقة أو المحفظة، والباقي يُعطى من النقدية فقط.",
   "pos.receipt.title": "بيع رقم {number}",
   "pos.receipt.paid": "المدفوع",
   "pos.receipt.change": "الباقي",

@@ -84,6 +84,40 @@ test.describe("cashier", () => {
     expect(await onHand(ORG, MAIN, productId)).toBe(0);
   });
 
+  test("splits one sale across card and cash, with change from the cash", async ({ page }) => {
+    const { sku, productId, registerId } = await runFixtures(2);
+
+    await page.goto(`/pos?branch=${MAIN}&register=${registerId}`);
+    await page.getByLabel(/Opening cash in the drawer/).fill("0");
+    await page.getByRole("button", { name: "Open shift" }).click();
+
+    const search = page.getByRole("textbox", { name: "Scan or search items" });
+    await search.fill(sku);
+    await search.press("Enter");
+    await expect(page.getByTestId("till-total")).toContainText("10.00");
+
+    await page.getByRole("radio", { name: "Split" }).check();
+    await page.getByLabel(/^Card amount/).fill("6");
+    await page.getByLabel(/^Card reference/).fill("R-1");
+    await expect(page.getByTestId("till-remaining")).toContainText("4.00");
+    await expect(page.getByRole("button", { name: /^Charge/ })).toBeDisabled();
+
+    // Card over the total is refused; only cash can give change.
+    await page.getByLabel(/^Card amount/).fill("11");
+    await expect(page.getByText(/only cash gives change/)).toBeVisible();
+    await page.getByLabel(/^Card amount/).fill("6");
+
+    // Arabic-Indic digits are read: ٥ = 5 cash for a 4.00 remainder.
+    await page.getByLabel(/^Cash amount/).fill("٥");
+    await expect(page.getByTestId("till-change")).toContainText("1.00");
+    await page.getByRole("button", { name: /^Charge/ }).click();
+
+    await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();
+    await expect(page.getByTestId("receipt-change")).toContainText("1.00");
+    await expect(page.getByRole("definition").filter({ hasText: "6.00" })).toBeVisible();
+    expect(await onHand(ORG, MAIN, productId)).toBe(1);
+  });
+
   test("renders right-to-left in Arabic", async ({ page }) => {
     const { registerId } = await runFixtures(0);
     await page.goto(`/pos?branch=${MAIN}&register=${registerId}`);

@@ -22,8 +22,10 @@ item increments its line.
 **Cart.** Quantity boxes accept Arabic-Indic digits; an empty or invalid box blocks the charge. Totals are a preview
 using the same arithmetic as the server (`modules/sales/totals.ts`); the receipt shows the server's numbers.
 
-**Payment.** One method per sale on screen: Cash (cash received in major units, change shown live), Card or Wallet (the
-exact total, optional reference). The API accepts split tenders; the split UI is deferred. A zero-total sale shows
+**Payment.** Cash (cash received in major units, change shown live), Card or Wallet (the
+exact total, optional reference), or **Split**: an amount per method (cash, card, wallet; empty = unused) and an optional
+reference for card and wallet, with the remaining amount shown live (`planSplit`). Card and wallet together may not exceed
+the total; cash must cover the rest and is the only tender that gives change. A split receipt lists each tender. A zero-total sale shows
 **Complete free sale** and sends no payment.
 
 **Idempotency on screen.** One `Idempotency-Key` per cart, kept across a retry when the outcome is unknown (network
@@ -40,17 +42,17 @@ failure or 500), and replaced after any definite error, so a fixed cart can be c
 | Layer | File | Covers |
 |---|---|---|
 | Unit | `tests/unit/sales-totals.test.ts` | VAT in/out of gross, rounding, payment settlement, edge amounts |
-| Unit | `tests/unit/pos-till-helpers.test.ts` | cart ops, preview, cash parsing, payment plan, charge gating, error mapping, key rule |
+| Unit | `tests/unit/pos-till-helpers.test.ts` | cart ops, preview, cash parsing, payment plan, split plan, charge gating, error mapping, key rule |
 | Integration | `tests/integration/sales-create.test.ts` | totals, snapshots, change, merge, refusals, idempotency (incl. concurrent), oversell race, zero total, overflow |
 | Integration | `tests/integration/sales-routes.test.ts` | 401/403/404/422, 201/200 replay, 409 conflict, no cost in the response |
 | Integration | `tests/integration/registers-shift.test.ts` | open, second open refused, permission, negative float |
 | Integration | `tests/integration/catalog-inventory-race.test.ts` | R1 variant-switch race |
-| E2E | `tests/e2e/pos-till.spec.ts` | open shift → two scans → cash with change → receipt → new sale; stock refusal names the item, then a fixed cart sells; Arabic RTL; reporting user denied |
+| E2E | `tests/e2e/pos-till.spec.ts` | open shift → two scans → cash with change → receipt → new sale; stock refusal names the item, then a fixed cart sells; split card + cash (Arabic-Indic digits) with change; Arabic RTL; reporting user denied |
 
 E2E creates its own register and stocked product per run (`tests/e2e/support/pos.ts`), so parallel workers never share
 an open shift.
 
 ## 3. Deferred
 
-Split tenders on screen, void/refund (T8), receipt print layout (T10), on-hand shown at
+Void/refund (T8), receipt print layout (T10), on-hand shown at
 the till, keyboard shortcuts beyond Enter.

@@ -121,6 +121,31 @@ export function planPayment(draft: PaymentDraft): PaymentPlan | null {
   };
 }
 
+/** One row of a split payment: amount in minor units, 0 when left empty, null when unreadable. */
+export type SplitTender = { method: PayMethod; amountMinor: number | null; reference: string };
+
+/**
+ * A split payment (at most one entry per method). Card and wallet apply their full amount and
+ * together may not exceed the total; cash must cover the rest and is the only tender that can
+ * give change. Null while the tenders don't add up.
+ */
+export function planSplit(totalMinor: number, tenders: readonly SplitTender[]): PaymentPlan | null {
+  if (totalMinor === 0) return { payments: [], changeMinor: 0 };
+  if (tenders.some((tender) => tender.amountMinor === null)) return null;
+  const payments = tenders
+    .filter((tender) => (tender.amountMinor ?? 0) > 0)
+    .map((tender) => {
+      const reference = tender.method === "CASH" ? "" : tender.reference.trim();
+      return { method: tender.method, amountMinor: tender.amountMinor ?? 0, ...(reference ? { reference } : {}) };
+    });
+  const nonCashMinor = payments.reduce((sum, p) => (p.method === "CASH" ? sum : sum + p.amountMinor), 0);
+  const remainderMinor = totalMinor - nonCashMinor;
+  const cashMinor = payments.find((p) => p.method === "CASH")?.amountMinor ?? 0;
+  // Cash with nothing left to pay would be stored as a zero payment: refuse it.
+  if (remainderMinor < 0 || cashMinor < remainderMinor || (remainderMinor === 0 && cashMinor > 0)) return null;
+  return { payments, changeMinor: cashMinor - remainderMinor };
+}
+
 /** The charge button is live only for a valid cart, a fitting total and a covered payment. */
 export function canCharge(cart: readonly CartLine[], preview: CartPreview, plan: PaymentPlan | null): boolean {
   return cart.length > 0 && cart.every((line) => line.qty >= 1) && preview.ok && plan !== null;
