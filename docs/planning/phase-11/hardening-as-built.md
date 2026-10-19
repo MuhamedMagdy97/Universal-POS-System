@@ -10,7 +10,7 @@ Spec: [hardening-spec.md](hardening-spec.md) (approved 2026-10-13, every decisio
 | H1, H2 receipt slip | `app/(app)/_components/receipt-print.tsx` (`ReceiptSlip`), print CSS in `app/globals.css` |
 | H2, H4 receipt data, reprint | `modules/sales/receipt.ts` (`getReceipt`), `GET /api/sales/{saleId}/receipt?kind=SALE\|REFUND\|VOID&refund={id}&copy=1`, Server Action `app/(app)/_lib/receipt-action.ts` |
 | H3 receipt settings | `modules/org/receipt.ts`, `GET`/`PATCH /api/org/receipt`, screen `/settings/receipt`, header link "Settings" |
-| H5 security headers | `next.config.ts` `headers()` (`SECURITY_HEADERS`) |
+| H5 security headers | `next.config.ts` `headers()` (`SECURITY_HEADERS`); the CSP is set per request in `proxy.ts` since Phase 13 (section 5) |
 | H6–H8 rate limit | `lib/rate-limit.ts`, called from `apiRoute` (`app/api/_lib/route.ts`); table `ApiRateLimit` (migration `api_rate_limit`); `Retry-After` set in `lib/errors.ts` |
 | H9 Z-report | `modules/registers/shifts.ts` (`getZReport`), `app/(app)/_components/zreport-print.tsx`; Print on the shift close summary and on each closed row of the Shifts report |
 | H10 PO print | A4 layout on `/purchasing/{poId}` behind "Print order" (`PrintButton` in `app/(app)/_components/printing.tsx`) |
@@ -63,4 +63,35 @@ prints. Pages without a print root (reports) print as before.
 
 ## 4. Not done
 
-- Nonce CSP (Phase 13), ESC/POS or printer drivers, e-invoicing (out of scope).
+- ESC/POS or printer drivers, e-invoicing (out of scope).
+
+## 5. Phase 13: nonce CSP (as built)
+
+The static CSP with `script-src 'unsafe-inline'` (H5) is replaced by a per-request nonce CSP, following
+`next/dist/docs/01-app/02-guides/content-security-policy.md`. The other H5 headers are unchanged in `next.config.ts`.
+
+- **Where.** `proxy.ts` makes a fresh nonce per request and builds the policy (`contentSecurityPolicy`). It sets the
+  CSP on the request (Next.js reads the nonce from it and puts it on its own scripts) and on the response, including
+  the 401 and the redirect to `/login`. It also passes `x-nonce`, which `app/layout.tsx` puts on the locale script.
+  Static files skipped by the proxy matcher (`_next/static`, images) carry no CSP; they are not documents.
+- **Policy.** `default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'; style-src 'self' 'unsafe-inline';
+  img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self';
+  form-action 'self'; frame-ancestors 'none'`. `'unsafe-eval'` is added in `next dev` only (React's dev tooling).
+- **Every page renders per request.** A prerendered (PPR) shell is built without a request, so its scripts had no
+  nonce and `'strict-dynamic'` blocked them (checked on `/login`: the shell's chunk and inline scripts carried no
+  nonce). The root layout now reads `x-nonce` with `headers()` and exports `instant = false`, which opts the app out of
+  Cache Components' static-shell check. The build still marks routes ◐, but their shells are empty and the whole page
+  streams per request. Cost: no static shell to serve instantly; the server renders the full page on each document
+  request.
+- **Why styles keep `'unsafe-inline'`.** React renders `style=` attributes in server HTML (category tree indent, A4 PO
+  layout), and the print helper (`app/(app)/_components/printing.tsx`) writes a `<style>` element for `@page receipt`
+  and sets `style` on the print root at run time. None of these can carry a nonce, and adding a nonce to `style-src`
+  would make browsers ignore `'unsafe-inline'`. Inline styles cannot run code; scripts, the XSS vector, are nonce-only.
+- **Zod's eval probe.** Zod 4 calls `Function("")` once to see whether it may JIT; the CSP refuses it, Zod catches
+  that and runs without JIT. The browser still reports a `script-src eval` violation. Setting
+  `z.config({ jitless: true })` in client code would silence it (follow-up; outside this change's files).
+- **Tests.** `tests/unit/hardening.test.ts` checks the policy builder (nonce, `'strict-dynamic'`, no
+  `'unsafe-eval'` outside dev) and that `next.config.ts` no longer sets a CSP. `tests/e2e/csp.spec.ts` (3): a fresh
+  nonce per response and no `'unsafe-inline'`/`'unsafe-eval'` scripts; sign-in, a till sale and receipt print; reports
+  with CSV export, dashboard, categories, purchasing, audit, receipt settings, and `/pos`, `/returns` and reports in
+  Arabic RTL — failing on any `securitypolicyviolation` event (except the refused eval above) or console CSP error.
