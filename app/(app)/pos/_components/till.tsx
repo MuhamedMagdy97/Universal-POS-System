@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { Fragment, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
@@ -17,6 +17,7 @@ import {
   lineKey,
   parseCash,
   planPayment,
+  planSplit,
   previewCart,
   removeLine,
   saleErrorKey,
@@ -40,6 +41,8 @@ const METHODS: { value: PayMethod; label: "pos.pay.cash" | "pos.pay.card" | "pos
   { value: "WALLET", label: "pos.pay.wallet" },
 ];
 
+const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET: "" };
+
 /**
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
@@ -53,9 +56,12 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TillItem[] | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [method, setMethod] = useState<PayMethod>("CASH");
+  const [method, setMethod] = useState<PayMethod | "SPLIT">("CASH");
   const [cashRaw, setCashRaw] = useState("");
   const [reference, setReference] = useState("");
+  // Split tenders: typed amount and reference per method.
+  const [splitRaw, setSplitRaw] = useState(NO_SPLIT);
+  const [splitRef, setSplitRef] = useState(NO_SPLIT);
   const [saleKey, setSaleKey] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,12 +71,21 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
 
   const preview = previewCart(cart, settings);
   const totalMinor = preview.ok ? preview.totalMinor : 0;
-  const plan = planPayment({
-    method,
-    totalMinor,
-    cashReceivedMinor: method === "CASH" ? parseCash(cashRaw, settings.currency) : null,
-    reference,
-  });
+  const splitTenders = METHODS.map(({ value }) => ({
+    method: value,
+    amountMinor: splitRaw[value].trim() === "" ? 0 : parseCash(splitRaw[value], settings.currency),
+    reference: splitRef[value],
+  }));
+  const splitEnteredMinor = splitTenders.reduce((sum, tender) => sum + (tender.amountMinor ?? 0), 0);
+  const plan =
+    method === "SPLIT"
+      ? planSplit(totalMinor, splitTenders)
+      : planPayment({
+          method,
+          totalMinor,
+          cashReceivedMinor: method === "CASH" ? parseCash(cashRaw, settings.currency) : null,
+          reference,
+        });
   const ready = canCharge(cart, preview, plan) && !pending;
 
   function focusSearch() {
@@ -107,6 +122,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setCart([]);
     setCashRaw("");
     setReference("");
+    setSplitRaw(NO_SPLIT);
+    setSplitRef(NO_SPLIT);
     setMethod("CASH");
     if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
@@ -189,6 +206,18 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
           <dd dir="ltr" className="text-end">
             {money(paid)}
           </dd>
+          {receipt.payments.length > 1
+            ? receipt.payments.map((payment) => (
+                <Fragment key={payment.method}>
+                  <dt className="ps-4 text-muted">
+                    {tr(METHODS.find((option) => option.value === payment.method)?.label ?? "pos.pay.cash")}
+                  </dt>
+                  <dd dir="ltr" className="text-end text-muted">
+                    {money(payment.amountMinor)}
+                  </dd>
+                </Fragment>
+              ))
+            : null}
           <dt>{tr("pos.receipt.change")}</dt>
           <dd dir="ltr" className="text-end" data-testid="receipt-change">
             {money(receipt.changeMinor)}
@@ -393,8 +422,69 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                   {tr(option.label)}
                 </label>
               ))}
+              <label className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground">
+                <input
+                  type="radio"
+                  name="method"
+                  value="SPLIT"
+                  checked={method === "SPLIT"}
+                  onChange={() => setMethod("SPLIT")}
+                />
+                {tr("pos.pay.split")}
+              </label>
             </div>
-            {method === "CASH" ? (
+            {method === "SPLIT" ? (
+              <>
+                {METHODS.map((option) => {
+                  const name = tr(option.label);
+                  return (
+                    <div key={option.value} className="flex flex-wrap gap-2">
+                      <label className="flex flex-1 flex-col gap-1">
+                        <span>
+                          {tr("pos.pay.amount", { method: name })} ({settings.currency})
+                        </span>
+                        <input
+                          dir="ltr"
+                          inputMode="decimal"
+                          value={splitRaw[option.value]}
+                          onChange={(e) => setSplitRaw((current) => ({ ...current, [option.value]: e.target.value }))}
+                          className="rounded-md border border-border bg-background px-3 py-2"
+                        />
+                      </label>
+                      {option.value !== "CASH" ? (
+                        <label className="flex flex-1 flex-col gap-1">
+                          <span>{tr("pos.pay.referenceFor", { method: name })}</span>
+                          <input
+                            value={splitRef[option.value]}
+                            onChange={(e) => setSplitRef((current) => ({ ...current, [option.value]: e.target.value }))}
+                            maxLength={64}
+                            className="rounded-md border border-border bg-background px-3 py-2"
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {plan ? (
+                  <p>
+                    {tr("pos.pay.change")}:{" "}
+                    <strong dir="ltr" data-testid="till-change">
+                      {money(plan.changeMinor)}
+                    </strong>
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      {tr("pos.pay.remaining")}:{" "}
+                      <strong dir="ltr" data-testid="till-remaining">
+                        {money(Math.max(totalMinor - splitEnteredMinor, 0))}
+                      </strong>
+                    </p>
+                    {splitEnteredMinor > 0 ? <p className="text-red-700">{tr("pos.pay.splitShort")}</p> : null}
+                  </>
+                )}
+              </>
+            ) : method === "CASH" ? (
               <>
                 <label className="flex flex-col gap-1">
                   <span>
