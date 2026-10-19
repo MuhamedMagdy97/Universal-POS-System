@@ -29,8 +29,8 @@ export const DAY = "2026-03-10";
 export const DAY1 = "2026-03-11";
 export const DAY2 = "2026-03-12";
 
-type Backdated = "Sale" | "Refund" | "RegisterShift";
-type BackdatedColumn = "createdAt" | "voidedAt" | "openedAt" | "closedAt";
+type Backdated = "Sale" | "Refund" | "RegisterShift" | "GoodsReceipt";
+type BackdatedColumn = "createdAt" | "voidedAt" | "openedAt" | "closedAt" | "receivedAt";
 
 /**
  * Test only: moves rows to fixed times. Sales and refunds are append-only and closed shifts are
