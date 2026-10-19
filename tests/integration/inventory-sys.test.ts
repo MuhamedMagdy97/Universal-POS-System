@@ -389,6 +389,29 @@ describe("category sync", () => {
     }
   });
 
+  it("keeps an already linked category when a rename clashes with a sibling", async () => {
+    const sku = `CK-${shortUpper()}`;
+    const snacks = cat("Snacks");
+    const crisps = cat("Crisps");
+    const item = { ...simple(sku), categoryId: snacks.id };
+    const t = await linkedTenant("Inv Cat Keep", [item]);
+    ims.categories = [snacks, crisps];
+    await setInventorySource(t.owner, { source: "EXTERNAL" });
+    const row = await db.category.findFirstOrThrow({ where: { orgId: t.org.id, externalCategoryId: snacks.id } });
+
+    // Renamed in the IMS to a sibling's name: the rename is skipped, the category and its products stay.
+    snacks.name = "Crisps";
+    const sync = await syncInventoryNow(t.owner);
+    expect(sync.skipped).toEqual([expect.objectContaining({ id: snacks.id, reason: "CATEGORY_NAME_TAKEN" })]);
+    expect(sync.categories).toMatchObject({ archived: 0 });
+    expect(await db.category.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({
+      isActive: true,
+      name: "Snacks",
+    });
+    const product = await db.product.findFirstOrThrow({ where: { orgId: t.org.id, externalProductId: item.id } });
+    expect(product.categoryId).toBe(row.id);
+  });
+
   it("refuses category writes and product re-filing in a linked shop, not in a built-in one", async () => {
     const t = await linkedTenant("Inv Cat Guard", [simple(`CG-${shortUpper()}`)]);
     const keep = cat("Keep");
