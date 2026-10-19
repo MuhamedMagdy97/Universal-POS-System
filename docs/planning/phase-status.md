@@ -87,7 +87,15 @@
   [inventory-integration/spec.md](inventory-integration/spec.md) with
   [data model and API](inventory-integration/data-model-and-api.md). Per-tenant toggle; the inventory system is
   master for catalog and stock; sales reserve before and fulfil after the POS transaction; sales blocked when it is
-  unreachable. Not built.
+  unreachable. Slice 1 BUILT (PR #34): per-shop source toggle, Owner-only link settings with a sealed API key,
+  product sync by external id, read-only guards; as built in
+  [inventory-integration/integration-spec.md](inventory-integration/integration-spec.md). Next: slice 2 (sale
+  posting, refunds, stock at the till).
+
+- Phase 13 hardening (2026-10-19): 503 `DB_UNAVAILABLE` on every route and Server Action while the database is
+  down, and Server Action failures logged (PR #33); nonce CSP (PR #32, [as built](phase-11/hardening-as-built.md));
+  till exact-cash button, on-hand stock and keyboard shortcuts (PR #31); reorder points, low-stock list with CSV
+  and dashboard tile (PR #30, [spec](low-stock/low-stock-spec.md)).
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

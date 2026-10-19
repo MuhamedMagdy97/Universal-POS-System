@@ -31,17 +31,14 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Inventory
 
-- No stock counts or count sessions, no two-step (in-transit) transfers, no reorder points or low-stock alerts, no
-  cost valuation or COGS, no CSV import, no settings screen for `blockNegativeStock`. [phase-7/inventory-spec §5]
+- No stock counts or count sessions, no two-step (in-transit) transfers, no low-stock notifications (the list and
+  dashboard tile are on screen only), no cost valuation or COGS, no CSV import, no settings screen for `blockNegativeStock`. [phase-7/inventory-spec §5]
 - The opening-stock grid saves at most 100 items at a time. The transfer form has no scan shortcut beyond Enter in
   the search box. [phase-7/inventory-as-built, deferred minors]
 
 ## Checkout (POS till)
 
 - No discounts (`discountMinor` is always 0). [phase-8/checkout-spec Q3]
-- On-hand stock is not shown at the till; keyboard shortcuts beyond Enter are not built. [phase-8/checkout-ux §3]
-- A cash payment needs the amount received typed in, even when it is exact; there is no "exact cash" button.
-  [user guide review]
 - A cashier can reprint only the last sale on their screen; older receipts are reprinted by a Manager or Owner from
   Returns. [phase-11/hardening-spec, user guide review]
 
@@ -68,9 +65,16 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 ## Printing and hardening
 
 - Browser printing only: no ESC/POS or printer drivers, no email or SMS receipts. [phase-11/hardening-as-built §4]
-- The Content Security Policy is static with `'unsafe-inline'` scripts; a nonce CSP is deferred. [phase-11/hardening-spec H5]
+- Styles keep `'unsafe-inline'` in the Content Security Policy (scripts use a per-request nonce); every page
+  renders per request, with no static shell. [phase-11/hardening-as-built §5]
 
 ## Operations
 
 - No scheduled backups or point-in-time recovery set up in the repo; no deploy scripts or production environment.
   Migrations are forward-only. [operations/backup-restore, operations/deploy-and-rollback]
+
+## Inventory system link (Phase 13, slice 1)
+
+- A linked shop syncs its catalog from the inventory system with "Sync now" only (no schedule or webhook).
+  Sales are not posted to the inventory system yet and the till shows no stock for a linked shop (slice 2);
+  categories are not synced. [inventory-integration/integration-spec]
