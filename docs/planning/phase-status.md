@@ -23,7 +23,7 @@
   idempotency, server-side totals and payments, stock through the seam, shift open) and the till screen `/pos` with E2E,
   on `phase-8/checkout`. See [phase-8/checkout-spec.md](phase-8/checkout-spec.md),
   [phase-8/checkout-data-model-and-api.md](phase-8/checkout-data-model-and-api.md) and
-  [phase-8/checkout-ux-and-tests.md](phase-8/checkout-ux-and-tests.md). Deferred: split tenders on screen, receipt print
+  [phase-8/checkout-ux-and-tests.md](phase-8/checkout-ux-and-tests.md). Split tenders on screen added 2026-10-19 (PR #19). Deferred: receipt print
   layout (T10); void/refund (T8). Shift close (T7) is built, below.
 
 - Phase 8 / T7: shift close and cash count. Spec approved by the owner (2026-10-12):
@@ -71,6 +71,10 @@
   (2026-10-14): self-serve shop setup from Welcome (one transaction, signs the owner in), Staff and Branches screens
   under Settings, My account password change, EN/AR. No migration. Deviations are in the spec, §6.
 
+- 2026-10-19 backlog: cash in / out screen on `/pos` (PR #16), split tenders on the till (PR #19), Phase 14
+  operations docs in `docs/operations/` and [known limitations](../product/known-limitations.md) (PR #18). Profit and
+  margin (P12): spec drafted for owner approval (PR #17), not built.
+
 ## Pending
-Phases 9–14 per roadmap. No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
+Phases 12–14 per roadmap (Phase 14 docs started; release checklist partly ticked). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
