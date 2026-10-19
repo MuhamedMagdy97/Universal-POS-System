@@ -73,7 +73,7 @@ export async function loadPosContext(
   const [org, registers] = await Promise.all([
     db.organization.findUniqueOrThrow({
       where: { id: ctx.orgId },
-      select: { currency: true, vatRateBp: true, pricesIncludeVat: true },
+      select: { currency: true, vatRateBp: true, pricesIncludeVat: true, maxCashierDiscountBp: true },
     }),
     db.register.findMany({
       where: { orgId: ctx.orgId, branchId: branch.id, isActive: true },
@@ -104,7 +104,16 @@ export async function loadPosContext(
       ? { id: open.id, openedAt: open.openedAt.toISOString(), openingFloatMinor: open.openingFloatMinor }
       : null,
     shiftCash,
-    settings: { currency: org.currency, vatRateBp: org.vatRateBp, pricesIncludeVat: org.pricesIncludeVat },
+    settings: {
+      currency: org.currency,
+      vatRateBp: org.vatRateBp,
+      pricesIncludeVat: org.pricesIncludeVat,
+      // UI gating only: createSale re-checks the discount (discounts-spec DC7-DC9).
+      discount: {
+        allowed: hasPermission(ctx.role, "discounts.apply") || hasPermission(ctx.role, "discounts.override"),
+        limitBp: hasPermission(ctx.role, "discounts.override") ? null : org.maxCashierDiscountBp,
+      },
+    },
     canOpenShift: hasPermission(ctx.role, "registers.open"),
     canCloseShift,
   };

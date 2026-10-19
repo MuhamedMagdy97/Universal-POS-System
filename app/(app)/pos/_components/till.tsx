@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMoney, toMajorString } from "@/lib/money";
 import type { SaleDetail } from "@/modules/sales";
-import type { PayMethod } from "@/modules/sales/totals";
+import type { Discount, PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
 import { createSaleAction, tillStockAction } from "../actions";
@@ -13,16 +13,19 @@ import {
   addToCart,
   bumpQty,
   canCharge,
+  discountRaw,
   displayName,
   exactCashMinor,
   keepKeyAfter,
   lineKey,
   parseCash,
+  parseDiscount,
   planPayment,
   planSplit,
   previewCart,
   removeLine,
   saleErrorKey,
+  setLineDiscount,
   setLineQty,
   shortLines,
   stockShort,
@@ -47,6 +50,9 @@ const METHODS: { value: PayMethod; label: "pos.pay.cash" | "pos.pay.card" | "pos
 
 const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET: "" };
 
+/** The discount box: on one cart line (its key) or on the whole sale. */
+type DiscountDraft = { target: string | "SALE"; kind: Discount["kind"]; raw: string; invalid: boolean };
+
 /**
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
@@ -57,6 +63,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   // The cash box on screen: "Cash received", or the cash row of a split.
   const cashRef = useRef<HTMLInputElement>(null);
+  const discountRef = useRef<HTMLInputElement>(null);
   const money = (minor: number) => formatMoney(minor, settings.currency, locale);
 
   const [query, setQuery] = useState("");
@@ -78,8 +85,12 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const [stock, setStock] = useState<Record<string, number | null>>({});
   // The line + and - act on: the one last added or focused, else the last line.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Discounts (discounts-spec §4): the sale's, and the box being edited.
+  const [saleDiscount, setSaleDiscount] = useState<Discount | null>(null);
+  const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
+  const limitLabel = settings.discount.limitBp === null ? null : `${settings.discount.limitBp / 100}%`;
 
-  const preview = previewCart(cart, settings);
+  const preview = previewCart(cart, settings, saleDiscount);
   const totalMinor = preview.ok ? preview.totalMinor : 0;
   const splitTenders = METHODS.map(({ value }) => ({
     method: value,
@@ -126,6 +137,37 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     });
   }
 
+  /** Opens the discount box (F6 line, F7 sale) on what is set now. */
+  function openDiscount(target: string | "SALE") {
+    if (!settings.discount.allowed || cart.length === 0) return;
+    const current = target === "SALE" ? saleDiscount : cart.find((line) => lineKey(line) === target)?.discount;
+    setDiscountDraft({
+      target,
+      kind: current?.kind ?? "PERCENT",
+      raw: discountRaw(current, settings.currency),
+      invalid: false,
+    });
+    requestAnimationFrame(() => discountRef.current?.focus());
+  }
+
+  function closeDiscount() {
+    setDiscountDraft(null);
+    focusSearch();
+  }
+
+  /** Applies the box; an empty box removes the discount. */
+  function applyDiscount(draft: DiscountDraft, clear = false) {
+    const discount = clear ? null : parseDiscount(draft.raw, draft.kind, settings.currency);
+    if (discount === "invalid") {
+      setDiscountDraft({ ...draft, invalid: true });
+      return;
+    }
+    if (draft.target === "SALE") setSaleDiscount(discount);
+    else setCart((current) => setLineDiscount(current, draft.target, discount));
+    setError(null);
+    closeDiscount();
+  }
+
   /** Exact cash (F8): fills the cash box with what is still due in cash. */
   function fillExactCash() {
     if (totalMinor === 0) return;
@@ -150,6 +192,10 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
       const action = tillShortcut(event.key, inField);
       if (!action) return;
       if (action === "close") {
+        if (discountDraft) {
+          closeDiscount();
+          return;
+        }
         if (results === null) return;
         setResults(null);
         setQuery("");
@@ -163,6 +209,9 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         if (method !== "SPLIT") setMethod("CASH");
         requestAnimationFrame(() => cashRef.current?.focus());
       } else if (action === "exact") fillExactCash();
+      else if (action === "lineDiscount") {
+        if (selected) openDiscount(selected);
+      } else if (action === "saleDiscount") openDiscount("SALE");
       else if (selected) setCart((current) => bumpQty(current, selected, action === "inc" ? 1 : -1));
     }
     window.addEventListener("keydown", onKey);
@@ -207,6 +256,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     // Stock moved with the sale: reload it as items are scanned again.
     setStock({});
     setSelectedKey(null);
+    setSaleDiscount(null);
+    setDiscountDraft(null);
     if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
     setError(null);
@@ -224,7 +275,12 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         {
           branchId,
           registerId,
-          lines: cart.map((line) => ({ ref: { productId: line.productId, variantId: line.variantId }, qty: line.qty })),
+          lines: cart.map((line) => ({
+            ref: { productId: line.productId, variantId: line.variantId },
+            qty: line.qty,
+            ...(line.discount ? { discount: line.discount } : {}),
+          })),
+          ...(saleDiscount ? { discount: saleDiscount } : {}),
           payments: plan.payments,
         },
         saleKey,
@@ -264,15 +320,28 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         <p className="text-muted">{new Date(receipt.createdAt).toLocaleString(locale)}</p>
         <ul className="flex flex-col gap-1">
           {receipt.lines.map((line) => (
-            <li key={lineKey(line)} className="flex justify-between gap-4">
+            <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
               <span>
                 {displayName(line, locale)} × {line.qty}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
+              {line.discountMinor > 0 ? (
+                <span className="w-full ps-4 text-sm text-muted">
+                  {tr("pos.discount.lineNote", { amount: money(line.discountMinor) })}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
         <dl className="grid grid-cols-2 gap-1 border-t border-border pt-2">
+          {receipt.discountMinor > 0 ? (
+            <>
+              <dt>{tr("pos.totals.discount")}</dt>
+              <dd dir="ltr" className="text-end" data-testid="receipt-discount">
+                −{money(receipt.discountMinor)}
+              </dd>
+            </>
+          ) : null}
           <dt>{tr("pos.totals.subtotal")}</dt>
           <dd dir="ltr" className="text-end">
             {money(receipt.subtotalMinor)}
@@ -429,6 +498,11 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                         {line.sku}
                       </span>
                       <StockNote locale={locale} onHand={stock[key]} qty={line.qty} block />
+                      {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
+                        <span className="block text-sm text-muted" data-testid="line-discount">
+                          {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
+                        </span>
+                      ) : null}
                     </td>
                     <td>
                       <input
@@ -448,7 +522,20 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
                     <td dir="ltr" className="text-end">
                       {preview.ok ? money(preview.lineTotals[key] ?? 0) : "—"}
                     </td>
-                    <td className="text-end">
+                    <td className="whitespace-nowrap text-end">
+                      {settings.discount.allowed ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedKey(key);
+                            openDiscount(key);
+                          }}
+                          aria-label={tr("pos.discount.lineFor", { name })}
+                          className="me-1 rounded-md border border-border px-2 py-1 text-sm"
+                        >
+                          {tr("pos.discount.line")}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => setCart((current) => removeLine(current, key))}
@@ -464,6 +551,25 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
             </tbody>
           </table>
         )}
+        {discountDraft ? (
+          <DiscountBox
+            locale={locale}
+            draft={discountDraft}
+            inputRef={discountRef}
+            currency={settings.currency}
+            limitLabel={limitLabel}
+            title={
+              discountDraft.target === "SALE"
+                ? tr("pos.discount.titleSale")
+                : tr("pos.discount.titleLine", {
+                    name: displayName(cart.find((line) => lineKey(line) === discountDraft.target) ?? cart[0], locale),
+                  })
+            }
+            onChange={setDiscountDraft}
+            onApply={applyDiscount}
+            onCancel={closeDiscount}
+          />
+        ) : null}
         {cart.length > 0 ? (
           <button type="button" onClick={newSale} className="self-start text-sm underline-offset-4 hover:underline">
             {tr("pos.cart.clear")}
@@ -474,6 +580,14 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
       <form onSubmit={charge} aria-label={tr("pos.pay.method")} className="flex flex-col gap-4">
         {preview.ok ? (
           <dl className="grid grid-cols-2 gap-1">
+            {preview.discountMinor > 0 ? (
+              <>
+                <dt>{tr("pos.totals.discount")}</dt>
+                <dd dir="ltr" className="text-end" data-testid="till-discount">
+                  −{money(preview.discountMinor)}
+                </dd>
+              </>
+            ) : null}
             <dt>{tr("pos.totals.subtotal")}</dt>
             <dd dir="ltr" className="text-end">
               {money(preview.subtotalMinor)}
@@ -492,9 +606,23 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
           </dl>
         ) : (
           <p role="alert" className="text-red-700">
-            {tr("pos.totals.tooLarge")}
+            {tr(preview.reason === "DISCOUNT_TOO_LARGE" ? "pos.totals.discountTooLarge" : "pos.totals.tooLarge")}
           </p>
         )}
+        {settings.discount.allowed && cart.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => openDiscount("SALE")}
+            className="self-start rounded-md border border-border px-3 py-1 text-sm"
+          >
+            {tr("pos.discount.sale")}
+          </button>
+        ) : null}
+        {preview.ok && preview.overLimit && limitLabel ? (
+          <p role="alert" className="text-red-700">
+            {tr("pos.discount.overLimit", { limit: limitLabel })}
+          </p>
+        ) : null}
 
         {totalMinor > 0 ? (
           <fieldset className="flex flex-col gap-3">
@@ -641,6 +769,111 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
               : tr("pos.pay.charge", { total: money(totalMinor) })}
         </button>
       </form>
+    </div>
+  );
+}
+
+/**
+ * The discount box (F6 / F7): a number and a percent-or-amount switch. Enter applies, Esc cancels
+ * (handled by the till's key listener), an empty box removes the discount. Not a form: the sale
+ * discount opens from inside the charge form.
+ */
+function DiscountBox({
+  locale,
+  draft,
+  inputRef,
+  currency,
+  limitLabel,
+  title,
+  onChange,
+  onApply,
+  onCancel,
+}: {
+  locale: Locale;
+  draft: DiscountDraft;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  currency: string;
+  limitLabel: string | null;
+  title: string;
+  onChange: (draft: DiscountDraft) => void;
+  onApply: (draft: DiscountDraft, clear?: boolean) => void;
+  onCancel: () => void;
+}) {
+  const tr = translator(locale);
+  const kinds: { kind: Discount["kind"]; label: string }[] = [
+    { kind: "PERCENT", label: tr("pos.discount.percent") },
+    { kind: "AMOUNT", label: tr("pos.discount.amount", { currency }) },
+  ];
+  return (
+    <div
+      role="group"
+      aria-labelledby="discount-title"
+      className="flex flex-col gap-2 rounded-md border border-border p-3"
+      data-testid="discount-box"
+    >
+      <p id="discount-title" className="font-semibold">
+        {title}
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span>{tr("pos.discount.value")}</span>
+          <input
+            ref={inputRef}
+            dir="ltr"
+            inputMode="decimal"
+            value={draft.raw}
+            aria-invalid={draft.invalid}
+            aria-describedby={draft.invalid ? "discount-invalid" : undefined}
+            onChange={(e) => onChange({ ...draft, raw: e.target.value, invalid: false })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onApply(draft);
+              }
+            }}
+            className="w-28 rounded-md border border-border bg-background px-3 py-2"
+          />
+        </label>
+        <div role="radiogroup" aria-labelledby="discount-title" className="flex gap-1">
+          {kinds.map((option) => (
+            <label
+              key={option.kind}
+              className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground"
+            >
+              <input
+                type="radio"
+                name="discount-kind"
+                checked={draft.kind === option.kind}
+                onChange={() => onChange({ ...draft, kind: option.kind, invalid: false })}
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onApply(draft)}
+          className="rounded-md bg-foreground px-3 py-2 text-background"
+        >
+          {tr("pos.discount.apply")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onApply(draft, true)}
+          className="rounded-md border border-border px-3 py-2"
+        >
+          {tr("pos.discount.remove")}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-md px-3 py-2 underline-offset-4 hover:underline">
+          {tr("pos.discount.cancel")}
+        </button>
+      </div>
+      {limitLabel ? <p className="text-sm text-muted">{tr("pos.discount.limit", { limit: limitLabel })}</p> : null}
+      {draft.invalid ? (
+        <p id="discount-invalid" role="alert" className="text-red-700">
+          {tr("pos.discount.invalid")}
+        </p>
+      ) : null}
     </div>
   );
 }

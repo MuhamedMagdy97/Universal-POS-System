@@ -24,13 +24,22 @@ export const PaymentInput = z
   .strict();
 export type PaymentInput = z.infer<typeof PaymentInput>;
 
-export const SaleLineInput = z.object({ ref: ItemRefInput, qty: Qty }).strict();
+/** A line or sale discount (discounts-spec DC1): an amount in minor units, or a percent in basis points. */
+export const DiscountInput = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("AMOUNT"), amountMinor: z.number().int().min(1).max(MAX_STORABLE_MINOR) }).strict(),
+  z.object({ kind: z.literal("PERCENT"), percentBp: z.number().int().min(1).max(10_000) }).strict(),
+]);
+export type DiscountInput = z.infer<typeof DiscountInput>;
+
+export const SaleLineInput = z.object({ ref: ItemRefInput, qty: Qty, discount: DiscountInput.optional() }).strict();
 
 export const SaleInput = z
   .object({
     branchId: Uuid,
     registerId: Uuid,
     lines: z.array(SaleLineInput).min(1).max(200),
+    // Whole-sale discount, allocated across lines on the server (DC4).
+    discount: DiscountInput.optional(),
     payments: z
       .array(PaymentInput)
       // Empty only for a zero-total sale; settlePayments rejects it otherwise.

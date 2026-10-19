@@ -3,10 +3,12 @@ import {
   addToCart,
   bumpQty,
   canCharge,
+  discountRaw,
   displayName,
   exactCashMinor,
   keepKeyAfter,
   parseCash,
+  parseDiscount,
   planPayment,
   planSplit,
   previewCart,
@@ -23,7 +25,12 @@ import {
 
 /** Till screen helpers (client-side preview; the server decides). */
 
-const EG: TillSettings = { currency: "EGP", vatRateBp: 1400, pricesIncludeVat: true };
+const EG: TillSettings = {
+  currency: "EGP",
+  vatRateBp: 1400,
+  pricesIncludeVat: true,
+  discount: { allowed: true, limitBp: 1000 },
+};
 
 const item = (id: string, price = 1000, variantId: string | null = null): TillItem => ({
   productId: id,
@@ -70,15 +77,82 @@ describe("previewCart", () => {
     expect(previewCart(cart, EG)).toEqual({
       ok: true,
       lineTotals: { "a|": 2000 },
+      lineDiscounts: { "a|": 0 },
+      discountMinor: 0,
       subtotalMinor: 1754,
       vatMinor: 246,
       totalMinor: 2000,
+      overLimit: false,
     });
   });
 
   it("reports a cart too large to record instead of throwing", () => {
     const cart: CartLine[] = [{ ...item("a", 10_000_000), qty: 300 }];
     expect(previewCart(cart, EG)).toEqual({ ok: false, reason: "TOO_LARGE" });
+  });
+
+  it("previews line and sale discounts with the server's allocation (discounts-spec DC3–DC5)", () => {
+    const cart: CartLine[] = [
+      { ...item("a"), qty: 2, discount: { kind: "PERCENT", percentBp: 1000 } },
+      { ...item("b"), qty: 1 },
+    ];
+    const preview = previewCart(cart, EG, { kind: "AMOUNT", amountMinor: 280 });
+    // a: 2000 − 200 = 1800; b: 1000. Sale 280 split 1800:1000 → 180 / 100.
+    expect(preview).toMatchObject({
+      ok: true,
+      lineDiscounts: { "a|": 380, "b|": 100 },
+      lineTotals: { "a|": 1620, "b|": 900 },
+      discountMinor: 480,
+      totalMinor: 2520,
+      overLimit: true,
+    });
+    expect(canCharge(cart, preview, { payments: [], changeMinor: 0 })).toBe(false);
+  });
+
+  it("flags a discount bigger than its line", () => {
+    const cart: CartLine[] = [{ ...item("a"), qty: 1, discount: { kind: "AMOUNT", amountMinor: 1001 } }];
+    expect(previewCart(cart, EG)).toEqual({ ok: false, reason: "DISCOUNT_TOO_LARGE" });
+  });
+
+  it("puts no limit on an override discounter", () => {
+    const cart: CartLine[] = [{ ...item("a"), qty: 1 }];
+    const unlimited = { ...EG, discount: { allowed: true, limitBp: null } };
+    expect(previewCart(cart, unlimited, { kind: "PERCENT", percentBp: 10_000 })).toMatchObject({
+      totalMinor: 0,
+      overLimit: false,
+    });
+  });
+});
+
+describe("discount box", () => {
+  it("reads percents and amounts, Arabic-Indic digits included", () => {
+    expect(parseDiscount("12.5", "PERCENT", "EGP")).toEqual({ kind: "PERCENT", percentBp: 1250 });
+    expect(parseDiscount("٥", "AMOUNT", "EGP")).toEqual({ kind: "AMOUNT", amountMinor: 500 });
+    expect(parseDiscount(" ", "PERCENT", "EGP")).toBeNull();
+    for (const raw of ["0", "101", "1.234", "abc", "-5"]) {
+      expect(parseDiscount(raw, "PERCENT", "EGP")).toBe("invalid");
+    }
+    expect(parseDiscount("0", "AMOUNT", "EGP")).toBe("invalid");
+  });
+
+  it("shows an existing discount back in the box", () => {
+    expect(discountRaw({ kind: "PERCENT", percentBp: 1250 }, "EGP")).toBe("12.5");
+    expect(discountRaw({ kind: "AMOUNT", amountMinor: 500 }, "EGP")).toBe("5.00");
+    expect(discountRaw(null, "EGP")).toBe("");
+  });
+
+  it("opens with F6 (line) and F7 (sale), also inside a field", () => {
+    expect(tillShortcut("F6", true)).toBe("lineDiscount");
+    expect(tillShortcut("F7", false)).toBe("saleDiscount");
+  });
+
+  it("names a refused discount", () => {
+    expect(saleErrorKey({ code: "FORBIDDEN", message: "", details: { reason: "DISCOUNT_LIMIT", limitBp: 1000 } })).toBe(
+      "pos.error.discountLimit",
+    );
+    expect(saleErrorKey({ code: "VALIDATION_FAILED", message: "", details: { reason: "DISCOUNT_TOO_LARGE" } })).toBe(
+      "pos.error.discountTooLarge",
+    );
   });
 });
 

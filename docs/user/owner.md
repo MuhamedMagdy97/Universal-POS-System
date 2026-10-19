@@ -31,6 +31,10 @@ the shop name), **VAT number**, address, phone, a header line and a footer line.
 Press **Save** [حفظ]. Reprints of old sales pick up the current settings. Receipts are customer slips, not ZATCA or Egypt
 e-receipts.
 
+The same page sets the **Cashier discount limit (%)** [حد خصم الكاشير]: the most a cashier may take off a line or a
+sale (default 10%; 0 means cashiers cannot discount). Managers and the owner have no limit. The sales summary report
+shows the discounts given each day next to the gross.
+
 ## 3. Branches and tills
 
 **Settings** → **Branches and tills** [الفروع ونقاط البيع].
@@ -127,5 +131,5 @@ events** pages back; **Export CSV** downloads the list. Exports are themselves l
 **My account** [حسابي] → **Change password**. Nobody can reset a forgotten owner password by email; keep a second
 owner if you can.
 
-What isn't built (no ZATCA/e-receipts, no discounts, no customer records, no billing or shop deletion, country and
+What isn't built (no ZATCA/e-receipts, no promotions or coupons, no customer records, no billing or shop deletion, country and
 currency fixed): [known limitations](../product/known-limitations.md).

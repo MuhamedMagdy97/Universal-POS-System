@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
 import type { ReceiptDoc, ReceiptRequest } from "@/modules/sales";
@@ -56,19 +57,37 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
       <table className="receipt-rule">
         <tbody>
           {doc.lines.map((line, index) => (
-            <tr key={index}>
-              <td>
-                {locale === "ar" && line.nameAr ? line.nameAr : line.name} × <bdi>{line.qty}</bdi>
-              </td>
-              <td dir="ltr" className="receipt-end">
-                {money(line.lineTotalMinor)}
-              </td>
-            </tr>
+            <Fragment key={index}>
+              <tr>
+                <td>
+                  {locale === "ar" && line.nameAr ? line.nameAr : line.name} × <bdi>{line.qty}</bdi>
+                </td>
+                <td dir="ltr" className="receipt-end">
+                  {money(line.lineTotalMinor)}
+                </td>
+              </tr>
+              {line.discountMinor > 0 ? (
+                <tr>
+                  <td className="receipt-indent">{tr("receipt.lineDiscount")}</td>
+                  <td dir="ltr" className="receipt-end">
+                    −{money(line.discountMinor)}
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
           ))}
         </tbody>
       </table>
       <table className="receipt-rule">
         <tbody>
+          {doc.discountMinor > 0 ? (
+            <tr>
+              <td>{tr("receipt.discount")}</td>
+              <td dir="ltr" className="receipt-end">
+                −{money(doc.discountMinor)}
+              </td>
+            </tr>
+          ) : null}
           <tr>
             <td>{tr("receipt.subtotal")}</td>
             <td dir="ltr" className="receipt-end">

@@ -4,11 +4,18 @@
  */
 import type { ErrorBody } from "@/lib/errors";
 import type { Locale, MessageKey } from "@/lib/i18n";
-import { MoneyError, parseMajor, type CurrencyCode } from "@/lib/money";
+import { AppError } from "@/lib/errors";
+import { MoneyError, parseMajor, parsePercentBp, toMajorString, type CurrencyCode } from "@/lib/money";
 import { normalizeQty } from "@/modules/inventory/schemas";
-import { priceLine, totalsOf, type PayMethod } from "@/modules/sales/totals";
+import { overDiscountLimit, priceSale, type Discount, type PayMethod } from "@/modules/sales/totals";
 
-export type TillSettings = { currency: CurrencyCode; vatRateBp: number; pricesIncludeVat: boolean };
+export type TillSettings = {
+  currency: CurrencyCode;
+  vatRateBp: number;
+  pricesIncludeVat: boolean;
+  /** Who may discount (discounts-spec DC7, DC8): not at all, up to `limitBp`, or without a limit (null). */
+  discount: { allowed: boolean; limitBp: number | null };
+};
 
 /** A sellable item as the catalog search returns it (no cost). */
 export type TillItem = {
@@ -21,7 +28,7 @@ export type TillItem = {
   vatApplicable: boolean;
 };
 
-export type CartLine = TillItem & { qty: number };
+export type CartLine = TillItem & { qty: number; discount?: Discount | null };
 
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;
@@ -49,33 +56,89 @@ export function removeLine(cart: readonly CartLine[], key: string): CartLine[] {
   return cart.filter((line) => lineKey(line) !== key);
 }
 
+/** Sets or clears (null) one line's discount. */
+export function setLineDiscount(cart: readonly CartLine[], key: string, discount: Discount | null): CartLine[] {
+  return cart.map((line) => (lineKey(line) === key ? { ...line, discount } : line));
+}
+
 export type CartPreview =
   | {
       ok: true;
       lineTotals: Record<string, number>;
+      /** Each line's own discount plus its share of the sale discount. */
+      lineDiscounts: Record<string, number>;
+      discountMinor: number;
       subtotalMinor: number;
       vatMinor: number;
       totalMinor: number;
+      /** Past the cashier's limit: the server would refuse it (DC9). */
+      overLimit: boolean;
     }
-  | { ok: false; reason: "TOO_LARGE" };
+  | { ok: false; reason: "TOO_LARGE" | "DISCOUNT_TOO_LARGE" };
 
-/** Same arithmetic as the server; lines with an invalid qty count as 0 until fixed. */
-export function previewCart(cart: readonly CartLine[], settings: TillSettings): CartPreview {
+/** Same arithmetic as the server (`priceSale`); lines with an invalid qty count as 0 until fixed. */
+export function previewCart(
+  cart: readonly CartLine[],
+  settings: TillSettings,
+  saleDiscount: Discount | null = null,
+): CartPreview {
   try {
-    const priced = cart.map((line) =>
-      priceLine(
-        { unitPriceMinor: line.unitPriceMinor, qty: Math.max(line.qty, 0), vatApplicable: line.vatApplicable },
-        settings.vatRateBp,
-        settings.pricesIncludeVat,
-      ),
+    const sale = priceSale(
+      cart.map((line) => ({
+        unitPriceMinor: line.unitPriceMinor,
+        qty: Math.max(line.qty, 0),
+        vatApplicable: line.vatApplicable,
+        discount: line.discount,
+      })),
+      saleDiscount,
+      settings.vatRateBp,
+      settings.pricesIncludeVat,
     );
-    const totals = totalsOf(priced);
     const lineTotals: Record<string, number> = {};
-    cart.forEach((line, index) => (lineTotals[lineKey(line)] = priced[index].lineTotalMinor));
-    return { ok: true, lineTotals, ...totals };
-  } catch {
-    return { ok: false, reason: "TOO_LARGE" };
+    const lineDiscounts: Record<string, number> = {};
+    cart.forEach((line, index) => {
+      lineTotals[lineKey(line)] = sale.lines[index].lineTotalMinor;
+      lineDiscounts[lineKey(line)] = sale.lines[index].discountMinor;
+    });
+    const { limitBp } = settings.discount;
+    return {
+      ok: true,
+      lineTotals,
+      lineDiscounts,
+      discountMinor: sale.discountMinor,
+      subtotalMinor: sale.subtotalMinor,
+      vatMinor: sale.vatMinor,
+      totalMinor: sale.totalMinor,
+      overLimit: sale.discountMinor > 0 && limitBp !== null && overDiscountLimit(sale, limitBp),
+    };
+  } catch (err) {
+    const reason = err instanceof AppError ? (err.details as { reason?: string } | null)?.reason : undefined;
+    return { ok: false, reason: reason === "DISCOUNT_TOO_LARGE" ? "DISCOUNT_TOO_LARGE" : "TOO_LARGE" };
   }
+}
+
+/**
+ * A typed discount: a percent ("10", "12.5") or an amount in major units. Empty → null (no
+ * discount); unreadable, zero or over 100% → "invalid". Arabic-Indic digits are read.
+ */
+export function parseDiscount(
+  raw: string,
+  kind: Discount["kind"],
+  currency: CurrencyCode,
+): Discount | null | "invalid" {
+  if (raw.trim() === "") return null;
+  if (kind === "PERCENT") {
+    const percentBp = parsePercentBp(raw);
+    return percentBp === null || percentBp === 0 ? "invalid" : { kind, percentBp };
+  }
+  const amountMinor = parseCash(raw, currency);
+  return amountMinor === null || amountMinor === 0 ? "invalid" : { kind, amountMinor };
+}
+
+/** The value to show when a discount box opens on an existing discount. */
+export function discountRaw(discount: Discount | null | undefined, currency: CurrencyCode): string {
+  if (!discount) return "";
+  return discount.kind === "PERCENT" ? String(discount.percentBp / 100) : toMajorString(discount.amountMinor, currency);
 }
 
 /** Cash typed in major units ("50", "50.5", Arabic-Indic digits) → minor units; null when unreadable. */
@@ -146,17 +209,18 @@ export function planSplit(totalMinor: number, tenders: readonly SplitTender[]): 
   return { payments, changeMinor: cashMinor - remainderMinor };
 }
 
-/** The charge button is live only for a valid cart, a fitting total and a covered payment. */
+/** The charge button is live only for a valid cart, a fitting total, a discount within limit and a covered payment. */
 export function canCharge(cart: readonly CartLine[], preview: CartPreview, plan: PaymentPlan | null): boolean {
-  return cart.length > 0 && cart.every((line) => line.qty >= 1) && preview.ok && plan !== null;
+  return cart.length > 0 && cart.every((line) => line.qty >= 1) && preview.ok && !preview.overLimit && plan !== null;
 }
 
 /** Message for a failed sale, by error code and `details.reason`. */
 export function saleErrorKey(error: ErrorBody): MessageKey {
   if (error.code === "IDEMPOTENCY_CONFLICT") return "pos.error.idempotency";
+  const reason = (error.details as { reason?: string } | null)?.reason;
+  if (reason === "DISCOUNT_LIMIT") return "pos.error.discountLimit";
   if (error.code === "FORBIDDEN") return "pos.error.forbidden";
   if (error.code === "NOT_FOUND") return "pos.error.notFound";
-  const reason = (error.details as { reason?: string } | null)?.reason;
   switch (reason) {
     case "INSUFFICIENT_STOCK":
       return "pos.error.insufficient";
@@ -168,6 +232,8 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.error.notSellable";
     case "AMOUNT_TOO_LARGE":
       return "pos.error.tooLarge";
+    case "DISCOUNT_TOO_LARGE":
+      return "pos.error.discountTooLarge";
     // A shop linked to the inventory system (integration spec I17).
     case "INVENTORY_UNAVAILABLE":
       return "pos.error.inventoryUnavailable";
@@ -218,11 +284,12 @@ export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): 
   return cart.map((line) => (lineKey(line) === key ? { ...line, qty: Math.max(line.qty + delta, 1) } : line));
 }
 
-export type TillShortcut = "search" | "cash" | "exact" | "close" | "inc" | "dec";
+export type TillShortcut = "search" | "cash" | "exact" | "close" | "inc" | "dec" | "lineDiscount" | "saleDiscount";
 
 /**
- * Till keys (docs/user/cashier.md): F2 search, F4 cash, F8 exact cash, Esc close, + and - change
- * the selected line. + and - are typed text inside a field, so they act only outside one.
+ * Till keys (docs/user/cashier.md): F2 search, F4 cash, F6 discount on the selected line, F7
+ * discount on the sale, F8 exact cash, Esc close, + and - change the selected line. + and - are
+ * typed text inside a field, so they act only outside one.
  */
 export function tillShortcut(key: string, inField: boolean): TillShortcut | null {
   switch (key) {
@@ -230,6 +297,10 @@ export function tillShortcut(key: string, inField: boolean): TillShortcut | null
       return "search";
     case "F4":
       return "cash";
+    case "F6":
+      return "lineDiscount";
+    case "F7":
+      return "saleDiscount";
     case "F8":
       return "exact";
     case "Escape":

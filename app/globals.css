@@ -101,6 +101,9 @@ body {
   white-space: nowrap;
   padding-inline-start: 2mm;
 }
+.receipt-indent {
+  padding-inline-start: 3mm;
+}
 .receipt-strong {
   font-weight: 700;
 }

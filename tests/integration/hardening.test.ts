@@ -161,7 +161,7 @@ describe("receipts (H2, H4)", () => {
       payments: [{ method: "CASH", amountMinor: 2000 }],
       changeMinor: 500,
     });
-    expect(doc.lines).toEqual([{ name: product.name, nameAr: "شاي", qty: 2, lineTotalMinor: 2000 }]);
+    expect(doc.lines).toEqual([{ name: product.name, nameAr: "شاي", qty: 2, discountMinor: 0, lineTotalMinor: 2000 }]);
     expect(doc.staffName).toMatch(/^CASHIER/);
     // An original print is not audited.
     expect(await reprints(sale.id)).toBe(0);

@@ -140,6 +140,17 @@ export function parseMajor(input: string, currency: CurrencyCode): number {
   return toSafeNumber(sign ? -minor : minor, "amount");
 }
 
+/**
+ * A typed percent ("10", "12.5", Arabic-Indic digits) → basis points (1250); null when unreadable,
+ * above 100%, or with more than two decimals. Display back with `bp / 100`.
+ */
+export function parsePercentBp(input: string): number | null {
+  const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(normalizeDigits(input).trim());
+  if (!match) return null;
+  const bp = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+  return bp <= BP_SCALE ? bp : null;
+}
+
 /** Exact decimal string for minor units, e.g. 1250 → "12.50". */
 export function toMajorString(minor: number, currency: CurrencyCode): string {
   assertMinor(minor);

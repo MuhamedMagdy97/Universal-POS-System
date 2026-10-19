@@ -19,17 +19,13 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
   });
 
   it("does not let cashiers void, refund, override discounts or manage users", () => {
-    for (const permission of [
-      "sales.void",
-      "sales.refund",
-      "discounts.override",
-      "discounts.apply",
-      "users.manage",
-    ] as const) {
+    for (const permission of ["sales.void", "sales.refund", "discounts.override", "users.manage"] as const) {
       expect(hasPermission("CASHIER", permission)).toBe(false);
     }
     expect(hasPermission("CASHIER", "sales.create")).toBe(true);
     expect(hasPermission("CASHIER", "registers.open")).toBe(true);
+    // Limited by the shop's maxCashierDiscountBp (discounts-spec DC7, DC8).
+    expect(hasPermission("CASHIER", "discounts.apply")).toBe(true);
   });
 
   it("gives managers voids, refunds and overrides but not user management", () => {
