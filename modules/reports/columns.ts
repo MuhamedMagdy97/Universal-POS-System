@@ -128,6 +128,10 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("receiptsCount", "reports.col.receipts", "int"),
     c("units", "reports.col.units", "int"),
     c("valueMinor", "reports.col.purchaseValue", "money"),
+    // Returns to the supplier on their own date (purchase-returns-spec R12).
+    c("returnedUnits", "reports.col.returnedUnits", "int"),
+    c("returnedValueMinor", "reports.col.returnedValue", "money"),
+    c("netValueMinor", "reports.col.netPurchaseValue", "money"),
   ],
   // Profit (P12 M8): cost values, so products.update is needed too (M7).
   "profit-products": [c("sku", "reports.col.sku", "text"), c("name", "reports.col.product", "name"), ...PROFIT_COLUMNS],

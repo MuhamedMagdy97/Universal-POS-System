@@ -15,8 +15,10 @@ import {
   canOrder,
   formatPoNumber,
   mergePoLines,
+  formatReturnNumber,
   outstanding,
   poTotals,
+  returnable,
   type PoTotals,
 } from "./rules";
 import {
@@ -29,6 +31,7 @@ import {
   Uuid,
   type PoLineInput,
   type PoStatus,
+  type PurchaseReturnReason,
 } from "./schemas";
 
 /**
@@ -46,6 +49,8 @@ export type PoLine = {
   qtyOrdered: number;
   qtyReceived: number;
   outstanding: number;
+  qtyReturned: number;
+  returnable: number;
   unitCostMinor: number;
   lineTotalMinor: number;
 };
@@ -54,6 +59,17 @@ export type PoReceipt = {
   id: string;
   receivedAt: string;
   receivedByName: string;
+  note: string | null;
+  units: number;
+  valueMinor: number;
+};
+
+export type PoReturn = {
+  id: string;
+  number: string;
+  returnedAt: string;
+  returnedByName: string;
+  reason: PurchaseReturnReason;
   note: string | null;
   units: number;
   valueMinor: number;
@@ -74,6 +90,7 @@ export type PoDetail = {
   closedAt: string | null;
   lines: PoLine[];
   receipts: PoReceipt[];
+  returns: PoReturn[];
   totals: PoTotals;
 };
 
@@ -114,6 +131,7 @@ export async function lockPo(tx: Tx, ctx: TenantContext, poId: string) {
           variantId: true,
           qtyOrdered: true,
           qtyReceived: true,
+          qtyReturned: true,
           unitCostMinor: true,
         },
       },
@@ -359,10 +377,13 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
         },
       },
       receipts: { orderBy: [{ receivedAt: "asc" }, { id: "asc" }], include: { items: true } },
+      returns: { orderBy: { seq: "asc" }, include: { items: true } },
     },
   });
   const receivers = await client.user.findMany({
-    where: { id: { in: [...new Set(po.receipts.map((r) => r.receivedById))] } },
+    where: {
+      id: { in: [...new Set([...po.receipts.map((r) => r.receivedById), ...po.returns.map((r) => r.returnedById)])] },
+    },
     select: { id: true, name: true },
   });
   const nameOf = new Map(receivers.map((user) => [user.id, user.name]));
@@ -376,6 +397,8 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       qtyOrdered: item.qtyOrdered,
       qtyReceived: item.qtyReceived,
       outstanding: outstanding(item),
+      qtyReturned: item.qtyReturned,
+      returnable: returnable(item),
       unitCostMinor: item.unitCostMinor,
       lineTotalMinor: multiply(item.unitCostMinor, item.qtyOrdered),
     }))
@@ -401,6 +424,16 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       note: receipt.note,
       units: receipt.items.reduce((total, item) => total + item.qtyReceived, 0),
       valueMinor: receipt.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qtyReceived), 0),
+    })),
+    returns: po.returns.map((ret) => ({
+      id: ret.id,
+      number: formatReturnNumber(po.number, ret.seq),
+      returnedAt: ret.returnedAt.toISOString(),
+      returnedByName: nameOf.get(ret.returnedById) ?? "",
+      reason: ret.reason,
+      note: ret.note,
+      units: ret.items.reduce((total, item) => total + item.qty, 0),
+      valueMinor: ret.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qty), 0),
     })),
     totals: poTotals(po.items),
   };

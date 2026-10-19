@@ -18,7 +18,11 @@ export type Tx = Prisma.TransactionClient;
 export async function requirePermission(
   ctx: TenantContext,
   permission: Permission | readonly Permission[],
-  attempt: { operation: string; entityType: "Supplier" | "PurchaseOrder" | "GoodsReceipt"; meta?: AuditRequestMeta },
+  attempt: {
+    operation: string;
+    entityType: "Supplier" | "PurchaseOrder" | "GoodsReceipt" | "PurchaseReturn";
+    meta?: AuditRequestMeta;
+  },
 ): Promise<void> {
   const wanted = typeof permission === "string" ? [permission] : permission;
   if (wanted.some((p) => hasPermission(ctx.role, p))) {

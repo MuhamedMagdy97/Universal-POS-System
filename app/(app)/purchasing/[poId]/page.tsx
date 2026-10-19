@@ -46,6 +46,8 @@ async function PoContent({ params, searchParams }: Props) {
   }
 
   const outstandingUnits = po.lines.reduce((total, line) => total + line.outstanding, 0);
+  const returnedUnits = po.lines.reduce((total, line) => total + line.qtyReturned, 0);
+  const returnable = can.manage && po.lines.some((line) => line.returnable > 0);
   const editable = can.manage && canEdit({ status: po.status, receivedUnits: po.totals.receivedUnits });
   const [suppliers, shop] = await Promise.all([
     editable ? activeSuppliers(ctx.orgId) : Promise.resolve<{ id: string; name: string }[]>([]),
@@ -195,6 +197,11 @@ async function PoContent({ params, searchParams }: Props) {
         outstandingUnits={outstandingUnits}
         can={can}
       />
+      {returnable ? (
+        <Link href={`/purchasing/${po.id}/return`} className="self-start rounded-md border border-border px-3 py-2">
+          {tr("purchasing.action.return")}
+        </Link>
+      ) : null}
 
       <h2 className="text-lg font-semibold">{tr("purchasing.po.lines")}</h2>
       {editable ? (
@@ -225,6 +232,7 @@ async function PoContent({ params, searchParams }: Props) {
               <th className="text-end">{tr("purchasing.line.ordered")}</th>
               <th className="text-end">{tr("purchasing.line.received")}</th>
               <th className="text-end">{tr("purchasing.line.outstanding")}</th>
+              <th className="text-end">{tr("purchasing.line.returned")}</th>
               <th className="text-end">{tr("purchasing.line.cost")}</th>
               <th className="text-end">{tr("purchasing.line.total")}</th>
             </tr>
@@ -241,6 +249,7 @@ async function PoContent({ params, searchParams }: Props) {
                 <td className="text-end">{line.qtyOrdered}</td>
                 <td className="text-end">{line.qtyReceived}</td>
                 <td className="text-end">{line.outstanding}</td>
+                <td className="text-end">{line.qtyReturned}</td>
                 <td className="text-end">{formatMinor(line.unitCostMinor, po.currency, locale)}</td>
                 <td className="text-end">{formatMinor(line.lineTotalMinor, po.currency, locale)}</td>
               </tr>
@@ -252,6 +261,7 @@ async function PoContent({ params, searchParams }: Props) {
               <td className="text-end">{po.totals.orderedUnits}</td>
               <td className="text-end">{po.totals.receivedUnits}</td>
               <td className="text-end">{outstandingUnits}</td>
+              <td className="text-end">{returnedUnits}</td>
               <td />
               <td className="text-end">{formatMinor(po.totals.totalMinor, po.currency, locale)}</td>
             </tr>
@@ -279,6 +289,30 @@ async function PoContent({ params, searchParams }: Props) {
           ))}
         </ul>
       )}
+
+      {po.returns.length > 0 ? (
+        <>
+          <h2 className="text-lg font-semibold">{tr("purchasing.returns")}</h2>
+          <ul className="flex flex-col gap-1">
+            {po.returns.map((ret) => (
+              <li key={ret.id}>
+                <span dir="ltr" className="text-muted">
+                  {shopDateTime(ret.returnedAt, zone)}
+                </span>{" "}
+                <Link href={`/purchasing/${po.id}/returns/${ret.id}`} className="underline-offset-4 hover:underline">
+                  {tr("purchasing.returns.row", {
+                    number: ret.number,
+                    units: ret.units,
+                    value: formatMinor(ret.valueMinor, po.currency, locale),
+                    name: ret.returnedByName,
+                  })}
+                </Link>{" "}
+                <span className="text-muted">— {tr(`purchasing.reason.${ret.reason}`)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
     </div>
   );
 }

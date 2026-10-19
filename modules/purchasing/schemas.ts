@@ -124,3 +124,21 @@ export const ReceiptInput = z
   })
   .strict();
 export type ReceiptInput = z.infer<typeof ReceiptInput>;
+
+// ---------- returns (purchase-returns-spec) ----------
+
+export const PURCHASE_RETURN_REASONS = ["DAMAGED", "DEFECTIVE", "WRONG_ITEM", "EXPIRED", "OTHER"] as const;
+export type PurchaseReturnReason = (typeof PURCHASE_RETURN_REASONS)[number];
+
+/** `qty` 0 skips a line; at least one line must be above 0 (R1). Cost always comes from the PO line (R4). */
+export const ReturnLineInput = z.object({ poItemId: Uuid, qty: z.number().int().min(0).max(MAX_QTY) }).strict();
+export type ReturnLineInput = z.infer<typeof ReturnLineInput>;
+
+export const ReturnInput = z
+  .object({
+    reason: z.enum(PURCHASE_RETURN_REASONS),
+    lines: z.array(ReturnLineInput).min(1).max(MAX_PO_LINES),
+    note: Note.optional().transform((value) => (value ? value : null)),
+  })
+  .strict();
+export type ReturnInput = z.infer<typeof ReturnInput>;

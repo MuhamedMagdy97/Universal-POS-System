@@ -29,6 +29,10 @@ const REASON_KEYS = {
   NOTHING_TO_RECEIVE: "purchasing.error.NOTHING_TO_RECEIVE",
   ITEM_NOT_SELLABLE: "purchasing.error.ITEM_NOT_SELLABLE",
   AMOUNT_TOO_LARGE: "purchasing.error.AMOUNT_TOO_LARGE",
+  QTY_EXCEEDS_RETURNABLE: "purchasing.error.QTY_EXCEEDS_RETURNABLE",
+  NOTHING_TO_RETURN: "purchasing.error.NOTHING_TO_RETURN",
+  INSUFFICIENT_STOCK: "purchasing.error.INSUFFICIENT_STOCK",
+  MANAGED_BY_INVENTORY: "purchasing.error.MANAGED_BY_INVENTORY",
 } as const satisfies Record<string, MessageKey>;
 
 /** The message for an error envelope: the specific reason first, then the status class. */
@@ -151,6 +155,19 @@ export function receiptLines(
     out.push(
       cost === row.poCostMinor ? { poItemId: row.poItemId, qty } : { poItemId: row.poItemId, qty, unitCostMinor: cost },
     );
+  }
+  return out;
+}
+
+export type ReturnRow = { poItemId: string; returnable: number; qty: string };
+
+/** Return form rows → return lines (0 skipped). null when a quantity is invalid or above what is returnable. */
+export function returnLines(rows: readonly ReturnRow[]): { poItemId: string; qty: number }[] | null {
+  const out: { poItemId: string; qty: number }[] = [];
+  for (const row of rows) {
+    const qty = parseQty(row.qty);
+    if (qty === null || qty > row.returnable) return null;
+    if (qty > 0) out.push({ poItemId: row.poItemId, qty });
   }
   return out;
 }

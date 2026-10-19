@@ -10,6 +10,7 @@ export type PurchasingConflictReason =
   | "PO_NOT_RECEIVABLE"
   | "PO_BAD_TRANSITION"
   | "QTY_EXCEEDS_OUTSTANDING"
+  | "QTY_EXCEEDS_RETURNABLE"
   | "SUPPLIER_INACTIVE"
   | "SUPPLIER_NAME_TAKEN"
   | "IDEMPOTENCY_CONFLICT";
@@ -25,7 +26,7 @@ export function purchasingConflict(
   });
 }
 
-export type PurchasingValidationReason = "NOTHING_TO_RECEIVE" | "AMOUNT_TOO_LARGE";
+export type PurchasingValidationReason = "NOTHING_TO_RECEIVE" | "NOTHING_TO_RETURN" | "AMOUNT_TOO_LARGE";
 
 export function purchasingInvalid(
   reason: PurchasingValidationReason,

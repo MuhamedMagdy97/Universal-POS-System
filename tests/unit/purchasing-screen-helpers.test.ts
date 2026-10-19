@@ -6,6 +6,7 @@ import {
   parseCost,
   parseQty,
   receiptLines,
+  returnLines,
   type EditorLine,
 } from "@/app/(app)/purchasing/_lib/purchasing";
 
@@ -73,5 +74,27 @@ describe("errorKey", () => {
     );
     expect(errorKey({ code: "NOT_FOUND", message: "", details: null })).toBe("purchasing.error.notFound");
     expect(errorKey({ code: "INTERNAL", message: "", details: null })).toBe("purchasing.error.generic");
+  });
+});
+
+describe("returnLines", () => {
+  it("skips zeros and refuses a bad or too-large quantity", () => {
+    const rows = [
+      { poItemId: "a", returnable: 3, qty: "2" },
+      { poItemId: "b", returnable: 1, qty: "0" },
+    ];
+    expect(returnLines(rows)).toEqual([{ poItemId: "a", qty: 2 }]);
+    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "4" }])).toBeNull();
+    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "x" }])).toBeNull();
+    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "٢" }])).toEqual([{ poItemId: "a", qty: 2 }]);
+  });
+
+  it("maps return errors to their messages", () => {
+    expect(errorKey({ code: "CONFLICT", message: "", details: { reason: "QTY_EXCEEDS_RETURNABLE" } })).toBe(
+      "purchasing.error.QTY_EXCEEDS_RETURNABLE",
+    );
+    expect(errorKey({ code: "CONFLICT", message: "", details: { reason: "INSUFFICIENT_STOCK" } })).toBe(
+      "purchasing.error.INSUFFICIENT_STOCK",
+    );
   });
 });

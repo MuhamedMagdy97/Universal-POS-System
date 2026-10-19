@@ -14,6 +14,8 @@ export type PoState = {
 
 export type LineQty = { qtyOrdered: number; qtyReceived: number };
 
+export type ReturnQty = { qtyReceived: number; qtyReturned: number };
+
 /** `PO-000001`. Six digits, more when the counter outgrows them. */
 export function formatPoNumber(n: number): string {
   return `PO-${String(n).padStart(6, "0")}`;
@@ -41,6 +43,16 @@ export function mergePoLines(lines: readonly PoLineInput[]): PoLineInput[] {
 
 export function outstanding(line: LineQty): number {
   return line.qtyOrdered - line.qtyReceived;
+}
+
+/** What can still go back to the supplier (purchase-returns-spec R1). */
+export function returnable(line: ReturnQty): number {
+  return line.qtyReceived - line.qtyReturned;
+}
+
+/** `PO-000123-R1`: the PO number and the return's place on it (R9). */
+export function formatReturnNumber(poNumber: string, seq: number): string {
+  return `${poNumber}-R${seq}`;
 }
 
 /** RECEIVED once every line is full, otherwise PARTIALLY_RECEIVED. */
