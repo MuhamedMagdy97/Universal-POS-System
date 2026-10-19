@@ -3,15 +3,20 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { requireTenant } from "@/lib/auth/tenant";
+import { hasPermission } from "@/lib/auth/permissions";
+import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { formatMinor } from "@/lib/money";
-import { getDashboardTiles, type DashboardTiles } from "@/modules/reports";
+import { countLowStock } from "@/modules/inventory";
+import { branchesInScope, getDashboardTiles, type DashboardTiles } from "@/modules/reports";
 
-/** Dashboard: today's tiles for `reports.view` users (T9, P11); a greeting for everyone. */
+/**
+ * Dashboard: today's tiles for `reports.view` users (T9, P11), a low-stock tile for `inventory.read`
+ * users (low-stock-spec L9); a greeting for everyone.
+ */
 export default function DashboardPage() {
   return (
     <section className="flex flex-col gap-4">
@@ -29,9 +34,11 @@ async function DashboardContent() {
   const tr = translator(locale);
 
   let tiles: DashboardTiles | null = null;
+  let lowStock: Awaited<ReturnType<typeof lowStockTile>> = null;
   let noShop = false;
   try {
-    tiles = await getDashboardTiles(await requireTenant(requestHeaders));
+    const ctx = await requireTenant(requestHeaders);
+    [tiles, lowStock] = await Promise.all([getDashboardTiles(ctx), lowStockTile(ctx)]);
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
     noShop = !session.session.activeOrganizationId;
@@ -76,6 +83,29 @@ async function DashboardContent() {
           </ul>
         </>
       ) : null}
+      {lowStock ? (
+        <Link
+          href={`/inventory/low-stock?branch=${lowStock.branch.id}`}
+          className="flex w-fit min-w-48 flex-col gap-1 rounded-md border border-border p-4 hover:bg-foreground/5"
+        >
+          <span className="text-sm text-muted">{tr("dashboard.tile.lowStock", { branch: lowStock.branch.name })}</span>
+          <span
+            dir="ltr"
+            className={`text-start text-xl font-semibold tabular-nums ${lowStock.count > 0 ? "text-amber-700" : ""}`}
+          >
+            {lowStock.count}
+          </span>
+        </Link>
+      ) : null}
     </>
   );
+}
+
+/** Low items at the session branch, else the first branch in scope by name (as the inventory pages pick). */
+async function lowStockTile(ctx: TenantContext) {
+  if (!hasPermission(ctx.role, "inventory.read")) return null;
+  const branches = await branchesInScope(ctx);
+  const branch = branches.find((b) => b.id === ctx.branchId) ?? branches[0];
+  if (!branch) return null;
+  return { branch, count: await countLowStock(ctx, branch.id) };
 }

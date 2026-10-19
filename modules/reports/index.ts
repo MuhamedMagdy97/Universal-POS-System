@@ -19,7 +19,7 @@ export {
 export { REPORT_COLUMNS, formatRateBp, formatMarginBp, isProfitReport, type Column, type ColumnKind } from "./columns";
 export { REPORT_NAMES, isReportName, ReportQuery, AuditQuery, DENIED_ACTIONS, type ReportName } from "./schemas";
 export { canRunReport, branchesInScope, orgSettings as reportSettings, type ReportBranch } from "./access";
-export { csvResponse } from "./csv";
+export { csvResponse, toCsv } from "./csv";
 export { QUICK_RANGES, quickRange, todayIn, formatLocalDateTime, type QuickRange, type LocalRange } from "./timezone";
 export {
   listAuditEvents,

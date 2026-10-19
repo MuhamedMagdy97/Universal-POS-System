@@ -19,6 +19,8 @@ export type StockRow = {
   sku: string;
   primaryBarcode: string | null;
   qty: number;
+  /** Reorder point at this branch; null = not tracked (low-stock-spec L1). */
+  reorderPoint: number | null;
   archived: boolean;
   updatedAt: Date | null;
 };
@@ -87,7 +89,7 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
       SELECT p.id AS "productId", v.id AS "variantId", p.name AS name, p."nameAr" AS "nameAr",
              COALESCE(v.sku, p.sku) AS sku, v.name AS "variantName",
              CASE WHEN v.id IS NULL THEN p."isActive" ELSE p."isActive" AND v."isActive" END AS active,
-             COALESCE(b.qty, 0) AS qty, b."updatedAt" AS "updatedAt",
+             COALESCE(b.qty, 0) AS qty, b."reorderPoint" AS "reorderPoint", b."updatedAt" AS "updatedAt",
              (SELECT bc.code FROM "Barcode" bc
               WHERE bc."orgId" = p."orgId" AND bc."productId" = p.id AND bc."isPrimary"
                 AND bc."variantId" IS NOT DISTINCT FROM v.id) AS "primaryBarcode"
@@ -98,7 +100,7 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
       WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL)
     )
     SELECT "productId", "variantId", name, "nameAr", sku, "variantName", active, qty::int AS qty,
-           "updatedAt", "primaryBarcode"
+           "reorderPoint", "updatedAt", "primaryBarcode"
     FROM items
     WHERE (active OR qty <> 0) AND ${filterSql} ${searchSql} ${cursorSql}
     ORDER BY name, "productId", COALESCE("variantId"::text, '')
@@ -125,7 +127,7 @@ export type LedgerRow = {
   transfer: { groupId: string; otherBranch: { id: string; name: string } | null } | null;
 };
 
-export type LedgerPage = { qty: number; rows: LedgerRow[]; nextCursor: string | null };
+export type LedgerPage = { qty: number; reorderPoint: number | null; rows: LedgerRow[]; nextCursor: string | null };
 
 /**
  * Item history at one branch, newest first. `balanceAfter` is a running sum over the whole
@@ -145,7 +147,7 @@ export async function getItemLedger(ctx: TenantContext, query: z.input<typeof Le
 
   const balance = await client.stockBalance.findFirst({
     where: { orgId: ctx.orgId, branchId: parsed.branchId, productId: parsed.productId, variantId: parsed.variantId },
-    select: { qty: true },
+    select: { qty: true, reorderPoint: true },
   });
   const cursor = parsed.cursor ? decode(LedgerCursor, parsed.cursor) : null;
   const cursorSql = cursor
@@ -197,6 +199,7 @@ export async function getItemLedger(ctx: TenantContext, query: z.input<typeof Le
   const last = page[page.length - 1];
   return {
     qty: balance?.qty ?? 0,
+    reorderPoint: balance?.reorderPoint ?? null,
     rows: page.map((row) => ({
       id: row.id,
       createdAt: row.createdAt,

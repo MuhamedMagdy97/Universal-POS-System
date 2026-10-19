@@ -97,6 +97,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
           itemRef={{ productId: rawProductId, variantId: variantId }}
           itemLabel={displayName}
           onHand={history.qty}
+          reorderPoint={history.reorderPoint}
           archived={label.archived}
           canAdjust={can.adjust}
           canTransfer={can.transfer}
