@@ -45,7 +45,7 @@
   Admin), dashboard tiles for `reports.view`. No migration. Every report is traced to one seeded history and the
   stored shift close; 100 000 sales over a year answer in ≤ 300 ms per report. Deviations are in
   [data model and API](phase-9/reports-audit-data-model-and-api.md) and [screens and tests](phase-9/reports-audit-ux-and-tests.md).
-  Not built: profit and margin (needs a cost snapshot, P12), purchase reports (T5), a 0% VAT split into zero-rated and
+  Not built at T9: profit and margin (built later as P12, PR #21), purchase reports (T5), a 0% VAT split into zero-rated and
   exempt (needs a VAT category snapshot).
 
 - Phase 10 / T5: purchasing. Spec approved by the owner (2026-10-12; roles, last cost, receiving rules, edits and
@@ -73,7 +73,8 @@
 
 - 2026-10-19 backlog: cash in / out screen on `/pos` (PR #16), split tenders on the till (PR #19), Phase 14
   operations docs in `docs/operations/` and [known limitations](../product/known-limitations.md) (PR #18). Profit and
-  margin (P12): spec drafted for owner approval (PR #17), not built.
+  margin (P12): spec approved by the owner (2026-10-19, every decision as recommended), BUILT (PR #21): cost snapshot
+  on `SaleItem` (one migration), Profit by product, category and day with CSV for Owner and Admin.
 
 ## Pending
 Phases 12–14 per roadmap (Phase 14 docs started; release checklist partly ticked). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
