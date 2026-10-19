@@ -102,6 +102,10 @@ and restart.
 The database is unreachable: wrong host or port in `DATABASE_URL`, server down, or (local Docker) the port is not
 published. Check `docker ps --filter name=pos-postgres` shows `0.0.0.0:5432->5432/tcp`.
 
+While the database is gone, business API routes answer 500 `INTERNAL` ("Failed to get session" in the log), not
+503. The app reconnects by itself once the database is back; no restart. Sales whose outcome was unknown are retried
+with the same `Idempotency-Key` ([failure recovery](failure-recovery.md)).
+
 ### Sign-in returns 403
 
 The request's `Origin` does not match `AUTH_URL`. Seen when the app runs on another port or host than `AUTH_URL`
@@ -116,7 +120,8 @@ row in the database).
 ### `prisma migrate deploy` fails
 
 Run the preflight SQL for that migration if it has one (`scripts/`, `prisma/sql/`), fix the rows it reports, then see
-[rollback](deploy-and-rollback.md#rollback), step 3. Never run `prisma migrate dev` or `migrate reset` against
+[rollback](deploy-and-rollback.md#rollback), step 3, and the exercised walk-through in
+[failure recovery](failure-recovery.md#4-failed-prisma-migrate-deploy). Never run `prisma migrate dev` or `migrate reset` against
 production.
 
 ### `pg_dump: error: invalid URI query parameter: "schema"`
