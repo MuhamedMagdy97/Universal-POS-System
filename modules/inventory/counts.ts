@@ -370,7 +370,8 @@ export async function startCount(ctx: TenantContext, id: string, meta?: AuditReq
 
 /**
  * One count entry (C4, C5). `add` sums scans, `set` replaces, `set: null` clears. The first count
- * of an item snapshots on-hand as its expected quantity; clearing drops the snapshot.
+ * of an item snapshots on-hand as its expected quantity; a typed quantity is a fresh count of the
+ * shelf, so it snapshots again (a sale between two counts is not taken twice); clearing drops it.
  */
 export async function recordCountEntry(
   ctx: TenantContext,
@@ -395,7 +396,7 @@ export async function recordCountEntry(
 
     let snapshot = { expectedQty: line?.expectedQty ?? null, countedAt: line?.countedAt ?? null };
     if (next === null) snapshot = { expectedQty: null, countedAt: null };
-    else if (snapshot.expectedQty === null) {
+    else if (snapshot.expectedQty === null || parsed.set !== undefined) {
       const [onHand] = await getOnHand(tx, ctx.orgId, count.branchId, [parsed.ref]);
       snapshot = { expectedQty: onHand, countedAt: new Date() };
     }

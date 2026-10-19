@@ -129,6 +129,29 @@ describe("a full count", () => {
     expect(await onHand(product.id, branchId)).toBe(7);
   });
 
+  it("takes a fresh snapshot when a quantity is typed again after a sale", async () => {
+    const branchId = await freshBranch();
+    const product = await stocked(10, branchId);
+    const id = await counting(branchId);
+    await inventory.startCount(admin, id);
+    await inventory.recordCountEntry(admin, id, { ref: ref(product.id), set: 10 });
+    await db.$transaction((tx) =>
+      inventory.recordMovements(tx, admin, {
+        branchId,
+        reason: "SALE",
+        refType: null,
+        refId: null,
+        policy: "block",
+        lines: [{ ref: ref(product.id), qty: 2 }],
+      }),
+    );
+    // Recounted later: the shelf now holds 8, which matches the system; nothing to correct.
+    await inventory.recordCountEntry(admin, id, { ref: ref(product.id), set: 8 });
+    expect((await inventory.getCount(admin, id)).lines[0]).toMatchObject({ expectedQty: 8, qtyDelta: 0 });
+    await inventory.postCount(admin, id);
+    expect(await onHand(product.id, branchId)).toBe(8);
+  });
+
   it("counts variants and tells how many in-scope items were not counted (C7)", async () => {
     const branchId = await freshBranch();
     const parent = await createProduct(db, orgId);
