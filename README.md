@@ -54,6 +54,9 @@ npm run dev                 # http://localhost:3000
 
 Check it is alive: `GET http://localhost:3000/api/health` returns `{"status":"ok","db":"up",...}`.
 
+Running it for real (production install, env reference, backup/restore, deploy and rollback, troubleshooting):
+[`docs/operations/`](docs/operations/). What is not built: [`docs/product/known-limitations.md`](docs/product/known-limitations.md).
+
 ## Scripts
 
 | Command               | What it does                                                                                                          |
