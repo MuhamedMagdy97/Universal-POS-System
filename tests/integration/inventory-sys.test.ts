@@ -5,6 +5,7 @@ import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
 import * as catalog from "@/modules/catalog";
 import * as inventory from "@/modules/inventory";
+import { getTillOnHand } from "@/modules/inventory/till-stock";
 import * as purchasing from "@/modules/purchasing";
 import {
   checkInventoryLink,
@@ -329,6 +330,21 @@ describe("read-only when linked (spec I18)", () => {
     await expectAppError(purchasing.createSupplier(linked.owner, { name: "Acme" }), 409, "MANAGED_BY_INVENTORY");
     // Reads keep working.
     await expect(purchasing.listSuppliers(linked.owner)).resolves.toEqual([]);
+  });
+
+  it("refuses reorder points and shows no POS stock at the till or in low stock", async () => {
+    const ref = { productId: synced.id, variantId: null };
+    const branchId = linked.branchA.id;
+    await expectAppError(
+      inventory.setReorderPoint(linked.owner, { branchId, ref, reorderPoint: 5 }),
+      409,
+      "MANAGED_BY_INVENTORY",
+    );
+    // A point set before linking stays in the table but is not reported (POS stock is history only).
+    await db.stockBalance.create({ data: { orgId: linked.org.id, branchId, ...ref, qty: 0, reorderPoint: 5 } });
+    await expect(inventory.listLowStock(linked.owner, { branchId })).resolves.toEqual({ rows: [], truncated: false });
+    await expect(inventory.countLowStock(linked.owner, branchId)).resolves.toBe(0);
+    await expect(getTillOnHand(linked.owner, { branchId, refs: [ref] })).resolves.toEqual([]);
   });
 
   it("leaves a built-in shop fully editable", async () => {

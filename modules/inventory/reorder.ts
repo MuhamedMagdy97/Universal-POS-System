@@ -7,6 +7,7 @@ import { t, toLocale } from "@/lib/i18n";
 import type { AuditRequestMeta } from "@/modules/audit";
 import { record } from "@/modules/audit";
 import { toCsv } from "@/modules/reports";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { requireBranch, requirePermission } from "./access";
 import { assertKnownItems } from "./ledger";
 import { keyOf, lockBalances } from "./locking";
@@ -89,6 +90,8 @@ export async function listLowStock(
   await requirePermission(ctx, "inventory.read");
   const { branchId } = LowStockQuery.parse(query);
   await requireBranch(ctx, branchId);
+  // A linked shop's POS stock is history only (integration spec I18): nothing is low here.
+  if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") return { rows: [], truncated: false };
 
   const rows = await getDb().$queryRaw<LowStockRow[]>`
     SELECT b."productId", b."variantId", p.name, p."nameAr", v.name AS "variantName",
@@ -105,6 +108,7 @@ export async function countLowStock(ctx: TenantContext, branchId: string): Promi
   await requirePermission(ctx, "inventory.read");
   LowStockQuery.parse({ branchId });
   await requireBranch(ctx, branchId);
+  if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") return 0;
   const [row] = await getDb().$queryRaw<{ count: number }[]>`
     SELECT count(*)::int AS count ${lowStockFrom(ctx.orgId, branchId)}`;
   return row?.count ?? 0;

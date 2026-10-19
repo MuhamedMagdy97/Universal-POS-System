@@ -6,6 +6,7 @@ import { LOW_STOCK_CAP, listLowStock } from "@/modules/inventory";
 import { loadInventoryContext } from "../_lib/context";
 import { BranchPicker } from "../_components/branch-picker";
 import { NotAllowed, NotFound } from "../_components/states";
+import { ManagedNotice } from "../../_components/managed-notice";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -32,7 +33,7 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
   if (page.kind === "denied") return <NotAllowed locale={page.locale} />;
   if (page.kind === "notFound") return <NotFound locale={page.locale} branches={page.branches} />;
 
-  const { ctx, locale, branches, branch } = page;
+  const { ctx, locale, managed, branches, branch } = page;
   const tr = translator(locale);
   let result;
   try {
@@ -58,6 +59,7 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
         ) : null}
       </div>
 
+      {managed ? <ManagedNotice locale={locale} area="stock" /> : null}
       <BranchPicker locale={locale} action="/inventory/low-stock" branches={branches} currentId={branch.id} />
 
       {result.rows.length === 0 ? (
