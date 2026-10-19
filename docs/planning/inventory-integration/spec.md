@@ -1,8 +1,7 @@
 # Phase 13 — Inventory System Integration: Specification
 
-Status: **Draft for the owner (2026-10-19).** Every decision has a recommended option; the owner has said specs are
-approved "every decision as recommended" unless they say otherwise. Decisions that change behaviour the owner sees
-are marked **Owner: confirm**. Data model and API: [data-model-and-api.md](data-model-and-api.md).
+Status: **Approved by the owner (2026-10-19), every decision as recommended**, including the five marked
+**Owner: confirm** (each takes its recommended option, not the alternative). Not built. Data model and API: [data-model-and-api.md](data-model-and-api.md).
 
 Source: the agreement of 2026-10-19 (the inventory system is master when both are used; products are sold alone or
 bundled, so the link is a per-tenant toggle), the as-built POS modules (`modules/catalog`, `modules/inventory`,
