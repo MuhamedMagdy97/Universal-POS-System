@@ -3,6 +3,7 @@ import { formatMinor, type CurrencyCode } from "@/lib/money";
 import {
   enumLabel,
   formatLocalDateTime,
+  formatMarginBp,
   formatRateBp,
   localizedName,
   QUICK_RANGES,
@@ -19,7 +20,7 @@ export type CellFormat = { locale: Locale; currency: CurrencyCode; zone: string 
 
 /** Numbers, amounts and dates render LTR inside RTL and align to the end. */
 export function isNumeric(column: Column): boolean {
-  return column.kind === "money" || column.kind === "int" || column.kind === "rate";
+  return column.kind === "money" || column.kind === "int" || column.kind === "rate" || column.kind === "margin";
 }
 
 export function cellText(column: Column, row: ReportRow, format: CellFormat): string {
@@ -33,6 +34,8 @@ export function cellText(column: Column, row: ReportRow, format: CellFormat): st
       return new Intl.NumberFormat(format.locale, { numberingSystem: "latn" }).format(value as number);
     case "rate":
       return formatRateBp(value as number);
+    case "margin":
+      return formatMarginBp(value as number);
     case "datetime":
       return formatLocalDateTime(value instanceof Date ? value : new Date(String(value)), format.zone);
     case "method":

@@ -1,7 +1,7 @@
 # P12 — Profit and Margin Reporting: Specification
 
-Status: **draft for the owner's approval.** Nothing is built. Decisions marked **(rec)** can still be overridden;
-decisions marked **Owner:** need a ruling before the build starts.
+Status: **Spec approved by the owner (2026-10-19, every decision as recommended). BUILT on `profit-margin/build`** —
+see §11.
 
 Source: P12 in `docs/planning/phase-9/reports-audit-spec.md` (deferred 2026-10-12 because `SaleItem` has no cost
 snapshot), `reports-audit-data-model-and-api.md` §11 ("a migration, like the cost snapshot deferred in P12"),
@@ -167,6 +167,36 @@ CSV headers use the same labels in the user's locale (UTF-8 with BOM, formula-in
 
 ## 10. Next steps
 
-1. Owner rules on M1, M2, M6, M7, M8 and M12.
-2. Build on its own branch: migration (create-only, trimmed), checkout line, three queries, access, columns, EN/AR
+1. ~~Owner rules on M1, M2, M6, M7, M8 and M12~~ — done 2026-10-19, all as recommended.
+2. ~~Build on its own branch~~ — done, see §11: migration (create-only, trimmed), checkout line, three queries, access, columns, EN/AR
    keys, tests; then as-built notes.
+
+## 11. As built (2026-10-19)
+
+Migration `20261019001514_add_sale_item_cost` (created with `--create-only`; the generated
+`DROP INDEX "POItem_one_line_per_item"` removed, leaving the `ADD COLUMN` and the check constraint). Checkout writes
+`unitCostMinor` in `createSale` (split tenders need nothing: cost is per line, payments are separate rows). Reports:
+`profit-products`, `profit-categories`, `profit-days` in `modules/reports` (queries, columns, access, service),
+the missing-cost note on `/reports`, 11 new EN/AR keys.
+
+Tests: `tests/integration/profit.test.ts` (snapshot, variants, cost 0 → unknown, refund on its own day, void, 23:30
+Cairo, reconciliation with the VAT report, access for every role, Arabic CSV, no cost in the sale or receipt payload,
+`SaleItem` still append-only), `tests/unit/reports-margin.test.ts` (margin rounding and formatting, margin never
+totalled), `tests/e2e/reports.spec.ts` (admin in English and Arabic with CSV; manager and reporting see no profit
+report), and `reports-perf.test.ts` now seeds a cost on nine lines in ten.
+
+Perf (`REPORTS_PERF=1`, 100 000 sales and 2 000 refunds over 366 days, local PostgreSQL 16): profit-products 42 ms,
+profit-categories 50 ms, profit-days 74 ms (target 300 ms). No index added.
+
+Deviations and additions:
+
+- **Queries:** a separate `profitFacts` beside `lineFacts` instead of extra columns on it, so the VAT, Products and
+  Categories queries are untouched. Products and categories skip the local-day conversion they do not group by.
+- **Margin when revenue with cost is negative** (a refund-only day) is "—" too, not only when it is 0.
+- **Sort:** profit by product and by category list the highest gross profit first (then net revenue, then name).
+- **Missing-cost note** shows whenever the report's "revenue without cost" total is not zero.
+- **Cost change in the tests** goes through `applyReceivedCosts` (the seam receiving calls), not a full purchase order.
+- **Migration test:** not a separate test; the test and E2E databases apply the migration over existing data on every
+  run, and `profit.test.ts` checks the append-only trigger still holds with the new column.
+- **CSV in E2E:** only the filename is checked in the browser; the content (Arabic headers, margin, recomputed total)
+  is checked in `profit.test.ts`.

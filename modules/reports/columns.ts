@@ -1,4 +1,5 @@
 import type { MessageKey } from "@/lib/i18n";
+import { divideRoundHalfUp } from "@/lib/money";
 import type { ReportName } from "./schemas";
 
 /**
@@ -16,7 +17,8 @@ export type ColumnKind =
   | "method"
   | "rate"
   | "status"
-  | "kind";
+  | "kind"
+  | "margin"; // basis points, null when there is no revenue with cost
 
 /** Column headers are `reports.col.*` keys, none of which take placeholders. */
 export type ColumnLabel = Extract<MessageKey, `reports.col.${string}`>;
@@ -24,6 +26,16 @@ export type ColumnLabel = Extract<MessageKey, `reports.col.${string}`>;
 export type Column = { key: string; label: ColumnLabel; kind: ColumnKind };
 
 const c = (key: string, label: ColumnLabel, kind: ColumnKind): Column => ({ key, label, kind });
+
+const PROFIT_COLUMNS: readonly Column[] = [
+  c("qtySold", "reports.col.qtySold", "int"),
+  c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+  c("netRevenueMinor", "reports.col.netRevenueExVat", "money"),
+  c("revenueNoCostMinor", "reports.col.revenueNoCost", "money"),
+  c("costMinor", "reports.col.cost", "money"),
+  c("grossProfitMinor", "reports.col.grossProfit", "money"),
+  c("marginBp", "reports.col.margin", "margin"),
+];
 
 export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
   "sales-summary": [
@@ -117,7 +129,37 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("units", "reports.col.units", "int"),
     c("valueMinor", "reports.col.purchaseValue", "money"),
   ],
+  // Profit (P12 M8): cost values, so products.update is needed too (M7).
+  "profit-products": [c("sku", "reports.col.sku", "text"), c("name", "reports.col.product", "name"), ...PROFIT_COLUMNS],
+  "profit-categories": [c("name", "reports.col.category", "name"), ...PROFIT_COLUMNS],
+  "profit-days": [
+    c("day", "reports.col.day", "day"),
+    ...PROFIT_COLUMNS,
+    c("linesNoCost", "reports.col.linesNoCost", "int"),
+  ],
 };
+
+export const PROFIT_REPORTS = ["profit-products", "profit-categories", "profit-days"] as const satisfies ReportName[];
+
+export function isProfitReport(report: ReportName): boolean {
+  return (PROFIT_REPORTS as readonly string[]).includes(report);
+}
+
+/**
+ * Margin in basis points (2345 = 23.45%) of gross profit over the net revenue that has a cost
+ * (M5). null when that revenue is not positive (nothing to divide by).
+ */
+export function marginBp(grossProfitMinor: number, revenueWithCostMinor: number): number | null {
+  if (revenueWithCostMinor <= 0) return null;
+  return Number(divideRoundHalfUp(BigInt(grossProfitMinor) * BigInt(10_000), BigInt(revenueWithCostMinor)));
+}
+
+/** 2345 → "23.5%", -500 → "-5.0%": one decimal, half away from zero. Integer math only. */
+export function formatMarginBp(bp: number): string {
+  const tenths = Number(divideRoundHalfUp(BigInt(bp), BigInt(10)));
+  const abs = Math.abs(tenths);
+  return `${tenths < 0 ? "-" : ""}${Math.trunc(abs / 10)}.${abs % 10}%`;
+}
 
 /** 1400 → "14%", 1250 → "12.5%". Integer math only. */
 export function formatRateBp(rateBp: number): string {

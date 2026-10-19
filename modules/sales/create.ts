@@ -226,6 +226,8 @@ async function writeSale(
       vatRateBp: priced[index].vatRateBp,
       vatMinor: priced[index].vatMinor,
       lineTotalMinor: priced[index].lineTotalMinor,
+      // Cost snapshot for profit reports (P12 M1); 0 means "never entered", stored as unknown (M2).
+      unitCostMinor: item.costMinor > 0 ? item.costMinor : null,
     })),
   });
   await tx.payment.createMany({

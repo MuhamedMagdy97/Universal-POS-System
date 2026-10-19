@@ -33,7 +33,8 @@ describe.skipIf(!process.env.REPORTS_PERF)("reports on 100 000 sales (R3)", () =
       data: { orgId: t.org.id, branchId, registerId: t.register.id, openedById: owner.userId, openingFloatMinor: 0 },
     });
     const org = t.org.id;
-    // Sales spread evenly over the year, one line and one cash payment each (1140 incl. 140 VAT).
+    // Sales spread evenly over the year, one line and one cash payment each (1140 incl. 140 VAT),
+    // cost 600 on nine lines in ten (P12).
     await db.$executeRaw`
       INSERT INTO "Sale" ("id", "orgId", "branchId", "registerId", "shiftId", "cashierId", "number", "idempotencyKey",
                           "status", "currency", "subtotalMinor", "vatMinor", "totalMinor", "createdAt")
@@ -43,8 +44,9 @@ describe.skipIf(!process.env.REPORTS_PERF)("reports on 100 000 sales (R3)", () =
       FROM generate_series(1, ${SALES}::int) g`;
     await db.$executeRaw`
       INSERT INTO "SaleItem" ("id", "orgId", "saleId", "productId", "skuSnapshot", "nameSnapshot", "unitType", "qty",
-                              "unitPriceMinor", "vatRateBp", "vatMinor", "lineTotalMinor")
-      SELECT gen_random_uuid(), s."orgId", s."id", ${product.id}::uuid, 'PERF', 'Perf', 'EACH', 1, 1140, 1400, 140, 1140
+                              "unitPriceMinor", "vatRateBp", "vatMinor", "lineTotalMinor", "unitCostMinor")
+      SELECT gen_random_uuid(), s."orgId", s."id", ${product.id}::uuid, 'PERF', 'Perf', 'EACH', 1, 1140, 1400, 140, 1140,
+             CASE WHEN s."number"::int % 10 = 0 THEN NULL ELSE 600 END
       FROM "Sale" s WHERE s."orgId" = ${org}::uuid`;
     await db.$executeRaw`
       INSERT INTO "Payment" ("id", "orgId", "saleId", "method", "amountMinor")
@@ -74,7 +76,8 @@ describe.skipIf(!process.env.REPORTS_PERF)("reports on 100 000 sales (R3)", () =
       const result = await getReport(owner, report, { branchId, from: FROM, to: TO });
       const ms = Math.round(performance.now() - started);
       lines.push(`${report}: ${ms} ms, ${result.rows.length} rows`);
-      expect(ms).toBeLessThan(2_000);
+      // Profit reports (P12 M9) keep to the slowest T9 report's 300 ms; the rest to 2 s.
+      expect(ms).toBeLessThan(report.startsWith("profit-") ? 300 : 2_000);
     }
     const scope = { orgId: owner.orgId, branchIds: [branchId], zone: "Africa/Cairo", from: FROM, to: TO };
     const plan = await db.$queryRaw<{ "QUERY PLAN": string }[]>(

@@ -16,7 +16,7 @@ export {
   type ReportResult,
   type ReportRow,
 } from "./service";
-export { REPORT_COLUMNS, formatRateBp, type Column, type ColumnKind } from "./columns";
+export { REPORT_COLUMNS, formatRateBp, formatMarginBp, isProfitReport, type Column, type ColumnKind } from "./columns";
 export { REPORT_NAMES, isReportName, ReportQuery, AuditQuery, DENIED_ACTIONS, type ReportName } from "./schemas";
 export { canRunReport, branchesInScope, orgSettings as reportSettings, type ReportBranch } from "./access";
 export { csvResponse } from "./csv";

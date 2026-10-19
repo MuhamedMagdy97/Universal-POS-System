@@ -7,7 +7,15 @@ import { t, type Locale } from "@/lib/i18n";
 import { sum, toMajorString, type CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { branchesInScope, orgSettings, requireAccess, resolveBranchIds } from "./access";
-import { formatRateBp, REPORT_COLUMNS, totalledKeys, type Column } from "./columns";
+import {
+  formatMarginBp,
+  formatRateBp,
+  isProfitReport,
+  marginBp,
+  REPORT_COLUMNS,
+  totalledKeys,
+  type Column,
+} from "./columns";
 import { toCsv, trusted, type CsvCell } from "./csv";
 import * as q from "./queries";
 import { isReportName, ReportQuery, type ReportName } from "./schemas";
@@ -41,12 +49,20 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   "refunds-voids": q.refundsVoids,
   vat: q.vat,
   purchases: q.purchases,
+  "profit-products": q.profitProducts,
+  "profit-categories": q.profitCategories,
+  "profit-days": q.profitDays,
 };
 
 function totalsOf(report: ReportName, rows: ReportRow[]): Record<string, number> {
   const totals: Record<string, number> = {};
   for (const key of totalledKeys(report)) {
     totals[key] = sum(rows.map((row) => (typeof row[key] === "number" ? (row[key] as number) : 0)));
+  }
+  // Margin is a ratio: recomputed from the totals, never summed (P12 §5).
+  if (isProfitReport(report)) {
+    const margin = marginBp(totals.grossProfitMinor, totals.netRevenueMinor - totals.revenueNoCostMinor);
+    if (margin !== null) totals.marginBp = margin;
   }
   return totals;
 }
@@ -153,6 +169,8 @@ function csvValue(column: Column, row: ReportRow, report: FullReport, locale: Lo
       return value as number;
     case "rate":
       return trusted(formatRateBp(value as number));
+    case "margin":
+      return trusted(formatMarginBp(value as number));
     case "datetime":
       return trusted(formatLocalDateTime(value as Date, report.timezone));
     case "day":
