@@ -73,8 +73,9 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 - No scheduled backups or point-in-time recovery set up in the repo; no deploy scripts or production environment.
   Migrations are forward-only. [operations/backup-restore, operations/deploy-and-rollback]
 
-## Inventory system link (Phase 13, slice 1)
+## Inventory system link (Phase 13, slices 1–2)
 
-- A linked shop syncs its catalog from the inventory system with "Sync now" only (no schedule or webhook).
-  Sales are not posted to the inventory system yet and the till shows no stock for a linked shop (slice 2);
-  categories are not synced. [inventory-integration/integration-spec]
+- A linked shop syncs its catalog with "Sync now" only (no schedule or webhook); categories are not synced.
+- Failed postings to the inventory system show as counts on Settings → Inventory system; there is no list or Retry
+  button yet, and retries need a scheduler calling `/api/internal/inventory/run` with `CRON_SECRET`.
+  A sale is refused while the inventory system is unreachable (no offline queue). [inventory-integration/integration-spec]

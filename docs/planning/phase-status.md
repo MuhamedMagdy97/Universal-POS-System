@@ -89,8 +89,10 @@
   master for catalog and stock; sales reserve before and fulfil after the POS transaction; sales blocked when it is
   unreachable. Slice 1 BUILT (PR #34): per-shop source toggle, Owner-only link settings with a sealed API key,
   product sync by external id, read-only guards; as built in
-  [inventory-integration/integration-spec.md](inventory-integration/integration-spec.md). Next: slice 2 (sale
-  posting, refunds, stock at the till).
+  [inventory-integration/integration-spec.md](inventory-integration/integration-spec.md). Slice 2 BUILT (PR #36): sales reserve in the
+  inventory system before and fulfil after the POS transaction, refunds and voids go back as IMS returns through a
+  retry queue, the till shows IMS available stock, branches map to warehouses. Next: slice 4 (scheduled catalog
+  sync, postings list with Retry).
 
 - Phase 13 hardening (2026-10-19): 503 `DB_UNAVAILABLE` on every route and Server Action while the database is
   down, and Server Action failures logged (PR #33); nonce CSP (PR #32, [as built](phase-11/hardening-as-built.md));
