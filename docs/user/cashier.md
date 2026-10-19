@@ -4,7 +4,7 @@ For cashiers, and for managers and owners when they work a till. Arabic labels a
 
 ## Sign in
 
-1. Open the shop's address, press **Sign in**, enter the email and password your owner or admin gave you, press
+1. Open the shop's address, press **Sign in** [تسجيل الدخول], enter the email and password your owner or admin gave you, press
    **Sign in**.
 2. You land on the **Dashboard** [لوحة التحكم]. Press **Till** [نقطة البيع] in the top bar.
 
@@ -14,12 +14,12 @@ Refusals:
 - "Too many attempts. Wait a minute and try again."
 
 To change your password: **My account** [حسابي] → current password, new password (at least 10 characters) →
-**Change password** [تغيير كلمة المرور]. Your other devices are signed out. Press **Sign out** when you leave.
+**Change password** [تغيير كلمة المرور]. Your other devices are signed out. Press **Sign out** [تسجيل الخروج] when you leave.
 
 ## Pick your till
 
 The Till page opens on your branch and its first till. To use another one, choose **Branch** [الفرع] and
-**Register** [الكاشير], then press **Switch** [تبديل]. You only see branches you are assigned to.
+**Register** [الصندوق], then press **Switch** [تبديل]. You only see branches you are assigned to.
 
 - "This branch has no registers. Ask an admin to add one."
 - "Branch not found" — the branch is not one of yours, or was deactivated.
@@ -93,9 +93,9 @@ customer slip, not a tax e-invoice.
 Press **Cash in / out** [إدخال / إخراج نقد], choose the **Type**, type the **Amount** and a **Reason**, press
 **Record** [تسجيل].
 
-- **Pay-in** [إيداع]: cash put into the drawer (e.g. extra change).
+- **Pay-in** [إضافة نقد]: cash put into the drawer (e.g. extra change).
 - **Pay-out** [مصروف نقدي]: cash paid out of the drawer (e.g. a small expense).
-- **Drop to safe** [إيداع للخزنة]: cash taken from the drawer to the safe.
+- **Drop to safe** [تحويل إلى الخزنة]: cash taken from the drawer to the safe.
 
 Pay-out and drop only show if you may close shifts (cashiers can by default). Refusals: "Enter an amount above zero,
 for example 50.", "You don't have permission to record this cash movement." If you see "No answer from the server.

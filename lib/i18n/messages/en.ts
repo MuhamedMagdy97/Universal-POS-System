@@ -860,4 +860,18 @@ export const en = {
   "audit.action.register.deactivated": "Till deactivated",
   "audit.action.register.reactivated": "Till reactivated",
   "audit.action.account.password_changed": "Password changed",
+  // Public pages and app chrome
+  "welcome.title": "Welcome to Universal POS",
+  "welcome.intro": "Point of sale, catalog and inventory for retail shops in Egypt and Saudi Arabia.",
+  "welcome.signIn": "Sign in",
+  "welcome.setup": "Set up a new business",
+  "login.title": "Sign in",
+  "login.email": "Email",
+  "login.password": "Password",
+  "login.submit": "Sign in",
+  "login.pending": "Signing in…",
+  "login.error.invalid": "Email or password is incorrect.",
+  "login.error.rateLimited": "Too many attempts. Wait a minute and try again.",
+  "app.signOut": "Sign out",
+  "app.loadingOrg": "Loading organization…",
 } as const;

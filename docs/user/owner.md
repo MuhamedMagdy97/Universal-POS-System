@@ -36,7 +36,7 @@ e-receipts.
 **Settings** → **Branches and tills** [الفروع ونقاط البيع].
 
 - **Add branch** [إضافة فرع]: name and a short code (A–Z, 0–9, -).
-- **Add till** [إضافة نقطة بيع] under a branch: a name, unique in that branch.
+- **Add till** [إضافة صندوق] under a branch: a name, unique in that branch.
 - **Rename**, **Deactivate** [إيقاف], **Reactivate** [إعادة تفعيل] for both.
 
 Refusals: "This branch still has stock. Move it or write it off first.", "A shift is open at this branch. Close it

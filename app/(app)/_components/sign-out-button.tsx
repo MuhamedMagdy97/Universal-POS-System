@@ -2,9 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
+import { t } from "@/lib/i18n";
+import { useClientLocale } from "@/lib/i18n/client";
 
 export function SignOutButton() {
   const router = useRouter();
+  const locale = useClientLocale();
 
   async function signOut() {
     await authClient.signOut();
@@ -14,7 +17,7 @@ export function SignOutButton() {
 
   return (
     <button type="button" onClick={signOut} className="rounded-md px-3 py-1 text-sm underline-offset-4 hover:underline">
-      Sign out
+      {t(locale, "app.signOut")}
     </button>
   );
 }
