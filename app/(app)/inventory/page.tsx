@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
 import { listStock } from "@/modules/inventory";
+import { isLowStock } from "@/modules/inventory/schemas";
 import { loadInventoryContext, type InventoryPageContext } from "./_lib/context";
 import { BranchPicker } from "./_components/branch-picker";
 import { StockRowActions } from "./_components/stock-row-actions";
@@ -68,6 +69,9 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{tr("inventory.title")}</h1>
         <div className="ms-auto flex flex-wrap gap-2">
+          <Link href={`/inventory/low-stock?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+            {tr("inventory.action.lowStock")}
+          </Link>
           {can.adjust ? (
             <Link href={`/inventory/opening?${branchParam}`} className="rounded-md border border-border px-3 py-2">
               {tr("inventory.action.opening")}
@@ -136,6 +140,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                 <th className="py-2">{tr("inventory.column.item")}</th>
                 <th>{tr("inventory.column.sku")}</th>
                 <th>{tr("inventory.column.onHand")}</th>
+                <th>{tr("inventory.column.reorderPoint")}</th>
                 <th>{tr("inventory.column.updated")}</th>
                 <th>{tr("inventory.column.actions")}</th>
               </tr>
@@ -163,6 +168,14 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                         </span>
                       ) : null}
                     </td>
+                    <td dir="ltr">
+                      {row.reorderPoint ?? "—"}
+                      {isLowStock(row.qty, row.reorderPoint) ? (
+                        <span className="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                          {tr("inventory.badge.low")}
+                        </span>
+                      ) : null}
+                    </td>
                     <td>{row.updatedAt ? dateFormat.format(row.updatedAt) : "—"}</td>
                     <td>
                       <StockRowActions
@@ -171,6 +184,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                         itemRef={{ productId: row.productId, variantId: row.variantId }}
                         itemLabel={label}
                         onHand={row.qty}
+                        reorderPoint={row.reorderPoint}
                         archived={row.archived}
                         canAdjust={can.adjust}
                         canTransfer={can.transfer}

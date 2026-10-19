@@ -162,3 +162,21 @@ export const LedgerQuery = z
   })
   .strict();
 export type LedgerQuery = z.input<typeof LedgerQuery>;
+
+/** Reorder point (min qty) for one item at one branch; `null` stops tracking it (low-stock-spec L1–L6). */
+export const ReorderPointInput = z
+  .object({
+    branchId: Uuid,
+    ref: ItemRefInput,
+    reorderPoint: z.number().int().min(0).max(MAX_QTY).nullable(),
+  })
+  .strict();
+export type ReorderPointInput = z.infer<typeof ReorderPointInput>;
+
+export const LowStockQuery = z.object({ branchId: Uuid }).strict();
+export type LowStockQuery = z.input<typeof LowStockQuery>;
+
+/** An item is low when it has a reorder point and on-hand is at or below it (L3). Mirrors the SQL. */
+export function isLowStock(qty: number, reorderPoint: number | null): boolean {
+  return reorderPoint !== null && qty <= reorderPoint;
+}

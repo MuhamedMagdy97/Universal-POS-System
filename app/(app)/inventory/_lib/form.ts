@@ -40,6 +40,12 @@ export function normalizeCount(input: string): number | null {
   return Number.isSafeInteger(value) && value <= MAX_QTY ? value : null;
 }
 
+/** Reorder-point box: empty clears it (null), 0 … MAX_QTY sets it, anything else is undefined (invalid). */
+export function parseReorderPoint(input: string): number | null | undefined {
+  if (input.trim() === "") return null;
+  return normalizeCount(input) ?? undefined;
+}
+
 export function previewAfter(onHand: number, delta: number): number {
   return onHand + delta;
 }

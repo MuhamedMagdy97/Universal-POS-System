@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { translator, type Locale } from "@/lib/i18n";
 import { AdjustDialog } from "./adjust-dialog";
+import { ReorderPointDialog } from "./reorder-point-dialog";
 import type { ItemRef } from "../_lib/form";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   itemRef: ItemRef;
   itemLabel: string;
   onHand: number;
+  reorderPoint: number | null;
   canAdjust: boolean;
   canTransfer: boolean;
   historyHref: string;
@@ -19,15 +21,25 @@ type Props = {
   transferHref: string;
 };
 
-/** Row actions on the stock list: Adjust (dialog), History and Transfer (links). */
+/** Row actions on the stock list: Adjust and Reorder point (dialogs), History and Transfer (links). */
 export function StockRowActions(props: Props) {
   const tr = translator(props.locale);
   const [open, setOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
   return (
     <div className="flex flex-wrap gap-2">
       {props.canAdjust ? (
         <button type="button" onClick={() => setOpen(true)} className="rounded-md border border-border px-3 py-1">
           {tr("inventory.action.adjust")}
+        </button>
+      ) : null}
+      {props.canAdjust ? (
+        <button
+          type="button"
+          onClick={() => setReorderOpen(true)}
+          className="rounded-md border border-border px-3 py-1"
+        >
+          {tr("inventory.action.reorderPoint")}
         </button>
       ) : null}
       {props.canTransfer ? (
@@ -48,6 +60,17 @@ export function StockRowActions(props: Props) {
           itemLabel={props.itemLabel}
           onHand={props.onHand}
           archived={props.archived}
+        />
+      ) : null}
+      {props.canAdjust ? (
+        <ReorderPointDialog
+          locale={props.locale}
+          open={reorderOpen}
+          onClose={() => setReorderOpen(false)}
+          branchId={props.branchId}
+          itemRef={props.itemRef}
+          itemLabel={props.itemLabel}
+          reorderPoint={props.reorderPoint}
         />
       ) : null}
     </div>

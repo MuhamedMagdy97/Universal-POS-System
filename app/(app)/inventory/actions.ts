@@ -13,9 +13,11 @@ import { actionError, getRequestId } from "@/lib/http";
 import {
   adjustStock,
   recordOpeningBalances,
+  setReorderPoint,
   transferStock,
   type AdjustInput,
   type OpeningInput,
+  type ReorderPointInput,
   type TransferInput,
 } from "@/modules/inventory";
 
@@ -47,4 +49,8 @@ export async function transferStockAction(input: z.input<typeof TransferInput>) 
 
 export async function recordOpeningAction(input: z.input<typeof OpeningInput>) {
   return run((ctx, meta) => recordOpeningBalances(ctx, input, meta));
+}
+
+export async function setReorderPointAction(input: z.input<typeof ReorderPointInput>) {
+  return run((ctx, meta) => setReorderPoint(ctx, input, meta));
 }

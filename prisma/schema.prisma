@@ -444,13 +444,15 @@ model Barcode {
 // Cache of on-hand quantity, reconciled against the InventoryMovement ledger.
 // The unique key treats a NULL variantId as a value (NULLS NOT DISTINCT, see migration).
 model StockBalance {
-  id        String   @id @default(uuid()) @db.Uuid
-  orgId     String   @db.Uuid
-  branchId  String   @db.Uuid
-  productId String   @db.Uuid
-  variantId String?  @db.Uuid
-  qty       Int      @default(0)
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  branchId     String   @db.Uuid
+  productId    String   @db.Uuid
+  variantId    String?  @db.Uuid
+  qty          Int      @default(0)
+  // Reorder point (min qty) at this branch; null = not tracked. Low when qty <= reorderPoint.
+  reorderPoint Int?
+  updatedAt    DateTime @updatedAt
 
   org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch  Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)

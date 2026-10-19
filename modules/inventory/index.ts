@@ -16,4 +16,21 @@ export { listStock, getItemLedger, type StockRow, type StockPage, type LedgerRow
 export { recordOpeningBalances } from "./opening";
 export { adjustStock } from "./adjust";
 export { transferStock } from "./transfer";
-export { OpeningInput, AdjustInput, TransferInput, StockQuery, LedgerQuery, Uuid } from "./schemas";
+export {
+  setReorderPoint,
+  listLowStock,
+  countLowStock,
+  exportLowStockCsv,
+  LOW_STOCK_CAP,
+  type LowStockRow,
+} from "./reorder";
+export {
+  OpeningInput,
+  AdjustInput,
+  TransferInput,
+  StockQuery,
+  LedgerQuery,
+  ReorderPointInput,
+  LowStockQuery,
+  Uuid,
+} from "./schemas";
