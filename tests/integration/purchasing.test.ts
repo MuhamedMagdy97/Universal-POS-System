@@ -434,6 +434,15 @@ describe("scope and isolation", () => {
     expect(await onHand(p.id, null, tenant.branchB.id)).toBe(1);
   });
 
+  it("does not replay another branch's receipt to a branch-limited manager", async () => {
+    const p = await product();
+    const poA = await orderedPo([[p.id, 2, 100]]);
+    const key = KEY();
+    const body = { lines: [{ poItemId: poA.lines[0].id, qty: 1 }] };
+    await receivePurchaseOrder(manager, poA.id, key, body);
+    await expectAppError(receivePurchaseOrder(scopedManager, poA.id, key, body), 404);
+  });
+
   it("answers 404 for another org's PO and supplier, and for a malformed id", async () => {
     const other = await createTenant(db, "Purchasing other");
     const otherOwner = await createMember(db, other.org.id, "OWNER");
