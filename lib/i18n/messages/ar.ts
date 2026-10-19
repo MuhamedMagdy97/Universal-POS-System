@@ -862,6 +862,7 @@ export const ar: Messages = {
   "settings.inventory.error.forbidden": "لا يمكنك تغيير هذا.",
   "settings.inventory.error.generic": "حدث خطأ ما. حاول مرة أخرى.",
   "managed.catalog": "تتم إدارة المنتجات من نظام المخزون.",
+  "managed.categories": "تتم إدارة التصنيفات من نظام المخزون.",
   "managed.stock": "تتم إدارة المخزون والمشتريات والتحويلات من نظام المخزون. الأرقام هنا سجل نقاط البيع فقط.",
   "onboarding.title": "إعداد متجرك",
   "onboarding.intro": "أنشئ متجرك وحساب المالك. ستحصل على فرع واحد وصندوق واحد جاهزين لإضافة المنتجات والبيع.",

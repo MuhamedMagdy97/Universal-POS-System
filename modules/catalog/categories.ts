@@ -4,9 +4,12 @@ import "server-only";
  * unique case-insensitively (DB index), archive blocked only by active child
  * categories (resolution R5 — products do not block). Tree edits take a per-org
  * advisory lock so concurrent re-parents cannot sneak past the depth/cycle checks.
+ * A shop linked to the inventory system gets its categories from the sync: every write here answers
+ * 409 MANAGED_BY_INVENTORY.
  */
 import type { z } from "zod";
 import { notFound } from "@/lib/errors";
+import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { assertFresh, conflict, invalid } from "./errors";
 import {
@@ -144,6 +147,7 @@ export async function createCategory(
   meta?: CatalogMeta,
 ): Promise<CategoryDetail> {
   await requirePermission(ctx, "products.create", { entityType: "Category", operation: "create", meta });
+  await assertBuiltIn(ctx.orgId);
   const data = CreateCategory.parse(input);
 
   return withUniqueMapping(ctx, { category: { name: data.name, parentId: data.parentId } }, () =>
@@ -172,6 +176,7 @@ export async function updateCategory(
   meta?: CatalogMeta,
 ): Promise<CategoryDetail> {
   await requirePermission(ctx, "products.update", { entityType: "Category", operation: "update", meta });
+  await assertBuiltIn(ctx.orgId);
   const id = parseId(categoryId, "Category");
   const { expectedUpdatedAt, ...patch } = UpdateCategory.parse(input);
 
@@ -227,6 +232,7 @@ async function setCategoryActive(
     operation: active ? "restore" : "archive",
     meta,
   });
+  await assertBuiltIn(ctx.orgId);
   const id = parseId(categoryId, "Category");
   const { expectedUpdatedAt } = ArchiveInput.parse(input);
 

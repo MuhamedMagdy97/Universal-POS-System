@@ -7,7 +7,7 @@ import { E2E_BASE_URL, E2E_PORT } from "./support/env";
 
 /**
  * Phase 13 slice 1: an owner links a fresh shop to the inventory system (a fake on E2E_PORT + 1),
- * switches the source, and the synced catalog is read-only, in English and in Arabic (RTL).
+ * switches the source, and the synced catalog and categories are read-only, in English and in Arabic (RTL).
  * A fresh shop from onboarding, so the seeded orgs other specs use stay built-in.
  */
 
@@ -17,6 +17,8 @@ const IMS_PORT = E2E_PORT + 1;
 const API_KEY = `ims_e2e_${Date.now().toString(36)}_secret`;
 const run = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SKU = `E2E-INV-${run().toUpperCase()}`;
+const CATEGORY = `Synced Juices ${run()}`;
+const CATEGORY_ID = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60";
 
 const ims = fakeIms(API_KEY, [
   {
@@ -26,6 +28,7 @@ const ims = fakeIms(API_KEY, [
     status: "active",
     isSerialized: false,
     baseUom: "each",
+    categoryId: CATEGORY_ID,
     variants: [
       {
         id: "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c",
@@ -39,6 +42,8 @@ const ims = fakeIms(API_KEY, [
     ],
   },
 ]);
+
+ims.categories = [{ id: CATEGORY_ID, parentId: null, name: CATEGORY, sort: 0, archived: false }];
 
 const ENGLISH_PHRASES = Object.entries(en)
   .filter(([key, text]) => !text.includes("{") && text.trim().includes(" ") && ar[key as keyof typeof ar] !== text)
@@ -91,6 +96,12 @@ test("an owner links a shop to the inventory system and the synced catalog is re
     await expect(page).toHaveURL(/\/catalog\/products\/[0-9a-f-]{36}$/);
     await expect(page.getByText(en["catalog.form.readOnly"])).toBeVisible();
 
+    await page.goto("/catalog/categories");
+    await expect(page.getByTestId("managed-notice")).toHaveText(en["managed.categories"]);
+    await expect(page.getByText(CATEGORY)).toBeVisible();
+    await expect(page.getByRole("button", { name: en["catalog.categories.add"] })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: en["catalog.categories.rename"] })).toHaveCount(0);
+
     await page.goto("/inventory");
     await expect(page.getByTestId("managed-notice")).toHaveText(en["managed.stock"]);
     await expect(page.getByRole("link", { name: en["inventory.action.opening"] })).toHaveCount(0);
@@ -104,6 +115,9 @@ test("an owner links a shop to the inventory system and the synced catalog is re
     expect(ENGLISH_PHRASES.filter((phrase) => text.includes(phrase))).toEqual([]);
     await page.goto("/catalog/products");
     await expect(page.getByTestId("managed-notice")).toHaveText(ar["managed.catalog"]);
+    await page.goto("/catalog/categories");
+    await expect(page.getByTestId("managed-notice")).toHaveText(ar["managed.categories"]);
+    await expect(page.getByText(CATEGORY)).toBeVisible();
   } finally {
     await context.close();
     server.close();

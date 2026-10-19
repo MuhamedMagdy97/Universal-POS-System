@@ -227,7 +227,7 @@ export async function updateProductAggregate(
       });
       const changedEdits = edits.filter(variantChanged);
 
-      // Linked shop (integration spec I8): only the POS-owned fields (Arabic names, VAT, category) may change.
+      // Linked shop (integration spec I8): only the POS-owned fields (Arabic names, VAT) may change.
       await assertSyncedFieldsUnchanged(
         ctx.orgId,
         [

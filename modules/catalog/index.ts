@@ -57,10 +57,13 @@ export { itemNames, type ItemRefViolation } from "./sellable";
 // Inventory-system sync writes (Phase 13); tx-aware, no permission check: the integration authorises first.
 export {
   applyExternalItem,
+  applyExternalCategory,
   archiveUnlisted,
+  archiveUnlistedCategories,
   externalVariantIdsOf,
   ShapeChanged,
   type ApplyOutcome,
+  type ExternalCategory,
   type ExternalItem,
   type ExternalVariant,
   type NotSellableReason,

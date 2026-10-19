@@ -3,8 +3,8 @@ import { createServer, type Server } from "node:http";
 
 /**
  * A tiny stand-in for the inventory system's sales-channel API (D:/inventory sys, commit d412a6b),
- * with the IMS's real answer shapes and error envelope: catalog reads (`GET /api/products`,
- * `/api/products/{id}`), `GET /api/warehouses`, `GET /api/availability`, and the selling routes
+ * with the IMS's real answer shapes and error envelope: catalog reads (`GET /api/categories`,
+ * `/api/products`, `/api/products/{id}`), `GET /api/warehouses`, `GET /api/availability`, and the selling routes
  * `POST /api/reservations`, `/api/reservations/{id}/fulfil|cancel`, `/api/sales-orders/{id}/cancel`
  * and `/api/sales-returns`. Writes follow the IMS's idempotency rule (`execute`): a key seen with the
  * same body replays the stored success; another body answers `409 conflict`; failures store nothing.
@@ -29,8 +29,12 @@ export type FakeProduct = {
   status: string;
   isSerialized: boolean;
   baseUom: string;
+  categoryId?: string | null;
   variants: FakeVariant[];
 };
+
+/** List in parent-before-child order, as the IMS returns it (by path). */
+export type FakeCategory = { id: string; parentId: string | null; name: string; sort: number; archived: boolean };
 
 export type FakeWarehouse = { id: string; code: string; name: string; status: string };
 
@@ -49,6 +53,7 @@ type Answer = { status: number; body: unknown };
 export type FakeIms = {
   apiKey: string;
   products: FakeProduct[];
+  categories: FakeCategory[];
   warehouses: FakeWarehouse[];
   /** On hand per `${variantId}|${warehouseId}`; missing = 0. */
   stock: Map<string, number>;
@@ -74,6 +79,7 @@ export function fakeIms(apiKey: string, products: FakeProduct[] = []): FakeIms {
   return {
     apiKey,
     products,
+    categories: [],
     warehouses: [],
     stock: new Map(),
     reservations: new Map(),
@@ -113,6 +119,19 @@ function findVariant(ims: FakeIms, variantId: string) {
 }
 
 function read(ims: FakeIms, url: URL): Answer {
+  if (url.pathname === "/api/categories") {
+    const all = url.searchParams.get("includeArchived") === "true";
+    const byId = new Map(ims.categories.map((c) => [c.id, c]));
+    const pathOf = (c: FakeCategory): string => {
+      const parent = c.parentId ? byId.get(c.parentId) : undefined;
+      return `${parent ? pathOf(parent) : "/"}${c.name}/`;
+    };
+    const items = ims.categories
+      .filter((c) => all || !c.archived)
+      .map((c) => ({ ...c, companyId: "fake", path: pathOf(c), depth: pathOf(c).split("/").length - 2, version: 0 }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    return { status: 200, body: { items } };
+  }
   if (url.pathname === "/api/products") {
     const page = Number(url.searchParams.get("page") ?? 1);
     const perPage = Number(url.searchParams.get("per_page") ?? 50);

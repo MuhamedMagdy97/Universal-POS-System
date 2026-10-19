@@ -14,8 +14,16 @@ import {
   setInventorySource,
   syncInventoryNow,
 } from "@/modules/integrations/inventory-sys";
-import { fakeFetch, fakeIms, type FakeIms, type FakeProduct } from "../support/fake-ims";
-import { createMember, createProduct, createTenant, expectAppError, shortUpper, testDb } from "./helpers";
+import { fakeFetch, fakeIms, type FakeCategory, type FakeIms, type FakeProduct } from "../support/fake-ims";
+import {
+  createCategory,
+  createMember,
+  createProduct,
+  createTenant,
+  expectAppError,
+  shortUpper,
+  testDb,
+} from "./helpers";
 
 /** Phase 13 slice 1: link settings, the source toggle, the catalog sync and the read-only guards. */
 
@@ -269,6 +277,145 @@ describe("catalog sync (spec I6–I11)", () => {
     await setInventorySource(two.owner, { source: "EXTERNAL" });
     const rows = await db.product.findMany({ where: { externalProductId: shared.id } });
     expect(rows.map((r) => r.orgId).sort()).toEqual([one.org.id, two.org.id].sort());
+  });
+});
+
+describe("category sync", () => {
+  const cat = (name: string, parentId: string | null = null, archived = false): FakeCategory => ({
+    id: randomUUID(),
+    parentId,
+    name,
+    sort: 0,
+    archived,
+  });
+
+  it("first sync builds the tree, adopts by name, folds deep levels and archives POS-only categories", async () => {
+    const sku = `CS-${shortUpper()}`;
+    const drinks = cat("Drinks");
+    const soft = cat("Soft", drinks.id);
+    const cola = cat("Cola", soft.id);
+    const diet = cat("Diet", cola.id);
+    const zero = cat("Zero", diet.id);
+    const old = cat("Old", null, true);
+    const a = { ...simple(`${sku}-A`), categoryId: zero.id };
+    const b = { ...simple(`${sku}-B`), categoryId: soft.id };
+    const c = simple(`${sku}-C`);
+    const t = await linkedTenant("Inv Cat", [a, b, c]);
+    ims.categories = [drinks, soft, cola, diet, zero, old];
+    const posDrinks = await createCategory(db, t.org.id, "drinks");
+    const posLocal = await createCategory(db, t.org.id, "Local");
+    // An adopted product loses its POS category: the IMS has none for it.
+    const adopted = await createProduct(db, t.org.id, `${sku}-C`);
+    await db.product.update({ where: { id: adopted.id }, data: { categoryId: posLocal.id } });
+
+    const { sync } = await setInventorySource(t.owner, { source: "EXTERNAL" });
+    expect(sync?.categories).toEqual({ listed: 6, created: 3, updated: 1, unchanged: 0, archived: 1 });
+    expect(sync?.notes).toEqual(expect.arrayContaining([`CATEGORY_FOLDED:${diet.id}`, `CATEGORY_FOLDED:${zero.id}`]));
+
+    const rows = await db.category.findMany({ where: { orgId: t.org.id } });
+    const byExt = new Map(rows.map((r) => [r.externalCategoryId, r]));
+    expect(byExt.get(drinks.id)).toMatchObject({ id: posDrinks.id, name: "Drinks", parentId: null, isActive: true });
+    expect(byExt.get(soft.id)?.parentId).toBe(posDrinks.id);
+    expect(byExt.get(cola.id)?.parentId).toBe(byExt.get(soft.id)?.id);
+    expect(byExt.has(diet.id)).toBe(false);
+    expect(byExt.get(old.id)?.isActive).toBe(false);
+    expect(rows.find((r) => r.id === posLocal.id)).toMatchObject({ isActive: false, externalCategoryId: null });
+
+    const product = (id: string) => db.product.findFirstOrThrow({ where: { orgId: t.org.id, externalProductId: id } });
+    expect((await product(a.id)).categoryId).toBe(byExt.get(cola.id)?.id);
+    expect((await product(b.id)).categoryId).toBe(byExt.get(soft.id)?.id);
+    expect((await product(c.id)).categoryId).toBeNull();
+  });
+
+  it("re-sync renames, moves and archives categories and re-files products, with audit", async () => {
+    const sku = `CR-${shortUpper()}`;
+    const food = cat("Food");
+    const snacks = cat("Snacks", food.id);
+    const gone = cat("Gone");
+    const a = { ...simple(`${sku}-A`), categoryId: snacks.id };
+    const t = await linkedTenant("Inv Cat Resync", [a]);
+    ims.categories = [food, snacks, gone];
+    await setInventorySource(t.owner, { source: "EXTERNAL" });
+
+    snacks.name = "Crisps";
+    snacks.parentId = null;
+    a.categoryId = food.id;
+    ims.categories = [food, snacks];
+    const summary = await syncInventoryNow(t.owner);
+    expect(summary.categories).toEqual({ listed: 2, created: 0, updated: 1, unchanged: 1, archived: 1 });
+
+    const row = await db.category.findFirstOrThrow({ where: { orgId: t.org.id, externalCategoryId: snacks.id } });
+    expect(row).toMatchObject({ name: "Crisps", parentId: null });
+    const foodRow = await db.category.findFirstOrThrow({ where: { orgId: t.org.id, externalCategoryId: food.id } });
+    const product = await db.product.findFirstOrThrow({ where: { orgId: t.org.id, externalProductId: a.id } });
+    expect(product.categoryId).toBe(foodRow.id);
+    const goneRow = await db.category.findFirstOrThrow({ where: { orgId: t.org.id, externalCategoryId: gone.id } });
+    expect(goneRow.isActive).toBe(false);
+
+    const audit = await db.auditEvent.findFirstOrThrow({
+      where: { orgId: t.org.id, entityId: row.id, action: "catalog.category.updated" },
+    });
+    expect(audit.metadata).toMatchObject({ changes: { name: ["Snacks", "Crisps"] }, source: "inventory-sync" });
+    expect(
+      await db.auditEvent.count({
+        where: { orgId: t.org.id, entityId: goneRow.id, action: "catalog.category.archived" },
+      }),
+    ).toBe(1);
+
+    // The IMS restores it: the POS category comes back.
+    gone.archived = false;
+    ims.categories = [food, snacks, gone];
+    expect((await syncInventoryNow(t.owner)).categories).toMatchObject({ updated: 1, archived: 0 });
+    expect((await db.category.findUniqueOrThrow({ where: { id: goneRow.id } })).isActive).toBe(true);
+  });
+
+  it("skips a category whose name clashes with a sibling; its products stay uncategorised", async () => {
+    const sku = `CC-${shortUpper()}`;
+    const upper = cat("Snacks");
+    const lower = cat("snacks");
+    const a = { ...simple(`${sku}-A`), categoryId: upper.id };
+    const b = { ...simple(`${sku}-B`), categoryId: lower.id };
+    const t = await linkedTenant("Inv Cat Clash", [a, b]);
+    ims.categories = [upper, lower];
+    const { sync } = await setInventorySource(t.owner, { source: "EXTERNAL" });
+    // Whichever comes second in the IMS's order is skipped.
+    expect(sync?.skipped).toHaveLength(1);
+    expect(sync?.skipped[0]).toMatchObject({ reason: "CATEGORY_NAME_TAKEN" });
+    expect(sync?.categories).toMatchObject({ created: 1 });
+    const skipped = sync?.skipped[0].id;
+    for (const item of [a, b]) {
+      const row = await db.product.findFirstOrThrow({ where: { orgId: t.org.id, externalProductId: item.id } });
+      expect(row.categoryId === null).toBe(item.categoryId === skipped);
+    }
+  });
+
+  it("refuses category writes and product re-filing in a linked shop, not in a built-in one", async () => {
+    const t = await linkedTenant("Inv Cat Guard", [simple(`CG-${shortUpper()}`)]);
+    const keep = cat("Keep");
+    ims.categories = [keep];
+    await setInventorySource(t.owner, { source: "EXTERNAL" });
+    const row = await db.category.findFirstOrThrow({ where: { orgId: t.org.id, externalCategoryId: keep.id } });
+    const at = { expectedUpdatedAt: row.updatedAt.toISOString() };
+
+    await expectAppError(catalog.createCategory(t.owner, { name: "New" }), 409, "MANAGED_BY_INVENTORY");
+    await expectAppError(catalog.updateCategory(t.owner, row.id, { name: "X", ...at }), 409, "MANAGED_BY_INVENTORY");
+    await expectAppError(catalog.archiveCategory(t.owner, row.id, at), 409, "MANAGED_BY_INVENTORY");
+    await expectAppError(catalog.restoreCategory(t.owner, row.id, at), 409, "MANAGED_BY_INVENTORY");
+
+    const product = await db.product.findFirstOrThrow({ where: { orgId: t.org.id, isActive: true } });
+    const err = await expectAppError(
+      catalog.updateProduct(t.owner, product.id, {
+        categoryId: row.id,
+        expectedUpdatedAt: product.updatedAt.toISOString(),
+      }),
+      409,
+      "MANAGED_BY_INVENTORY",
+    );
+    expect((err.details as { fields?: string[] }).fields).toEqual(["categoryId"]);
+
+    const other = await createTenant(db, "Inv Cat Built-in");
+    const admin = await createMember(db, other.org.id, "ADMIN");
+    await expect(catalog.createCategory(admin, { name: "Local" })).resolves.toMatchObject({ name: "Local" });
   });
 });
 
