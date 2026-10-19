@@ -8,6 +8,7 @@ import "server-only";
 import type { z } from "zod";
 import { notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
+import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
 import { invalid } from "./errors";
 import {
   audit,
@@ -200,6 +201,7 @@ export async function addBarcode(
 ): Promise<BarcodeDetail> {
   await requirePermission(ctx, "products.create", { entityType: "Barcode", operation: "add", meta });
   const data = AddBarcode.parse(input);
+  await assertBuiltIn(ctx.orgId);
 
   return withUniqueMapping(ctx, { codes: [data.code], barcodeField: "code" }, () =>
     inTx(async (tx) => {
@@ -213,6 +215,7 @@ export async function addBarcode(
 export async function removeBarcode(ctx: TenantContext, barcodeId: string, meta?: CatalogMeta): Promise<void> {
   await requirePermission(ctx, "products.update", { entityType: "Barcode", operation: "remove", meta });
   const id = parseId(barcodeId, "Barcode");
+  await assertBuiltIn(ctx.orgId);
   await inTx(async (tx) => {
     const barcode = await tx.barcode.findFirst({ where: { id, orgId: ctx.orgId } });
     if (!barcode) throw notFound("Barcode");

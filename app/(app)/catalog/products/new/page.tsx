@@ -32,7 +32,7 @@ async function NewProductContent() {
         locale={locale}
         currency={currency}
         categories={categoryOptions(categories, locale)}
-        canSeeCost={can.update}
+        canSeeCost={can.seeCost}
         readOnly={false}
       />
     </CatalogPage>

@@ -9,6 +9,7 @@ import type { z } from "zod";
 import { notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { assertBuiltIn, assertSyncedFieldsUnchanged } from "@/modules/integrations/inventory-sys/source";
 import { assertFresh, conflict } from "./errors";
 import {
   audit,
@@ -193,6 +194,7 @@ export async function createProduct(
 ): Promise<ProductWriteResult> {
   await requirePermission(ctx, "products.create", { entityType: "Product", operation: "create", meta });
   const { barcodes, ...data } = CreateProduct.parse(input);
+  await assertBuiltIn(ctx.orgId);
 
   const productId = await withUniqueMapping(ctx, { sku: data.sku, codes: barcodes }, () =>
     inTx(async (tx) => (await insertProduct(tx, ctx, meta, data, barcodes)).id),
@@ -246,6 +248,16 @@ export async function insertProduct(
     await insertBarcode(tx, ctx, meta, { code, productId: product.id, variantId: null, isPrimary: false });
   }
   return product;
+}
+
+/** Fields the inventory system owns when the shop is linked (integration spec I8); the rest stay POS-owned. */
+export function syncedProductChanges(
+  current: Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor">,
+  patch: Partial<Pick<ProductRecord, "sku" | "name" | "priceMinor" | "costMinor">>,
+): string[] {
+  const { sku, name, priceMinor, costMinor } = current;
+  const next = { sku: patch.sku, name: patch.name, priceMinor: patch.priceMinor, costMinor: patch.costMinor };
+  return Object.keys(diffFields({ sku, name, priceMinor, costMinor }, next));
 }
 
 export type ProductRecord = NonNullable<Awaited<ReturnType<Tx["product"]["findFirst"]>>>;
@@ -344,6 +356,7 @@ export async function updateProduct(
   const result = await withUniqueMapping(ctx, { sku: patch.sku }, () =>
     inTx(async (tx) => {
       const current = await loadFreshProduct(tx, ctx, id, expectedUpdatedAt);
+      await assertSyncedFieldsUnchanged(ctx.orgId, syncedProductChanges(current, patch), tx);
       return applyProductUpdate(tx, ctx, meta, current, patch);
     }),
   );
@@ -363,6 +376,7 @@ async function setProductActive(
   await requirePermission(ctx, "products.update", { entityType: "Product", operation, meta });
   const id = parseId(productId, "Product");
   const { expectedUpdatedAt } = ArchiveInput.parse(input);
+  await assertBuiltIn(ctx.orgId);
 
   await inTx(async (tx) => {
     const current = await tx.product.findFirst({ where: { id, orgId: ctx.orgId } });

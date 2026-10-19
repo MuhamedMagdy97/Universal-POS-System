@@ -5,10 +5,12 @@ import { getDb } from "@/lib/db";
 import { forbidden } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
+import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
 
 /**
  * Permission and branch-scope guards for purchasing (P1). The service checks the permission
- * itself and audit-logs a refused attempt, like the other modules.
+ * itself and audit-logs a refused attempt, like the other modules. Anything but a read (`VIEW`) is
+ * refused for a shop linked to the inventory system (integration spec I18).
  */
 
 export type Tx = Prisma.TransactionClient;
@@ -19,7 +21,10 @@ export async function requirePermission(
   attempt: { operation: string; entityType: "Supplier" | "PurchaseOrder" | "GoodsReceipt"; meta?: AuditRequestMeta },
 ): Promise<void> {
   const wanted = typeof permission === "string" ? [permission] : permission;
-  if (wanted.some((p) => hasPermission(ctx.role, p))) return;
+  if (wanted.some((p) => hasPermission(ctx.role, p))) {
+    if (permission !== VIEW) await assertBuiltIn(ctx.orgId);
+    return;
+  }
   try {
     await record(getDb(), {
       ctx,

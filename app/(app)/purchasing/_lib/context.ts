@@ -10,6 +10,7 @@ import type { Locale } from "@/lib/i18n";
 import type { CurrencyCode } from "@/lib/money";
 import { canViewPurchasing } from "@/modules/purchasing";
 import { reportSettings } from "@/modules/reports";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 
 /**
  * Session → tenant → purchasing access for a page. No session → /login?next=…; neither purchasing
@@ -19,7 +20,16 @@ import { reportSettings } from "@/modules/reports";
 export type PurchasingAccess = { manage: boolean; receive: boolean };
 
 export type PurchasingPageContext =
-  | { kind: "ok"; ctx: TenantContext; locale: Locale; can: PurchasingAccess; currency: CurrencyCode; zone: string }
+  | {
+      kind: "ok";
+      ctx: TenantContext;
+      locale: Locale;
+      can: PurchasingAccess;
+      /** Linked to the inventory system: purchasing is history only (spec I18). */
+      managed: boolean;
+      currency: CurrencyCode;
+      zone: string;
+    }
   | { kind: "denied"; locale: Locale };
 
 export async function loadPurchasingContext(nextPath: string): Promise<PurchasingPageContext> {
@@ -35,14 +45,19 @@ export async function loadPurchasingContext(nextPath: string): Promise<Purchasin
     throw err;
   }
   if (!canViewPurchasing(ctx)) return { kind: "denied", locale };
-  const { zone, currency } = await reportSettings(ctx.orgId);
+  const [{ zone, currency }, source] = await Promise.all([reportSettings(ctx.orgId), inventorySourceOf(ctx.orgId)]);
+  const managed = source === "EXTERNAL";
   return {
     kind: "ok",
     ctx,
     locale,
     zone,
     currency,
-    can: { manage: hasPermission(ctx.role, "purchases.manage"), receive: hasPermission(ctx.role, "purchases.receive") },
+    managed,
+    can: {
+      manage: hasPermission(ctx.role, "purchases.manage") && !managed,
+      receive: hasPermission(ctx.role, "purchases.receive") && !managed,
+    },
   };
 }
 

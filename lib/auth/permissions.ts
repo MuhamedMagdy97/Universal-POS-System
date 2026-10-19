@@ -21,6 +21,8 @@ export const PERMISSIONS = [
   "reports.view",
   "users.manage",
   "settings.manage",
+  // Phase 13 (integration spec I2): link the shop to the inventory system. Owner only.
+  "integrations.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

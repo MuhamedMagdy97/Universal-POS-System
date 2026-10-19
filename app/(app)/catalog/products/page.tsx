@@ -9,6 +9,7 @@ import { displayName, exactMatchId } from "../_lib/form-helpers";
 import { flattenCategories } from "../_lib/category-options";
 import { CatalogPage, CatalogSubnav, PermissionDenied, StatusBadge, TableSkeleton } from "../_components/shell";
 import { ProductsToolbar } from "../_components/products-toolbar";
+import { ManagedNotice } from "../../_components/managed-notice";
 
 /** Back-office list requests 50 per page (resolution R13; API default stays 25). */
 const PAGE_SIZE = 50;
@@ -50,7 +51,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
 
   const page = await loadCatalogContext(listPath);
   if (page.kind === "denied") return <PermissionDenied locale={page.locale} />;
-  const { ctx, locale, currency, can } = page;
+  const { ctx, locale, currency, can, managed } = page;
   const tr = translator(locale);
 
   let result;
@@ -89,6 +90,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
           </Link>
         ) : null}
       </div>
+      {managed ? <ManagedNotice locale={locale} area="catalog" /> : null}
 
       <ProductsToolbar
         // Remount on navigation so the inputs reflect the URL (back/forward safe).

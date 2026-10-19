@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { prismaTenantRepository, requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { getLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 
 /**
  * Session → tenant → permissions → branch for an inventory page. No session → /login?next=…;
@@ -24,6 +25,8 @@ export type InventoryPageContext =
       ctx: TenantContext;
       locale: Locale;
       can: InventoryAccess;
+      /** Linked to the inventory system: stock writes are off and the screens say so (spec I18). */
+      managed: boolean;
       branches: BranchOption[];
       branch: BranchOption;
     }
@@ -46,10 +49,11 @@ export async function loadInventoryContext(
     throw err;
   }
 
+  const managed = (await inventorySourceOf(ctx.orgId)) === "EXTERNAL";
   const can: InventoryAccess = {
     read: hasPermission(ctx.role, "inventory.read"),
-    adjust: hasPermission(ctx.role, "inventory.adjust"),
-    transfer: hasPermission(ctx.role, "inventory.transfer"),
+    adjust: hasPermission(ctx.role, "inventory.adjust") && !managed,
+    transfer: hasPermission(ctx.role, "inventory.transfer") && !managed,
   };
   if (!can.read) return { kind: "denied", locale };
 
@@ -70,7 +74,7 @@ export async function loadInventoryContext(
   const wanted = requestedBranch ?? ctx.branchId ?? branches[0]?.id;
   const branch = branches.find((b) => b.id === wanted);
   if (!branch) return { kind: "notFound", locale, branches };
-  return { kind: "ok", ctx, locale, can, branches, branch };
+  return { kind: "ok", ctx, locale, can, managed, branches, branch };
 }
 
 /** Display name for an item in history and transfer views (same-org read; null when unknown). */
