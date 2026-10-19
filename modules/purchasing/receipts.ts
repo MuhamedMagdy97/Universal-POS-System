@@ -7,7 +7,7 @@ import { record, type AuditRequestMeta } from "@/modules/audit";
 import { applyReceivedCosts } from "@/modules/catalog";
 import { recordMovements } from "@/modules/inventory";
 import { requestHashOf } from "@/modules/sales";
-import { requirePermission, type Tx } from "./access";
+import { branchIdsInScope, requirePermission, type Tx } from "./access";
 import { lockPo, loadPurchaseOrder, type PoDetail } from "./orders";
 import { purchasingConflict, purchasingInvalid } from "./errors";
 import { canReceive, outstanding, statusAfterReceipt } from "./rules";
@@ -42,6 +42,9 @@ export async function receivePurchaseOrder(
   const requestHash = requestHashOf({ purchaseOrderId: id, ...parsed });
 
   const db = getDb();
+  // Scope before replay, like sales and refunds: a stored receipt is never shown outside the caller's branches.
+  const scoped = await db.purchaseOrder.findFirst({ where: { id, orgId: ctx.orgId }, select: { branchId: true } });
+  if (!scoped || !(await branchIdsInScope(ctx)).includes(scoped.branchId)) throw notFound("Purchase order");
   const replayed = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
   if (replayed) return replayed;
 
