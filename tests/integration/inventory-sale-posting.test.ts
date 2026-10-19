@@ -7,6 +7,8 @@ import { getTillOnHand } from "@/modules/inventory/till-stock";
 import {
   drainPostings,
   getInventoryLinkStatus,
+  listInventoryPostings,
+  retryInventoryPosting,
   mapInventoryBranches,
   saveInventoryLink,
   setInventorySource,
@@ -268,7 +270,7 @@ describe("a sale on a linked till (spec I12, I13)", () => {
     expect(row.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
     expect(onHandIms(shop, 0)).toBe(10);
     expect(available(shop, 0)).toBe(8); // still held by the reservation
-    expect((await getInventoryLinkStatus(shop.owner)).postings).toEqual({ pending: 1, failed: 0 });
+    expect((await getInventoryLinkStatus(shop.owner)).postings).toEqual({ pending: 1, failed: 0, stale: 0 });
 
     ims.intercept = undefined;
     await drainPostings({ orgId: shop.org.id, sourceIds: [made.id] });
@@ -471,5 +473,169 @@ describe("the scheduler route (spec I19)", () => {
     expect(ok.status).toBe(200);
     expect((await postingsOf(shop.org.id))[0].status).toBe("DONE");
     expect(onHandIms(shop, 0)).toBe(9);
+  });
+});
+
+describe("slice 4: the scheduled sync, the postings list and Retry (spec I19, I22)", () => {
+  const runCron = async () => {
+    const res = await runScheduler(
+      new Request("http://localhost/api/internal/inventory/run", {
+        method: "POST",
+        headers: { "x-cron-secret": process.env.CRON_SECRET ?? "" },
+      }),
+      undefined,
+    );
+    expect(res.status).toBe(200);
+    return (await res.json()) as { sent: number; synced: number; failed: number; stale: number };
+  };
+  /** Only `orgId`'s link may be due for a sync: shops of other tests (and earlier runs) are left alone. */
+  const onlyDue = async (orgId: string, startedAt: Date | null) => {
+    await db.inventoryLink.updateMany({ where: { orgId: { not: orgId } }, data: { lastSyncStartedAt: new Date() } });
+    await db.inventoryLink.update({ where: { orgId }, data: { lastSyncStartedAt: startedAt } });
+  };
+  const listCalls = () => ims.calls.filter((call) => call.startsWith("/api/products?")).length;
+  const auditsOf = (orgId: string, action: string) =>
+    db.auditEvent.findMany({ where: { orgId, action }, orderBy: { createdAt: "asc" } });
+
+  it("syncs a linked shop's catalog when its last sync is older than 15 minutes, with no actor", async () => {
+    const shop = await linkedShop("Cron Sync", 1);
+    ims.products[0].variants[0].sellPrice = "12.5";
+
+    await onlyDue(shop.org.id, new Date(Date.now() - 5 * 60_000));
+    const before = listCalls();
+    expect((await runCron()).synced).toBe(0);
+    expect(listCalls()).toBe(before);
+
+    await onlyDue(shop.org.id, new Date(Date.now() - 16 * 60_000));
+    expect(await runCron()).toMatchObject({ synced: 1, failed: 0 });
+    const product = await db.product.findUniqueOrThrow({ where: { id: shop.items[0].productId } });
+    expect(product.priceMinor).toBe(1250);
+    const [completed] = (await auditsOf(shop.org.id, "integration.inventory.sync.completed")).slice(-1);
+    expect(completed.actorUserId).toBeNull();
+    expect((await runCron()).synced).toBe(0); // just synced
+  });
+
+  it("leaves a shop whose sync is running alone, and records an outage as a failed sync", async () => {
+    const shop = await linkedShop("Cron Claim", 1);
+    await onlyDue(shop.org.id, null);
+    await db.inventoryLink.update({
+      where: { orgId: shop.org.id },
+      data: { syncLockedUntil: new Date(Date.now() + 60_000) },
+    });
+    expect(await runCron()).toMatchObject({ synced: 0, failed: 0 });
+
+    await db.inventoryLink.update({ where: { orgId: shop.org.id }, data: { syncLockedUntil: null } });
+    ims.down = "503";
+    expect(await runCron()).toMatchObject({ synced: 0, failed: 1 });
+    const link = await db.inventoryLink.findUniqueOrThrow({ where: { orgId: shop.org.id } });
+    expect(link).toMatchObject({ lastSyncOk: false, syncLockedUntil: null });
+    expect(await auditsOf(shop.org.id, "integration.inventory.sync.failed")).toHaveLength(1);
+  });
+
+  it("flags postings pending for over 10 minutes", async () => {
+    const shop = await linkedShop("Cron Stale", 1);
+    ims.intercept = (method, path) => (path.endsWith("/fulfil") ? "network" : undefined);
+    await createSale(shop.cashier, sale(shop, [[0, 1]]), saleKey());
+    expect((await getInventoryLinkStatus(shop.owner)).postings.stale).toBe(0);
+    await db.externalStockPosting.updateMany({
+      where: { orgId: shop.org.id },
+      data: { createdAt: new Date(Date.now() - 11 * 60_000) },
+    });
+    expect((await getInventoryLinkStatus(shop.owner)).postings).toEqual({ pending: 1, failed: 0, stale: 1 });
+    expect((await listInventoryPostings(shop.owner)).items[0].stale).toBe(true);
+    await onlyDue(shop.org.id, new Date());
+    expect((await runCron()).stale).toBeGreaterThanOrEqual(1);
+  });
+
+  it("audits .posting.failed after the first retry fails and .posting.resolved once it is sent", async () => {
+    const shop = await linkedShop("Audit Retry", 1);
+    ims.intercept = (method, path) => (path.endsWith("/fulfil") ? "network" : undefined);
+    const { sale: made } = await createSale(shop.cashier, sale(shop, [[0, 1]]), saleKey());
+    expect(await auditsOf(shop.org.id, "integration.inventory.posting.failed")).toHaveLength(0);
+
+    await drainPostings({ orgId: shop.org.id, sourceIds: [made.id] });
+    await drainPostings({ orgId: shop.org.id, sourceIds: [made.id] });
+    const [row] = await postingsOf(shop.org.id);
+    expect(row).toMatchObject({ status: "PENDING", attempts: 3 });
+    const failed = await auditsOf(shop.org.id, "integration.inventory.posting.failed");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ actorUserId: null, entityType: "ExternalStockPosting", entityId: row.id });
+    expect(failed[0].metadata).toMatchObject({ kind: "FULFIL", attempts: 2, code: "INVENTORY_UNAVAILABLE" });
+
+    ims.intercept = undefined;
+    await drainPostings({ orgId: shop.org.id, sourceIds: [made.id] });
+    expect((await postingsOf(shop.org.id))[0].status).toBe("DONE");
+    expect(await auditsOf(shop.org.id, "integration.inventory.posting.resolved")).toHaveLength(1);
+  });
+
+  it("lists a refused posting and lets the owner or an admin retry it, tenant-scoped", async () => {
+    const shop = await linkedShop("Retry List", 1);
+    const admin = await createMember(db, shop.org.id, "ADMIN");
+    ims.intercept = (method, path) =>
+      path.endsWith("/fulfil")
+        ? { status: 422, body: { code: "validation_failed", message: "no", details: null } }
+        : undefined;
+    const { sale: made } = await createSale(shop.cashier, sale(shop, [[0, 2]]), saleKey());
+    const [row] = await postingsOf(shop.org.id);
+    expect(row).toMatchObject({ status: "FAILED", attempts: 1, lastErrorCode: "validation_failed" });
+    expect(await auditsOf(shop.org.id, "integration.inventory.posting.failed")).toHaveLength(1);
+
+    const listed = await listInventoryPostings(admin);
+    expect(listed).toMatchObject({ page: 1, hasMore: false });
+    expect(listed.items).toEqual([
+      expect.objectContaining({
+        id: row.id,
+        kind: "FULFIL",
+        status: "FAILED",
+        document: "SALE",
+        saleNumber: made.number,
+        attempts: 1,
+        lastErrorCode: "validation_failed",
+      }),
+    ]);
+    await expectAppError(listInventoryPostings(shop.cashier), 403);
+    await expectAppError(retryInventoryPosting(shop.cashier, row.id), 403);
+    const other = await linkedShop("Retry Other", 1);
+    expect((await listInventoryPostings(other.owner)).items).toHaveLength(0);
+    await expectAppError(retryInventoryPosting(other.owner, row.id), 404);
+
+    // Refused again: stays FAILED.
+    expect(await retryInventoryPosting(admin, row.id)).toEqual({ status: "FAILED" });
+
+    ims.intercept = undefined;
+    expect(await retryInventoryPosting(admin, row.id)).toEqual({ status: "DONE" });
+    expect(onHandIms(shop, 0)).toBe(8);
+    const retried = await auditsOf(shop.org.id, "integration.inventory.posting.retried");
+    expect(retried.map((event) => event.actorUserId)).toEqual([admin.userId, admin.userId]);
+    expect(await auditsOf(shop.org.id, "integration.inventory.posting.resolved")).toHaveLength(1);
+    expect((await listInventoryPostings(shop.owner)).items).toHaveLength(0);
+    await expectAppError(retryInventoryPosting(shop.owner, row.id), 404);
+    await expectAppError(retryInventoryPosting(shop.owner, "not-a-uuid"), 404);
+  });
+
+  it("pages the list 20 at a time, oldest first", async () => {
+    const shop = await linkedShop("Retry Pages", 1);
+    const start = Date.now() - 60_000;
+    await db.externalStockPosting.createMany({
+      data: Array.from({ length: 21 }, (_, i) => ({
+        orgId: shop.org.id,
+        kind: "CANCEL" as const,
+        sourceType: "SaleAttempt",
+        sourceId: `attempt-${i}`,
+        idempotencyKey: `pos:test-${i}:cancel`,
+        externalOrderRefId: randomUUID(),
+        nextAttemptAt: new Date(Date.now() + 3_600_000),
+        createdAt: new Date(start + i * 1000),
+      })),
+    });
+    const first = await listInventoryPostings(shop.owner, 1);
+    expect(first.items).toHaveLength(20);
+    expect(first.hasMore).toBe(true);
+    expect(first.items[0]).toMatchObject({ document: "REFUSED_SALE", saleNumber: null, kind: "CANCEL" });
+    const second = await listInventoryPostings(shop.owner, 2);
+    expect(second).toMatchObject({ page: 2, hasMore: false });
+    expect(second.items).toHaveLength(1);
+    expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(21);
+    expect((await listInventoryPostings(shop.owner, -3)).page).toBe(1);
   });
 });

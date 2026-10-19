@@ -44,6 +44,15 @@ describe("audit event mapping", () => {
     expect(data.metadata).toEqual({ sku: "A-1", token: "[REDACTED]", nested: { password: "[REDACTED]" } });
   });
 
+  it("records scheduled work with no actor", () => {
+    const data = toAuditEventData({
+      ctx: { orgId: "org-1", branchId: null, userId: null },
+      action: "integration.inventory.posting.failed",
+      entityType: "ExternalStockPosting",
+    });
+    expect(data).toMatchObject({ orgId: "org-1", branchId: null, actorUserId: null });
+  });
+
   it("caps an oversized client-supplied request id", () => {
     const data = toAuditEventData({ ctx, meta: { requestId: "r".repeat(500) }, action: "a.b", entityType: "X" });
     expect(data.requestId).toHaveLength(128);

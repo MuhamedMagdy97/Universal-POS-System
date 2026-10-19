@@ -67,7 +67,7 @@ test("an owner links a shop to the inventory system and the synced catalog is re
     await setUpShop(page, run());
 
     await page.goto("/settings/inventory");
-    await expect(page.getByRole("heading", { name: en["settings.inventory.title"] })).toBeVisible();
+    await expect(page.getByRole("heading", { name: en["settings.inventory.title"], exact: true })).toBeVisible();
     await expect(page.getByTestId("inventory-source")).toHaveText(en["settings.inventory.source.BUILT_IN"]);
     await page.getByLabel(en["settings.inventory.baseUrl"]).fill(`http://127.0.0.1:${IMS_PORT}`);
     await page.getByLabel(en["settings.inventory.apiKey"]).fill(API_KEY);
@@ -98,7 +98,7 @@ test("an owner links a shop to the inventory system and the synced catalog is re
     await context.addCookies([{ name: "pos_locale", value: "ar", url: E2E_BASE_URL }]);
     await page.goto("/settings/inventory");
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-    await expect(page.getByRole("heading", { name: ar["settings.inventory.title"] })).toBeVisible();
+    await expect(page.getByRole("heading", { name: ar["settings.inventory.title"], exact: true })).toBeVisible();
     await expect(page.getByTestId("inventory-source")).toHaveText(ar["settings.inventory.source.EXTERNAL"]);
     const text = await page.locator("main").innerText();
     expect(ENGLISH_PHRASES.filter((phrase) => text.includes(phrase))).toEqual([]);

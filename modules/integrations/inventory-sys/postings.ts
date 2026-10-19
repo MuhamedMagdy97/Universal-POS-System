@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import type { ExternalStockPosting, Prisma } from "@/lib/generated/prisma/client";
+import { record, type AuditAction } from "@/modules/audit";
 import { externalVariantIdsOf } from "@/modules/catalog";
 import { imsGet, imsPost, type ImsLink } from "./client";
 import { loadLink, openLink } from "./link";
@@ -312,9 +313,13 @@ async function send(row: ExternalStockPosting, link: ImsLink, signal: AbortSigna
   try {
     const outcome = await call(row, link, signal);
     if (outcome === "WAIT") return;
-    await getDb().externalStockPosting.update({
-      where: { id: row.id },
-      data: { ...outcome, status: "DONE", lastErrorCode: null },
+    await getDb().$transaction(async (tx) => {
+      await tx.externalStockPosting.update({
+        where: { id: row.id },
+        data: { ...outcome, status: "DONE", lastErrorCode: null },
+      });
+      // I22: a posting that had failed is settled. ponytail: also written after a single failure.
+      if (row.lastErrorCode) await auditPosting(tx, row, "integration.inventory.posting.resolved", {});
     });
   } catch (err) {
     await failed(row, err);
@@ -326,13 +331,35 @@ async function failed(row: ExternalStockPosting, err: unknown): Promise<void> {
   const permanent = details?.reason === "INVENTORY_REJECTED" || (err instanceof AppError && err.code === "NOT_FOUND");
   const attempts = row.attempts + 1;
   const minutes = BACKOFF_MINUTES[Math.min(attempts, BACKOFF_MINUTES.length) - 1];
-  await getDb().externalStockPosting.update({
-    where: { id: row.id },
-    data: {
-      attempts,
-      lastErrorCode: (details?.imsCode ?? details?.reason ?? "UNEXPECTED").slice(0, 40),
-      ...(permanent ? { status: "FAILED" } : { nextAttemptAt: new Date(Date.now() + minutes * 60_000) }),
-    },
+  const code = (details?.imsCode ?? details?.reason ?? "UNEXPECTED").slice(0, 40);
+  await getDb().$transaction(async (tx) => {
+    await tx.externalStockPosting.update({
+      where: { id: row.id },
+      data: {
+        attempts,
+        lastErrorCode: code,
+        ...(permanent ? { status: "FAILED" } : { nextAttemptAt: new Date(Date.now() + minutes * 60_000) }),
+      },
+    });
+    // I22: once the first retry failed too, or at once when the IMS refused it for good.
+    if (attempts === 2 || (permanent && attempts === 1)) {
+      await auditPosting(tx, row, "integration.inventory.posting.failed", {
+        attempts,
+        code,
+        status: permanent ? "FAILED" : "PENDING",
+      });
+    }
+  });
+}
+
+/** No person acted: the drain runs after a sale, from the scheduler or from Retry. */
+function auditPosting(tx: Tx, row: ExternalStockPosting, action: AuditAction, extra: Record<string, unknown>) {
+  return record(tx, {
+    ctx: { orgId: row.orgId, branchId: null, userId: null },
+    action,
+    entityType: "ExternalStockPosting",
+    entityId: row.id,
+    metadata: { kind: row.kind, sourceType: row.sourceType, sourceId: row.sourceId, lineNo: row.lineNo, ...extra },
   });
 }
 

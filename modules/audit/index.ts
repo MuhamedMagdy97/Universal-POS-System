@@ -18,8 +18,11 @@ export type AuditAction = `${string}.${string}`;
 /** Any Prisma client or interactive-transaction client that can insert audit events. */
 export type AuditWriter = { auditEvent: Pick<Prisma.TransactionClient["auditEvent"], "create"> };
 
-/** Who acted: taken from the verified tenant context, never from client input. */
-export type AuditActor = Pick<TenantContext, "orgId" | "branchId" | "userId">;
+/**
+ * Who acted: taken from the verified tenant context, never from client input. `userId` is null only
+ * for scheduled work no person started (the inventory-system scheduler, integration spec I22).
+ */
+export type AuditActor = Pick<TenantContext, "orgId" | "branchId"> & { userId: string | null };
 
 /** Request metadata (`RouteMeta` from lib/http.ts satisfies this). Server Actions may omit it. */
 export type AuditRequestMeta = { requestId?: string | null };
