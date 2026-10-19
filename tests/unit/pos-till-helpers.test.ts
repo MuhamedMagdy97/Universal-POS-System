@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   addToCart,
+  bumpQty,
   canCharge,
   displayName,
+  exactCashMinor,
   keepKeyAfter,
   parseCash,
   planPayment,
@@ -12,6 +14,8 @@ import {
   saleErrorKey,
   setLineQty,
   shortLines,
+  stockShort,
+  tillShortcut,
   type CartLine,
   type TillItem,
   type TillSettings,
@@ -192,5 +196,51 @@ describe("errors", () => {
       cart,
     );
     expect(short.map((line) => line.productId)).toEqual(["b"]);
+  });
+});
+
+describe("till quick wins", () => {
+  it("exact cash is the total, or in a split what card and wallet leave", () => {
+    expect(exactCashMinor(4560)).toBe(4560);
+    const split = (card: number | null, cash: number | null) => [
+      { method: "CASH" as const, amountMinor: cash, reference: "" },
+      { method: "CARD_MANUAL" as const, amountMinor: card, reference: "" },
+    ];
+    expect(exactCashMinor(4560, split(1000, 9999))).toBe(3560);
+    expect(exactCashMinor(4560, split(null, null))).toBe(4560);
+    expect(exactCashMinor(4560, split(5000, 0))).toBe(0);
+    // The filled amount makes a valid split with no change.
+    expect(planSplit(4560, split(1000, exactCashMinor(4560, split(1000, 0))))).toEqual({
+      payments: [
+        { method: "CASH", amountMinor: 3560 },
+        { method: "CARD_MANUAL", amountMinor: 1000 },
+      ],
+      changeMinor: 0,
+    });
+  });
+
+  it("flags stock that is zero, negative or below the line's quantity", () => {
+    expect(stockShort(5, 0)).toBe(false);
+    expect(stockShort(0, 0)).toBe(true);
+    expect(stockShort(-2, 0)).toBe(true);
+    expect(stockShort(2, 2)).toBe(false);
+    expect(stockShort(2, 3)).toBe(true);
+  });
+
+  it("+ and - change only the selected line and never go below 1", () => {
+    const cart = addToCart(addToCart([], item("a")), item("b"));
+    expect(bumpQty(cart, "a|", 1).map((line) => line.qty)).toEqual([2, 1]);
+    expect(bumpQty(cart, "b|", -1).map((line) => line.qty)).toEqual([1, 1]);
+  });
+
+  it("maps keys; + and - are ignored while typing in a field", () => {
+    expect(tillShortcut("F2", true)).toBe("search");
+    expect(tillShortcut("F4", true)).toBe("cash");
+    expect(tillShortcut("F8", true)).toBe("exact");
+    expect(tillShortcut("Escape", true)).toBe("close");
+    expect(tillShortcut("+", false)).toBe("inc");
+    expect(tillShortcut("-", false)).toBe("dec");
+    expect(tillShortcut("+", true)).toBeNull();
+    expect(tillShortcut("a", false)).toBeNull();
   });
 });

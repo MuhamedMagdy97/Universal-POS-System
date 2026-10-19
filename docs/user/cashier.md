@@ -46,23 +46,41 @@ One till has at most one open shift. Anyone allowed to sell can sell on an open 
    - One match goes straight into the sale. Several matches show a list: press **+** next to the item.
    - Scanning the same item again adds 1 to its line.
    - "No items match." — wrong code, or the product is archived. Archived products cannot be sold.
-2. **Quantity:** type it in the **Qty** box. Whole numbers only, 1 or more. An empty box blocks the charge until you
-   fix it. Press **×** to remove a line, or **Clear sale** [مسح البيع] to empty the sale.
+   - **On hand: {qty}** [المتوفر] shows what this branch holds, next to each match and under each line of the sale.
+     It is red when it is 0 or less, or less than the quantity in the sale. It is shown only: whether the sale goes
+     through is decided when you charge (see "Not enough stock" below).
+2. **Quantity:** type it in the **Qty** box, or press **+** / **−** on the keyboard to change the selected line (the
+   one you scanned last or clicked into; it is shaded). Whole numbers only, 1 or more. An empty box blocks the charge
+   until you fix it. Press **×** to remove a line, or **Clear sale** [مسح البيع] to empty the sale.
 3. Check **Subtotal**, **VAT** and **Total** on the right. "Prices include VAT" means shelf prices already include it.
    The final numbers come from the server and are what the receipt shows.
 4. Choose the **Payment method**:
-   - **Cash** [نقدًا]: type **Cash received** [النقدية المستلمة]. The **Change** [الباقي] appears. You must type the
-     amount, even when it is exact. "Cash received is less than the total." if it is short.
+   - **Cash** [نقدًا]: type **Cash received** [النقدية المستلمة]. The **Change** [الباقي] appears. When the customer
+     pays the exact amount, press **Exact cash (F8)** [المبلغ المضبوط] instead of typing it. "Cash received is less
+     than the total." if it is short.
    - **Card** [بطاقة] or **Wallet** [محفظة]: the full total is taken. **Reference** is optional (e.g. the last 4
      digits or the wallet transaction number). Card and wallet are recorded by hand: take the payment on your own card
      machine or wallet app first.
    - **Split** [تقسيم]: type an amount for any of Cash, Card and Wallet. **Remaining** [المتبقي] shows what is left.
      Card and wallet together cannot be more than the total; only cash gives change. Do not add cash when card and
      wallet already cover the total. "The amounts don't cover the total. Card and wallet can't exceed it; only cash
-     gives change."
+     gives change." **Exact cash** next to the cash amount fills in what card and wallet leave unpaid.
 5. Press **Charge {total}** [تحصيل]. A sale that totals 0 shows **Complete free sale** [إتمام بيع مجاني] instead.
 
 There are no discounts and no customer names at the till.
+
+### Keyboard
+
+The keys are also listed under the search box.
+
+| Key | What it does |
+|---|---|
+| Enter | In the search box: find (a scanner sends it). In a payment box: charge. |
+| F2 | Go to the search box. |
+| F4 | Pay in cash: picks **Cash** and goes to the cash box (the cash row in a split). |
+| F8 | **Exact cash**: fills the cash box with what is due in cash. Press Enter to charge. |
+| + / − | Add or take 1 from the selected line (not below 1). They work outside a box, or in the empty search box. |
+| Esc | Close the search results list, or cancel **Cash in / out** and **Close shift**. |
 
 Refusals after **Charge**:
 
@@ -122,5 +140,4 @@ Refusals:
 
 ## What isn't there
 
-No offline mode (the till needs the internet), no discounts, no on-hand stock shown at the till, no weighed (kg)
-items, no keyboard shortcuts beyond Enter. Full list: [known limitations](../product/known-limitations.md).
+No offline mode (the till needs the internet), no discounts, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).

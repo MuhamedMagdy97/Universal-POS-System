@@ -292,6 +292,10 @@ export const en = {
   "pos.pay.referenceFor": "{method} reference (optional)",
   "pos.pay.remaining": "Remaining",
   "pos.pay.splitShort": "The amounts don't cover the total. Card and wallet can't exceed it; only cash gives change.",
+  "pos.pay.exact": "Exact cash (F8)",
+  "pos.stock.onHand": "On hand: {qty}",
+  "pos.keys.hint":
+    "Keys: F2 search · F4 cash · F8 exact cash · + / − quantity of the selected line · Esc close · Enter find or charge",
   "pos.receipt.title": "Sale {number}",
   "pos.receipt.paid": "Paid",
   "pos.receipt.change": "Change",

@@ -118,6 +118,64 @@ test.describe("cashier", () => {
     expect(await onHand(ORG, MAIN, productId)).toBe(1);
   });
 
+  test("shows stock and works from the keyboard, with exact cash", async ({ page }) => {
+    const { sku, name, registerId } = await runFixtures(1);
+    // A second match with no stock, for the results list.
+    await createRunProduct(ORG, sku.replace("POS-", "PSB-"), `${name} B`);
+
+    await page.goto(`/pos?branch=${MAIN}&register=${registerId}`);
+    await page.getByLabel(/Opening cash in the drawer/).fill("0");
+    await page.getByRole("button", { name: "Open shift" }).click();
+    await expect(page.getByTestId("till-keys")).toContainText("F8 exact cash");
+
+    // Two matches: each shows the branch's on-hand; Esc closes the list.
+    const search = page.getByRole("textbox", { name: "Scan or search items" });
+    await search.fill(name);
+    await search.press("Enter");
+    const results = page.getByRole("list", { name: "Scan or search items" });
+    await expect(results.getByRole("listitem").filter({ hasText: `${name} B` })).toContainText("On hand: 0");
+    await page.keyboard.press("Escape");
+    await expect(results).toHaveCount(0);
+
+    // F2 returns to the search box; a scan shows the line's stock.
+    await page.getByRole("button", { name: "Find" }).focus();
+    await page.keyboard.press("F2");
+    await expect(search).toBeFocused();
+    await search.fill(sku);
+    await search.press("Enter");
+    const qty = page.getByRole("textbox", { name: `Quantity for ${name}` });
+    await expect(qty).toHaveValue("1");
+    await expect(page.getByTestId("till-stock")).toHaveText("On hand: 1");
+
+    // + and - on the selected line; above the stock the note turns red but nothing is blocked here.
+    await page.keyboard.press("+");
+    await expect(qty).toHaveValue("2");
+    await expect(page.getByTestId("till-stock")).toHaveClass(/text-red-700/);
+    await page.keyboard.press("-");
+    await expect(qty).toHaveValue("1");
+    await expect(page.getByTestId("till-stock")).not.toHaveClass(/text-red-700/);
+
+    // F4 goes to the cash box, F8 fills the exact amount.
+    await page.keyboard.press("F4");
+    const cash = page.getByLabel(/Cash received/);
+    await expect(cash).toBeFocused();
+    await page.keyboard.press("F8");
+    await expect(cash).toHaveValue("10.00");
+    await expect(page.getByTestId("till-change")).toContainText("0.00");
+
+    // In a split, exact cash fills what the card leaves.
+    await page.getByRole("radio", { name: "Split" }).check();
+    await page.getByLabel(/^Card amount/).fill("3");
+    await page.getByRole("button", { name: "Exact cash (F8)" }).click();
+    await expect(page.getByLabel(/^Cash amount/)).toHaveValue("7.00");
+    await expect(page.getByTestId("till-change")).toContainText("0.00");
+
+    // Enter in the cash box charges.
+    await page.getByLabel(/^Cash amount/).press("Enter");
+    await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();
+    await expect(page.getByTestId("receipt-change")).toContainText("0.00");
+  });
+
   test("renders right-to-left in Arabic", async ({ page }) => {
     const { registerId } = await runFixtures(0);
     await page.goto(`/pos?branch=${MAIN}&register=${registerId}`);
