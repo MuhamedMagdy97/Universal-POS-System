@@ -8,8 +8,8 @@ import { headers } from "next/headers";
 import type { z } from "zod";
 import { getAuth, LOGIN_RATE_LIMIT } from "@/lib/auth/auth";
 import { getSession } from "@/lib/auth/session";
-import { toErrorBody, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import type { ErrorBody } from "@/lib/errors";
+import { actionError, getRequestId } from "@/lib/http";
 import { logger } from "@/lib/logger";
 import { enforceIpRateLimit } from "@/lib/rate-limit";
 import { createShop } from "@/modules/org";
@@ -38,6 +38,6 @@ export async function createShopAction(input: z.input<typeof SetupInput>): Promi
     }
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "onboarding") };
   }
 }

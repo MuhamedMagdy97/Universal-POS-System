@@ -13,7 +13,7 @@ or a migration fails, and what the operator does about it. Backup and restore is
 | `409 IDEMPOTENCY_CONFLICT`                                      | The key was used for a different cart. Nothing was written by this request. Use a new key.                                                                                                           |
 | `429 RATE_LIMITED` while retrying                               | Wait `Retry-After` seconds, then send the same request again (same key).                                                                                                                             |
 | Server process crashed or was killed                            | Start it again (`npm start`). No repair step: a sale is one transaction, so it is either fully there or not at all. Then retry as above.                                                             |
-| `/api/health` answers 503, API answers 500 `INTERNAL`           | Database unreachable. Fix the database or network; the app reconnects by itself (no restart). Log: `health check: database ping failed` and `Failed to get session`. Retry unknown sales afterwards. |
+| `/api/health` and the API answer 503 `DB_UNAVAILABLE`         | Database unreachable. Fix the database or network; the app reconnects by itself (no restart). Log: `health check: database ping failed` and `Failed to get session`. Retry unknown sales afterwards. |
 | `migrate deploy` failed (`P3018`), later deploys refuse (`P3009`) | Keep the old release running. Undo what the failed migration left, fix its SQL, `prisma migrate resolve --rolled-back <name>`, `npm run db:deploy`. Details in scenario 4.                          |
 
 After any of these, check the books (read-only, safe on a live database):
@@ -133,12 +133,12 @@ ALTER DATABASE "pos_dev_recovery" ALLOW_CONNECTIONS true;
 before: health 200
 database pos_dev_recovery closed to new connections, its sessions terminated
 during: health 503
-during: POST /api/sales 500 {"code":"INTERNAL","message":"An unexpected error occurred","details":null}
-during: GET /api/inventory/stock 500 {"code":"INTERNAL","message":"An unexpected error occurred","details":null}
+during: POST /api/sales 503 {"code":"DB_UNAVAILABLE","message":"Database is unavailable","details":null}
+during: GET /api/inventory/stock 503 {"code":"DB_UNAVAILABLE","message":"Database is unavailable","details":null}
 database reopened (no app restart)
 after: health 200
-after: retry POST /api/sales 201 sale 000084
-after: second retry 200 sale 000084
+after: retry POST /api/sales 201 sale 000001
+after: second retry 200 sale 000001
 consistency: {"sales":1,"sales_without_items":0,"sales_payments_mismatch":0,"sales_lines_mismatch":0,"sales_ledger_mismatch":0,"orphan_sale_movements":0,"sales_without_audit":0,"reconcile_mismatches":0,"sale_number_gaps":0}
 ```
 
@@ -146,14 +146,16 @@ Server log during the outage (stack traces trimmed):
 
 ```json
 {"time":"2026-10-19T11:36:57.056Z","level":"error","msg":"health check: database ping failed","requestId":"1bf9bd1a-42ae-4be8-94f6-4037381ff733","error":{"name":"PrismaClientKnownRequestError","message":"\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `55000`. Message: `database \"pos_dev_recovery\" is not currently accepting connections`"}}
-{"time":"2026-10-19T11:36:57.082Z","level":"error","msg":"request failed","requestId":"9eab7f0b-ffb0-4cf9-9dd5-1c2090b35950","code":"INTERNAL","error":{"name":"APIError","message":"Failed to get session"},"path":"/api/sales"}
+{"time":"2026-10-19T11:36:57.082Z","level":"error","msg":"request failed","requestId":"9eab7f0b-ffb0-4cf9-9dd5-1c2090b35950","code":"DB_UNAVAILABLE","error":{"name":"APIError","message":"Failed to get session"},"path":"/api/sales"}
 ```
 
 - `/api/health` goes 503 while the database is gone and back to 200 on the next request after it returns; the
   connection pool drops the dead connections and opens new ones. No restart.
-- Business routes answer **500 `INTERNAL`, not 503**: the first thing they do is look up the session, and Better-Auth
-  wraps the database error as "Failed to get session". Users are not signed out (no 401). The till treats `INTERNAL`
-  like `DB_UNAVAILABLE` — outcome unknown, keep the key — so its retry is safe; API clients must do the same.
+- Business routes answer **503 `DB_UNAVAILABLE`** (re-run 2026-10-19 after the change; first run gave 500
+  `INTERNAL`). Better-Auth wraps the database error as "Failed to get session", so the route wrapper and Server
+  Actions check any unexpected error with a 2 s `SELECT 1` and answer 503 when it fails; the log keeps the original
+  error. Users are not signed out (no 401). The till keeps the key on both `INTERNAL` and `DB_UNAVAILABLE` — outcome
+  unknown — so its retry is safe; API clients must do the same.
 - The sale attempted during the outage was made exactly once when retried afterwards.
 
 ### 4. Failed `prisma migrate deploy`

@@ -94,7 +94,11 @@ export function toErrorBody(err: unknown): { status: number; body: ErrorBody } {
 }
 
 export function errorResponse(err: unknown, requestId?: string): Response {
-  const { status, body } = toErrorBody(err);
+  return envelopeResponse(toErrorBody(err), requestId);
+}
+
+/** The JSON response for an already-mapped failure. */
+export function envelopeResponse({ status, body }: { status: number; body: ErrorBody }, requestId?: string): Response {
   const headers: Record<string, string> = {};
   if (requestId) headers["x-request-id"] = requestId;
   const retryAfter = (body.details as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;

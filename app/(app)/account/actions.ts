@@ -4,8 +4,8 @@ import { headers } from "next/headers";
 import type { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { requireTenant } from "@/lib/auth/tenant";
-import { toErrorBody, unauthenticated, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import { unauthenticated, type ErrorBody } from "@/lib/errors";
+import { actionError, getRequestId } from "@/lib/http";
 import { changeOwnPassword } from "@/modules/org";
 import type { PasswordChangeInput } from "@/modules/org/schemas";
 
@@ -20,6 +20,6 @@ export async function changePasswordAction(input: z.input<typeof PasswordChangeI
     await changeOwnPassword(ctx, input, { keepSessionId: session.session.id, meta: { requestId: getRequestId(h) } });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "account") };
   }
 }

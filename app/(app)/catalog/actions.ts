@@ -11,8 +11,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { AppError, toErrorBody, type ErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
-import { logger } from "@/lib/logger";
+import { actionError, getRequestId } from "@/lib/http";
 import {
   archiveCategory,
   archiveProduct,
@@ -56,11 +55,9 @@ class BodyError extends Error {
   }
 }
 
-function bodyOf(err: unknown, requestId?: string): ErrorBody {
+async function bodyOf(err: unknown, requestId?: string): Promise<ErrorBody> {
   if (err instanceof BodyError) return err.body;
-  const { status, body } = toErrorBody(err);
-  if (status >= 500) logger.error("catalog action failed", { requestId, error: err });
-  return body;
+  return actionError(err, "catalog", requestId);
 }
 
 async function run<T>(fn: (s: Session) => Promise<T>): Promise<ActionResult<T>> {
@@ -70,7 +67,7 @@ async function run<T>(fn: (s: Session) => Promise<T>): Promise<ActionResult<T>> 
     requestId = s.meta.requestId;
     return { ok: true, data: await fn(s) };
   } catch (err) {
-    return { ok: false, error: bodyOf(err, requestId) };
+    return { ok: false, error: await bodyOf(err, requestId) };
   }
 }
 

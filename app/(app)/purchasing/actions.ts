@@ -8,8 +8,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
-import { toErrorBody } from "@/lib/errors";
-import { getRequestId } from "@/lib/http";
+import { actionError, getRequestId } from "@/lib/http";
 import {
   archiveSupplier,
   cancelPurchaseOrder,
@@ -38,7 +37,7 @@ async function run<T>(fn: (ctx: TenantContext, meta: { requestId: string }) => P
     revalidatePath("/purchasing", "layout");
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: toErrorBody(err).body };
+    return { ok: false, error: await actionError(err, "purchasing") };
   }
 }
 
