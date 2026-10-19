@@ -76,6 +76,13 @@
   margin (P12): spec approved by the owner (2026-10-19, every decision as recommended), BUILT (PR #21): cost snapshot
   on `SaleItem` (one migration), Profit by product, category and day with CSV for Owner and Admin.
 
+- Phase 14 release readiness (2026-10-19): the open release-checklist items are done. Tenant and permission isolation
+  review with one fix (receiving replay scope, PR #23), financial and inventory invariants on a known EG and SA day
+  (PR #24), failure recovery drill (PR #25), user guides in [docs/user](../user/README.md) (PR #26), and the UI fixes
+  they found: sign-in pages in Arabic, one Arabic word for a till, distinct Pay-in and Drop labels (PR #27). Every
+  [release checklist](../quality/release-checklist.md) item is ticked; the remaining gap there is migrating a copy of
+  a real shop's data before the first real upgrade.
+
 ## Pending
-Phases 12–14 per roadmap (Phase 14 docs started; release checklist partly ticked). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
+Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

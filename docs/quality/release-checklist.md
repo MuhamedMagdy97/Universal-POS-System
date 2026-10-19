@@ -18,26 +18,27 @@ skipped (66)`, `Tests 749 passed | 1 skipped (750)`; `npm run test:e2e` → `59 
     the request id on a protected route, seeded owner sign-in and `GET /api/products` on a restored database
     ([deploy and rollback](../operations/deploy-and-rollback.md#health-check),
     [backup and restore](../operations/backup-restore.md#drill-exercised-2026-10-19)).
-- [ ] Tenant/permission isolation reviewed.
-  - Not done as a separate review. Automated coverage passes (`tests/integration/tenant-guard.test.ts`,
-    `catalog-isolation`, `catalog-service-isolation`, `inventory-isolation`, E2E `catalog-isolation` and the access
-    specs), but nobody has reviewed every route and Server Action against the permission matrix
-    ([user-roles-permissions](../product/user-roles-permissions.md)). Needs a review pass.
-- [ ] Financial + inventory invariants verified against known transactions.
-  - Partly recorded: T9 traces every report to one seeded history and the stored shift close
-    ([phase-status](../planning/phase-status.md), Phase 9); the ledger `reconcile()` is asserted after each inventory
-    integration test file ([inventory-spec](../planning/phase-7/inventory-spec.md) §6). Not re-done against a fresh set
-    of known transactions in this check.
-- [ ] Failure recovery + backup/restore exercised.
+- [x] Tenant/permission isolation reviewed.
+  - Evidence (2026-10-19, PR #23): [isolation review](isolation-review.md). Every Route Handler, Server Action, page
+    context and branch-bound service checked against [user-roles-permissions](../product/user-roles-permissions.md).
+    One gap fixed with a test: receiving replayed a stored receipt by Idempotency-Key before checking the PO's branch.
+- [x] Financial + inventory invariants verified against known transactions.
+  - Evidence (2026-10-19, PR #24): [invariants check](invariants-check.md). One fully known trading day for an EG and an
+    SA shop through the real services; ledger reconcile, on-hand, shift expected cash and difference, sales, VAT,
+    payments, profit and purchases reports all equal hand-worked figures. No bugs found.
+- [x] Failure recovery + backup/restore exercised.
   - Backup/restore: done, [drill](../operations/backup-restore.md#drill-exercised-2026-10-19) (dump, restore to a new
     database, matching row counts, app serving and signing in from it).
-  - Failure recovery: only the database-down case was observed (health 503 `DB_UNAVAILABLE`, logged). Not exercised:
-    a server restart mid-sale, retrying a sale after a lost response (idempotency is covered by tests only), a failed
-    `migrate deploy` and `migrate resolve`.
-- [ ] Logging/troubleshooting docs, user docs, deploy + rollback notes.
+  - Failure recovery (2026-10-19, PR #25): [failure recovery](../operations/failure-recovery.md). Exercised against a
+    production build with `scripts/failure-drill.mjs`: retry after a lost response, server killed mid-burst (no
+    half-written sale, no sale-number gaps, retries made once), database lost and back without a restart, failed
+    `migrate deploy` recovered with `migrate resolve --rolled-back`. No bugs found.
+- [x] Logging/troubleshooting docs, user docs, deploy + rollback notes.
   - Done: [troubleshooting](../operations/troubleshooting.md) (logs, request ids, rate limits, common errors),
     [deploy and rollback](../operations/deploy-and-rollback.md).
-  - Missing: user docs (how a cashier, manager or owner uses the screens). None exist yet.
+  - User docs (2026-10-19, PR #26): [user guide](../user/README.md) for cashier, manager and owner. Writing them found
+    three UI bugs, fixed in PR #27 (sign-in pages always English, Arabic till wording, Pay-in and Drop both read
+    "deposit").
 - [x] Known limitations listed. No mock success paths.
   - Evidence: [known limitations](../product/known-limitations.md), collected from `docs/planning/**`. A search of
     `app/`, `lib/`, `modules/` for mock, fake, stub, TODO and placeholder finds no mocked success path; the only hit
