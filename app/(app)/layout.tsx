@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TenantBadge } from "./_components/tenant-badge";
 import { LocaleToggle } from "./_components/locale-toggle";
 import { SignOutButton } from "./_components/sign-out-button";
+import { LoadingOrg } from "./_components/loading-org";
 import { AccountLink } from "./_components/account-link";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
@@ -24,7 +25,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <Link href="/dashboard" className="font-semibold">
           Universal POS
         </Link>
-        <Suspense fallback={<span className="text-muted">Loading organization…</span>}>
+        <Suspense fallback={<LoadingOrg />}>
           <TenantBadge />
         </Suspense>
         <nav aria-label="Main" className="flex items-center gap-3">

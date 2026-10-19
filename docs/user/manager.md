@@ -26,7 +26,7 @@ A refund gives money back for chosen lines and puts the items back into the bran
 
 1. In **Refund qty**, type how many of each line to refund (up to what is left; "Refunded" shows what was already
    refunded).
-2. **Pay out from till** [الصرف من الكاشير]: the till that pays. It must be in the sale's branch and have an open
+2. **Pay out from till** [الصرف من الصندوق]: the till that pays. It must be in the sale's branch and have an open
    shift. The sale's own till is chosen when its shift is open, otherwise the first open till. Tills without an open
    shift show "(no open shift)".
 3. **Refund method** [طريقة الاسترداد]: Cash, Card or Wallet, with an optional reference for card or wallet. A cash

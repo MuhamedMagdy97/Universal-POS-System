@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
+import { translator, type Locale } from "@/lib/i18n";
 
 /** Only same-site relative paths are allowed as post-login targets. */
 function safeNext(value: string | null): string {
@@ -10,7 +11,8 @@ function safeNext(value: string | null): string {
   return "/dashboard";
 }
 
-export function LoginForm() {
+export function LoginForm({ locale }: { locale: Locale }) {
+  const tr = translator(locale);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +29,7 @@ export function LoginForm() {
     });
     setPending(false);
     if (signInError) {
-      setError(
-        signInError.status === 429
-          ? "Too many attempts. Wait a minute and try again."
-          : "Email or password is incorrect.",
-      );
+      setError(signInError.status === 429 ? tr("login.error.rateLimited") : tr("login.error.invalid"));
       return;
     }
     router.push(safeNext(searchParams.get("next")));
@@ -41,7 +39,7 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
-        <span>Email</span>
+        <span>{tr("login.email")}</span>
         <input
           name="email"
           type="email"
@@ -51,7 +49,7 @@ export function LoginForm() {
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span>Password</span>
+        <span>{tr("login.password")}</span>
         <input
           name="password"
           type="password"
@@ -70,7 +68,7 @@ export function LoginForm() {
         disabled={pending}
         className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-60"
       >
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? tr("login.pending") : tr("login.submit")}
       </button>
     </form>
   );
