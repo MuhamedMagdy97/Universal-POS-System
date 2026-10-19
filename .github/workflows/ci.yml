@@ -53,6 +53,10 @@ jobs:
       - name: Generate AUTH_SECRET
         run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
+      # Seals inventory-system API keys (Phase 13); integration and E2E tests link test shops.
+      - name: Generate INTEGRATION_ENCRYPTION_KEY
+        run: echo "INTEGRATION_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
 

@@ -8,6 +8,7 @@ import { loadInventoryContext, type InventoryPageContext } from "./_lib/context"
 import { BranchPicker } from "./_components/branch-picker";
 import { StockRowActions } from "./_components/stock-row-actions";
 import { NotAllowed, NotFound } from "./_components/states";
+import { ManagedNotice } from "../_components/managed-notice";
 
 /** Back-office list: 25 item rows per page. */
 const PAGE_SIZE = 25;
@@ -47,7 +48,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
   if (page.kind === "denied") return <NotAllowed locale={page.locale} />;
   if (page.kind === "notFound") return <NotFound locale={page.locale} branches={page.branches} />;
 
-  const { ctx, locale, can, branches, branch } = page;
+  const { ctx, locale, can, managed, branches, branch } = page;
   const tr = translator(locale);
   let result;
   try {
@@ -87,6 +88,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
           ) : null}
         </div>
       </div>
+      {managed ? <ManagedNotice locale={locale} area="stock" /> : null}
 
       <BranchPicker locale={locale} action="/inventory" branches={branches} currentId={branch.id} />
 

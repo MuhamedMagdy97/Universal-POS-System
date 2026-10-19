@@ -12,6 +12,7 @@ import {
 } from "@/modules/purchasing";
 import { activeSuppliers, loadPurchasingContext, shopDateTime } from "./_lib/context";
 import { Denied, StatusBadge } from "./_components/states";
+import { ManagedNotice } from "../_components/managed-notice";
 
 /**
  * Purchase orders (T5): open orders by default, filtered by status, branch, supplier and number,
@@ -52,7 +53,7 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
 
   const page = await loadPurchasingContext(`/purchasing${query.size ? `?${query}` : ""}`);
   if (page.kind === "denied") return <Denied locale={page.locale} />;
-  const { ctx, locale, can, zone } = page;
+  const { ctx, locale, can, managed, zone } = page;
   const tr = translator(locale);
 
   const [branches, suppliers] = await Promise.all([branchesInScope(ctx), activeSuppliers(ctx.orgId)]);
@@ -82,6 +83,7 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
           </span>
         ) : null}
       </div>
+      {managed ? <ManagedNotice locale={locale} area="stock" /> : null}
 
       <form method="get" action="/purchasing" className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">

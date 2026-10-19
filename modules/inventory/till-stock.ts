@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { requireBranch, requirePermission } from "./access";
 import { getOnHand } from "./queries";
 import { Uuid } from "./schemas";
@@ -21,5 +22,7 @@ export async function getTillOnHand(ctx: TenantContext, input: z.input<typeof Ti
   await requirePermission(ctx, "sales.create");
   const parsed = TillStockInput.parse(input);
   await requireBranch(ctx, parsed.branchId);
+  // Linked shop: POS stock is history only (integration spec I18); the till shows none until slice 2.
+  if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") return [];
   return getOnHand(getDb(), ctx.orgId, parsed.branchId, parsed.refs);
 }

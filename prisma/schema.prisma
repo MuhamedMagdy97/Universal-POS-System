@@ -107,6 +107,12 @@ enum CashMovementType {
   DROP
 }
 
+// Phase 13 (integration spec I1): where stock, catalog and purchasing live for a shop.
+enum InventorySource {
+  BUILT_IN
+  EXTERNAL
+}
+
 enum AdjustmentReason {
   DAMAGED
   EXPIRED
@@ -201,19 +207,19 @@ model ApiRateLimit {
 // ───────────────────── Tenancy: org / branch ─────────────────────
 
 model Organization {
-  id                 String       @id @default(uuid()) @db.Uuid
+  id                 String          @id @default(uuid()) @db.Uuid
   name               String
   businessType       BusinessType
   countryCode        CountryCode
   currency           Currency
   vatRateBp          Int
-  blockNegativeStock Boolean      @default(true)
+  blockNegativeStock Boolean         @default(true)
   // Shelf prices include VAT (EG and SA consumer pricing). Read by checkout (T6).
-  pricesIncludeVat   Boolean      @default(true)
+  pricesIncludeVat   Boolean         @default(true)
   // Last issued sale number (checkout): bumped in the sale transaction, gap-free on rollback.
-  lastSaleNo         Int          @default(0)
+  lastSaleNo         Int             @default(0)
   // Last issued purchase order number (T5): bumped in the PO create transaction, like lastSaleNo.
-  lastPoNo           Int          @default(0)
+  lastPoNo           Int             @default(0)
   // Receipt fields
   legalName          String?
   taxNumber          String?
@@ -221,9 +227,12 @@ model Organization {
   receiptFooter      String?
   receiptAddress     String?
   receiptPhone       String?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  // Phase 13 (I1): EXTERNAL = the inventory system is master; changed only through modules/integrations.
+  inventorySource    InventorySource @default(BUILT_IN)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
+  inventoryLink      InventoryLink?
   branches           Branch[]
   registers          Register[]
   memberships        Membership[]
@@ -247,6 +256,29 @@ model Organization {
   shifts             RegisterShift[]
   cashMovements      CashMovement[]
   auditEvents        AuditEvent[]
+}
+
+// Phase 13 (I3): the shop's link to the inventory system. The API key is AES-256-GCM sealed
+// (modules/integrations/inventory-sys/secret.ts) and never leaves the server.
+model InventoryLink {
+  orgId              String    @id @db.Uuid
+  baseUrl            String
+  apiKeyCiphertext   Bytes
+  apiKeyKeyId        String
+  apiKeyLast4        String
+  lastCheckAt        DateTime?
+  lastCheckOk        Boolean   @default(false)
+  // Claimed by a running sync so two never overlap; cleared when it ends (stale after 10 min).
+  syncLockedUntil    DateTime?
+  lastSyncStartedAt  DateTime?
+  lastSyncFinishedAt DateTime?
+  lastSyncOk         Boolean?
+  // Counts and skipped items only; never the key or IMS bodies.
+  lastSyncSummary    Json      @default("{}")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
 }
 
 model Branch {
@@ -352,24 +384,29 @@ model Category {
 }
 
 model Product {
-  id            String      @id @default(uuid()) @db.Uuid
-  orgId         String      @db.Uuid
-  categoryId    String?     @db.Uuid
-  sku           String
-  name          String
-  nameAr        String?
-  unitType      UnitType    @default(EACH)
-  priceMinor    Int
-  costMinor     Int         @default(0)
+  id                String      @id @default(uuid()) @db.Uuid
+  orgId             String      @db.Uuid
+  categoryId        String?     @db.Uuid
+  sku               String
+  name              String
+  nameAr            String?
+  unitType          UnitType    @default(EACH)
+  priceMinor        Int
+  costMinor         Int         @default(0)
   // Kept for existing readers; must equal (vatCategory = STANDARD) (DB CHECK).
-  vatApplicable Boolean     @default(true)
-  vatCategory   VatCategory @default(STANDARD)
+  vatApplicable     Boolean     @default(true)
+  vatCategory       VatCategory @default(STANDARD)
   // Set once the product has variants: every stock/sale line must then name a variant.
-  hasVariants   Boolean     @default(false)
+  hasVariants       Boolean     @default(false)
   // Deactivate instead of delete once referenced (business rule 8).
-  isActive      Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  isActive          Boolean     @default(true)
+  // Phase 13 (I7, I9): ids in the inventory system (externalVariantId only on a product without
+  // variants) and why a synced item cannot be sold. Unique per org (partial indexes in SQL).
+  externalProductId String?
+  externalVariantId String?
+  notSellableReason String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
   category      Category?           @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
@@ -387,19 +424,21 @@ model Product {
 }
 
 model ProductVariant {
-  id         String   @id @default(uuid()) @db.Uuid
-  orgId      String   @db.Uuid
-  productId  String   @db.Uuid
-  sku        String
-  name       String
-  nameAr     String?
+  id                String   @id @default(uuid()) @db.Uuid
+  orgId             String   @db.Uuid
+  productId         String   @db.Uuid
+  sku               String
+  name              String
+  nameAr            String?
   // Null means "inherit the product price/cost".
-  priceMinor Int?
-  costMinor  Int?
-  isActive   Boolean  @default(true)
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  priceMinor        Int?
+  costMinor         Int?
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  externalVariantId String?
+  notSellableReason String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   org             Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
   product         Product             @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)

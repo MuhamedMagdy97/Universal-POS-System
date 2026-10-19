@@ -8,11 +8,13 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { getLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
 import type { CurrencyCode } from "@/lib/money";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 
-export type CatalogAccess = { read: boolean; create: boolean; update: boolean };
+/** `create`/`update` are off for a shop linked to the inventory system (`managed`); `seeCost` follows the role. */
+export type CatalogAccess = { read: boolean; create: boolean; update: boolean; seeCost: boolean };
 
 export type CatalogPageContext =
-  | { kind: "ok"; ctx: TenantContext; locale: Locale; currency: CurrencyCode; can: CatalogAccess }
+  | { kind: "ok"; ctx: TenantContext; locale: Locale; currency: CurrencyCode; can: CatalogAccess; managed: boolean }
   | { kind: "denied"; locale: Locale };
 
 /**
@@ -34,17 +36,19 @@ export async function loadCatalogContext(nextPath: string): Promise<CatalogPageC
     throw err;
   }
 
+  const managed = (await inventorySourceOf(ctx.orgId)) === "EXTERNAL";
   const can: CatalogAccess = {
     read: hasPermission(ctx.role, "products.read"),
-    create: hasPermission(ctx.role, "products.create"),
-    update: hasPermission(ctx.role, "products.update"),
+    create: hasPermission(ctx.role, "products.create") && !managed,
+    update: hasPermission(ctx.role, "products.update") && !managed,
+    seeCost: hasPermission(ctx.role, "products.update"),
   };
   if (!can.read) return { kind: "denied", locale };
 
   // The org currency is server-side truth; it is never taken from the client.
   const org = await getDb().organization.findUnique({ where: { id: ctx.orgId }, select: { currency: true } });
   if (!org) return { kind: "denied", locale };
-  return { kind: "ok", ctx, locale, currency: org.currency, can };
+  return { kind: "ok", ctx, locale, currency: org.currency, can, managed };
 }
 
 /** True when a catalog service rejected the call with 403 (e.g. a role changed mid-session). */

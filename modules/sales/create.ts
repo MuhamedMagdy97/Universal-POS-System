@@ -149,7 +149,8 @@ async function writeSale(
   if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
 
   // Takes the org row lock, bumps the sale counter and reads the org's sale settings. A rollback
-  // gives the number back, so numbers have no gaps.
+  // gives the number back, so numbers have no gaps. A shop linked to the inventory system never blocks on
+  // POS stock (integration spec I18): until sale posting lands (slice 2) its POS ledger is history only.
   const [org] = await tx.$queryRaw<
     {
       lastSaleNo: number;
@@ -161,7 +162,8 @@ async function writeSale(
   >`
     UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + 1
     WHERE "id" = ${ctx.orgId}::uuid
-    RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat", "blockNegativeStock"`;
+    RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat",
+      "blockNegativeStock" AND "inventorySource" = 'BUILT_IN' AS "blockNegativeStock"`;
 
   const lines = mergeLines(input.lines);
   const items = await getSellableItems(

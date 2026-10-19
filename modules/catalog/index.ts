@@ -54,5 +54,15 @@ export {
 // Purchasing writes last cost through this seam (T5 P2); tx-aware, no permission check.
 export { applyReceivedCosts } from "./costs";
 export { itemNames, type ItemRefViolation } from "./sellable";
+// Inventory-system sync writes (Phase 13); tx-aware, no permission check: the integration authorises first.
+export {
+  applyExternalItem,
+  archiveUnlisted,
+  ShapeChanged,
+  type ApplyOutcome,
+  type ExternalItem,
+  type ExternalVariant,
+  type NotSellableReason,
+} from "./external";
 export type { CatalogConflictReason, CatalogValidationReason } from "./errors";
 export { MAX_CATEGORY_DEPTH, type CatalogWarning } from "./rules";

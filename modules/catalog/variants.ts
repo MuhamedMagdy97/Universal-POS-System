@@ -7,6 +7,7 @@ import "server-only";
 import type { z } from "zod";
 import { notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
+import { assertBuiltIn, assertSyncedFieldsUnchanged } from "@/modules/integrations/inventory-sys/source";
 import { assertFresh, conflict } from "./errors";
 import {
   audit,
@@ -201,6 +202,7 @@ export async function createVariant(
   await requirePermission(ctx, "products.create", { entityType: "ProductVariant", operation: "create", meta });
   const pid = parseId(productId, "Product");
   const data = CreateVariant.parse(input);
+  await assertBuiltIn(ctx.orgId);
 
   const result = await withUniqueMapping(ctx, { sku: data.sku, codes: data.barcodes }, () =>
     inTx(async (tx) => insertVariant(tx, ctx, meta, await loadProduct(tx, ctx, pid), data)),
@@ -227,6 +229,14 @@ export async function updateVariant(
       const product = await loadProduct(tx, ctx, pid);
       const current = await loadVariant(tx, ctx, pid, vid);
       assertFresh(current.updatedAt, expectedUpdatedAt);
+      const { sku, name, priceMinor, costMinor } = current;
+      const synced = Object.keys(
+        diffFields(
+          { sku, name, priceMinor, costMinor },
+          { sku: patch.sku, name: patch.name, priceMinor: patch.priceMinor, costMinor: patch.costMinor },
+        ),
+      );
+      await assertSyncedFieldsUnchanged(ctx.orgId, synced, tx);
       return applyVariantUpdate(tx, ctx, meta, product, current, patch);
     }),
   );
@@ -250,6 +260,7 @@ async function setVariantActive(
   const pid = parseId(productId, "Product");
   const vid = parseId(variantId, "Variant");
   const { expectedUpdatedAt } = ArchiveInput.parse(input);
+  await assertBuiltIn(ctx.orgId);
 
   await inTx(async (tx) => {
     const current = await loadVariant(tx, ctx, pid, vid);

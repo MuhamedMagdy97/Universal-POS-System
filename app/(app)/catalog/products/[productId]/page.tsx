@@ -5,6 +5,7 @@ import { isForbidden, isNotFound, loadCatalogContext } from "../../_lib/context"
 import { categoryOptions } from "../../_lib/category-options";
 import { CatalogPage, PermissionDenied, TableSkeleton } from "../../_components/shell";
 import { ProductForm } from "../../_components/product-form";
+import { ManagedNotice } from "../../../_components/managed-notice";
 
 type Params = Promise<{ productId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -21,7 +22,7 @@ async function ProductContent({ params, searchParams }: { params: Params; search
   const [{ productId }, query] = await Promise.all([params, searchParams]);
   const page = await loadCatalogContext(`/catalog/products/${encodeURIComponent(productId)}`);
   if (page.kind === "denied") return <PermissionDenied locale={page.locale} />;
-  const { ctx, locale, currency, can } = page;
+  const { ctx, locale, currency, can, managed } = page;
 
   let product;
   let categories;
@@ -36,13 +37,14 @@ async function ProductContent({ params, searchParams }: { params: Params; search
 
   return (
     <CatalogPage locale={locale}>
+      {managed ? <ManagedNotice locale={locale} area="catalog" /> : null}
       <ProductForm
         // Remount when a different product is opened.
         key={product.id}
         locale={locale}
         currency={currency}
         categories={categoryOptions(categories, locale)}
-        canSeeCost={can.update}
+        canSeeCost={can.seeCost}
         readOnly={!can.update}
         product={product}
         initialNotice={{

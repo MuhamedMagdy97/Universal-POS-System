@@ -9,6 +9,7 @@ import "server-only";
  */
 import { AppError, notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
+import { assertBuiltIn, assertSyncedFieldsUnchanged } from "@/modules/integrations/inventory-sys/source";
 import { assertFresh, uniqueViolation } from "./errors";
 import {
   inTx,
@@ -23,6 +24,7 @@ import { assertBarcodeTarget, deleteBarcode, insertBarcode, makePrimaryBarcode }
 import {
   applyProductUpdate,
   detailOrThrow,
+  syncedProductChanges,
   insertProduct,
   loadFreshProduct,
   type ProductWriteResult,
@@ -101,6 +103,7 @@ export async function createProductAggregate(
   await requirePermission(ctx, "products.create", { entityType: "Product", operation: "create", meta });
   const { barcodes, variants, ...data } = CreateProductAggregate.parse(input);
   const warnings = new Set<CatalogWarning>(priceWarnings(data.priceMinor, data.costMinor));
+  await assertBuiltIn(ctx.orgId);
 
   const productId = await runSteps(ctx, (track) =>
     inTx(async (tx) => {
@@ -223,6 +226,37 @@ export async function updateProductAggregate(
         return first && !first.isPrimary ? [{ plan, code: first.code }] : [];
       });
       const changedEdits = edits.filter(variantChanged);
+
+      // Linked shop (integration spec I8): only the POS-owned fields (Arabic names, VAT, category) may change.
+      await assertSyncedFieldsUnchanged(
+        ctx.orgId,
+        [
+          ...syncedProductChanges(current, patch),
+          ...(removals.length + additions.length + promotions.length > 0 ? ["barcodes"] : []),
+          ...(creates.length > 0 ? ["variants"] : []),
+          ...changedEdits.flatMap(({ index, row, existing }) =>
+            Object.keys(
+              diffFields(
+                {
+                  sku: existing.sku,
+                  name: existing.name,
+                  priceMinor: existing.priceMinor,
+                  costMinor: existing.costMinor,
+                  isActive: existing.isActive,
+                },
+                {
+                  sku: row.sku,
+                  name: row.name,
+                  priceMinor: row.priceMinor,
+                  costMinor: row.costMinor,
+                  isActive: row.isActive,
+                },
+              ),
+            ).map((field) => `variants[${index}].${field}`),
+          ),
+        ],
+        tx,
+      );
 
       if (additions.length > 0 || creates.length > 0) {
         await requirePermission(ctx, "products.create", { entityType: "Product", operation: "update", meta });

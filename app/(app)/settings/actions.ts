@@ -1,5 +1,8 @@
 "use server";
-/** Settings Server Actions: receipt (T10 H3), staff, branches and tills (onboarding). Thin adapters over modules/org. */
+/**
+ * Settings Server Actions: receipt (T10 H3), staff, branches and tills (onboarding), and the inventory-system
+ * link (Phase 13). Thin adapters over modules/org and modules/integrations/inventory-sys.
+ */
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
@@ -17,6 +20,14 @@ import {
   type ReceiptSettings,
   type ReceiptSettingsInput,
 } from "@/modules/org";
+import {
+  checkInventoryLink,
+  saveInventoryLink,
+  setInventorySource,
+  syncInventoryNow,
+  type CheckResult,
+  type SyncSummary,
+} from "@/modules/integrations/inventory-sys";
 import type {
   BranchInput,
   BranchPatch,
@@ -109,4 +120,28 @@ export async function updateRegisterAction(
     await updateRegister(ctx, registerId, patch, meta);
     return null;
   });
+}
+
+/** Inventory system (Phase 13 slice 1). The API key goes in, never comes back out. */
+export async function saveInventoryLinkAction(input: {
+  baseUrl: string;
+  apiKey?: string;
+}): Promise<ActionResult<CheckResult>> {
+  return run("/settings/inventory", (ctx, meta) => saveInventoryLink(ctx, input, meta));
+}
+
+export async function checkInventoryLinkAction(): Promise<ActionResult<CheckResult>> {
+  return run("/settings/inventory", (ctx, meta) => checkInventoryLink(ctx, meta));
+}
+
+export async function setInventorySourceAction(
+  source: "BUILT_IN" | "EXTERNAL",
+): Promise<ActionResult<{ syncError: string | null }>> {
+  return run("/settings/inventory", async (ctx, meta) => ({
+    syncError: (await setInventorySource(ctx, { source }, meta)).syncError,
+  }));
+}
+
+export async function syncInventoryAction(): Promise<ActionResult<SyncSummary>> {
+  return run("/settings/inventory", (ctx, meta) => syncInventoryNow(ctx, meta));
 }

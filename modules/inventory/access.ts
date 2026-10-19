@@ -4,10 +4,12 @@ import { prismaTenantRepository, type TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { forbidden, notFound } from "@/lib/errors";
 import { record, type AuditRequestMeta } from "@/modules/audit";
+import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
 
 /**
  * Permission and branch-scope guards for inventory services. Same rules as catalog: the
  * service checks the permission itself and audit-logs a denied write attempt (C-14).
+ * A write (`attempt` given) is refused for a shop whose stock lives in the inventory system (spec I18).
  */
 
 export type WriteAttempt = { operation: string; entityType: string; meta?: AuditRequestMeta };
@@ -17,7 +19,10 @@ export async function requirePermission(
   permission: Permission,
   attempt?: WriteAttempt,
 ): Promise<void> {
-  if (hasPermission(ctx.role, permission)) return;
+  if (hasPermission(ctx.role, permission)) {
+    if (attempt) await assertBuiltIn(ctx.orgId);
+    return;
+  }
   if (attempt) {
     try {
       await record(getDb(), {

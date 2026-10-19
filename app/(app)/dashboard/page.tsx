@@ -11,6 +11,7 @@ import { translator } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { formatMinor } from "@/lib/money";
 import { countLowStock } from "@/modules/inventory";
+import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { branchesInScope, getDashboardTiles, type DashboardTiles } from "@/modules/reports";
 
 /**
@@ -104,6 +105,8 @@ async function DashboardContent() {
 /** Low items at the session branch, else the first branch in scope by name (as the inventory pages pick). */
 async function lowStockTile(ctx: TenantContext) {
   if (!hasPermission(ctx.role, "inventory.read")) return null;
+  // A linked shop's stock lives in the inventory system (integration spec I18).
+  if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") return null;
   const branches = await branchesInScope(ctx);
   const branch = branches.find((b) => b.id === ctx.branchId) ?? branches[0];
   if (!branch) return null;
