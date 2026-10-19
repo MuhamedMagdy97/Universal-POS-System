@@ -24,12 +24,45 @@ export function imsError(reason: ImsFailure, details: { status?: number; imsCode
 
 export const IMS_TIMEOUT_MS = 10_000;
 
-export async function imsGet<T>(link: ImsLink, path: string, timeoutMs = IMS_TIMEOUT_MS): Promise<T> {
+export function imsGet<T>(link: ImsLink, path: string, timeoutMs = IMS_TIMEOUT_MS): Promise<T> {
+  return imsFetch<T>(link, path, {}, AbortSignal.timeout(timeoutMs));
+}
+
+/**
+ * A write (integration spec I12–I15). `idempotencyKey` is derived from the POS document and reused on
+ * every retry, so the IMS replays its first answer instead of acting twice (I13).
+ */
+export function imsPost<T>(
+  link: ImsLink,
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+  signal: AbortSignal,
+): Promise<T> {
+  return imsFetch<T>(
+    link,
+    path,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+      body: JSON.stringify(body),
+    },
+    signal,
+  );
+}
+
+async function imsFetch<T>(
+  link: ImsLink,
+  path: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string },
+  signal: AbortSignal,
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(new URL(path, link.baseUrl), {
-      headers: { "x-api-key": link.apiKey, accept: "application/json" },
-      signal: AbortSignal.timeout(timeoutMs),
+      ...init,
+      headers: { ...init.headers, "x-api-key": link.apiKey, accept: "application/json" },
+      signal,
       cache: "no-store",
       redirect: "error",
     });
@@ -43,22 +76,33 @@ export async function imsGet<T>(link: ImsLink, path: string, timeoutMs = IMS_TIM
       throw imsError("INVENTORY_UNAVAILABLE", { status: response.status });
     }
   }
-  const imsCode = await errorCode(response);
-  throw classify(response.status, imsCode);
+  const { imsCode, imsDetails } = await errorOf(response);
+  throw classify(response.status, imsCode, imsDetails);
 }
 
-async function errorCode(response: Response): Promise<string | undefined> {
+/** The IMS `code` and the few `details` the POS acts on (never its message or the whole body). */
+async function errorOf(
+  response: Response,
+): Promise<{ imsCode?: string; imsDetails?: { available?: string; status?: string } }> {
   try {
-    const body = (await response.json()) as { code?: unknown };
-    return typeof body.code === "string" ? body.code.slice(0, 40) : undefined;
+    const body = (await response.json()) as { code?: unknown; details?: { available?: unknown; status?: unknown } };
+    const pick = (value: unknown) => (typeof value === "string" ? value.slice(0, 40) : undefined);
+    return {
+      imsCode: pick(body.code),
+      imsDetails: { available: pick(body.details?.available), status: pick(body.details?.status) },
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
 /** I17: 401/403 → link broken; 404 → not found; 5xx, 429 and the IMS's catch-all `409 conflict` → unavailable. */
-export function classify(status: number, imsCode?: string): AppError {
-  const details = { status, imsCode };
+export function classify(
+  status: number,
+  imsCode?: string,
+  imsDetails?: { available?: string; status?: string },
+): AppError {
+  const details = { status, imsCode, ...(imsDetails && { imsDetails }) };
   if (status === 401 || status === 403) return imsError("INVENTORY_LINK_BROKEN", details);
   if (status === 404)
     return new AppError("NOT_FOUND", "Not found in the inventory system", { reason: "IMS_NOT_FOUND" });

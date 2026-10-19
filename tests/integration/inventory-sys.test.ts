@@ -344,7 +344,8 @@ describe("read-only when linked (spec I18)", () => {
     await db.stockBalance.create({ data: { orgId: linked.org.id, branchId, ...ref, qty: 0, reorderPoint: 5 } });
     await expect(inventory.listLowStock(linked.owner, { branchId })).resolves.toEqual({ rows: [], truncated: false });
     await expect(inventory.countLowStock(linked.owner, branchId)).resolves.toBe(0);
-    await expect(getTillOnHand(linked.owner, { branchId, refs: [ref] })).resolves.toEqual([]);
+    // No warehouse mapped for the branch: the till shows nothing (slice 2 reads the IMS when mapped).
+    await expect(getTillOnHand(linked.owner, { branchId, refs: [ref] })).resolves.toEqual([null]);
   });
 
   it("leaves a built-in shop fully editable", async () => {

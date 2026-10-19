@@ -58,6 +58,7 @@ export { itemNames, type ItemRefViolation } from "./sellable";
 export {
   applyExternalItem,
   archiveUnlisted,
+  externalVariantIdsOf,
   ShapeChanged,
   type ApplyOutcome,
   type ExternalItem,

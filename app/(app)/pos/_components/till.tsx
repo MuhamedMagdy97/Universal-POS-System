@@ -75,7 +75,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   // The sale just finished, for "Reprint last receipt" once the next cart starts (T10 H4).
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
   // On-hand at this branch by line key, as loaded when the item was found. Display only.
-  const [stock, setStock] = useState<Record<string, number>>({});
+  const [stock, setStock] = useState<Record<string, number | null>>({});
   // The line + and - act on: the one last added or focused, else the last line.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -653,9 +653,19 @@ function ExactCashButton({ locale, onClick }: { locale: Locale; onClick: () => v
   );
 }
 
-/** On-hand at this branch; red when it is zero, negative or below the line's quantity. Nothing until loaded. */
-function StockNote({ locale, onHand, qty, block }: { locale: Locale; onHand?: number; qty: number; block?: boolean }) {
-  if (onHand === undefined) return null;
+/** On-hand at this branch; red when it is zero, negative or below the line's quantity. Nothing until loaded or when unknown. */
+function StockNote({
+  locale,
+  onHand,
+  qty,
+  block,
+}: {
+  locale: Locale;
+  onHand?: number | null;
+  qty: number;
+  block?: boolean;
+}) {
+  if (onHand === undefined || onHand === null) return null;
   return (
     <span
       data-testid="till-stock"

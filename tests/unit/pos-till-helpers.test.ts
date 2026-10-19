@@ -178,10 +178,20 @@ describe("errors", () => {
     );
     expect(saleErrorKey(error("FORBIDDEN"))).toBe("pos.error.forbidden");
     expect(saleErrorKey(error("INTERNAL"))).toBe("pos.error.generic");
+    // A shop linked to the inventory system (integration spec I17).
+    expect(saleErrorKey(error("INVENTORY_UNAVAILABLE", { reason: "INVENTORY_UNAVAILABLE" }))).toBe(
+      "pos.error.inventoryUnavailable",
+    );
+    expect(saleErrorKey(error("CONFLICT", { reason: "INVENTORY_LINK_BROKEN" }))).toBe("pos.error.inventoryLinkBroken");
+    expect(saleErrorKey(error("CONFLICT", { reason: "INVENTORY_BRANCH_UNMAPPED" }))).toBe(
+      "pos.error.inventoryBranchUnmapped",
+    );
   });
 
   it("keeps the sale key only when the outcome is unknown", () => {
     expect(keepKeyAfter(error("INTERNAL"))).toBe(true);
+    // Retry after an inventory-system outage reuses the same IMS keys (I17).
+    expect(keepKeyAfter(error("INVENTORY_UNAVAILABLE"))).toBe(true);
     expect(keepKeyAfter(error("CONFLICT", { reason: "INSUFFICIENT_STOCK" }))).toBe(false);
     expect(keepKeyAfter(error("VALIDATION_FAILED"))).toBe(false);
   });

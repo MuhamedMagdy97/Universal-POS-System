@@ -9,7 +9,8 @@ import { getSessionCookie } from "better-auth/cookies";
  * permission checks run server-side in lib/auth/tenant.ts.
  */
 const PUBLIC_PAGES = new Set(["/", "/welcome", "/onboarding", "/login"]);
-const PUBLIC_API_PREFIXES = ["/api/auth/", "/api/health"];
+// /api/internal/ checks its own secret header (the scheduler has no session).
+const PUBLIC_API_PREFIXES = ["/api/auth/", "/api/health", "/api/internal/"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PAGES.has(pathname) || PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));

@@ -2,6 +2,7 @@ import "server-only";
 import { assertStockable, getItemsForHistory, lockProducts } from "@/modules/catalog";
 import type { TenantContext } from "@/lib/auth/tenant";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
 import { insufficientStock, invalidInput, type InsufficientLine } from "./errors";
 import { keyOf, lockBalances } from "./locking";
 import { Qty, assertNoDuplicateRefs } from "./schemas";
@@ -153,6 +154,8 @@ export async function recordMovements(
   ctx: TenantContext,
   input: RecordMovementsInput,
 ): Promise<{ ref: ItemRef; qty: number }[]> {
+  // Second guard (integration spec I18): no code path writes POS stock for a linked shop.
+  await assertBuiltIn(ctx.orgId, tx);
   for (const line of input.lines) {
     if (!Qty.safeParse(line.qty).success) throw invalidInput("QTY_INVALID", "Quantity must be a whole number from 1");
   }
