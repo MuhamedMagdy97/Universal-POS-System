@@ -83,6 +83,12 @@
   [release checklist](../quality/release-checklist.md) item is ticked; the remaining gap there is migrating a copy of
   a real shop's data before the first real upgrade.
 
+- Phase 13 inventory integration (2026-10-19): spec drafted for the owner,
+  [inventory-integration/spec.md](inventory-integration/spec.md) with
+  [data model and API](inventory-integration/data-model-and-api.md). Per-tenant toggle; the inventory system is
+  master for catalog and stock; sales reserve before and fulfil after the POS transaction; sales blocked when it is
+  unreachable. Not built.
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
