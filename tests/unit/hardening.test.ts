@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SECURITY_HEADERS } from "@/next.config";
+import { contentSecurityPolicy } from "@/proxy";
 import { bucketOf, RATE_LIMITS, rateLimited, windowStartOf } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/errors";
 import { receiptPageCss } from "@/app/(app)/_components/printing";
@@ -38,12 +39,14 @@ describe("security headers (T10 H5)", () => {
     expect(header("Permissions-Policy")).toBe("camera=(), microphone=(), geolocation=()");
   });
 
-  it("ships a static CSP that forbids framing and foreign scripts", () => {
-    const csp = header("Content-Security-Policy") ?? "";
+  it("builds a nonce CSP that forbids framing, foreign and inline scripts (Phase 13)", () => {
+    expect(header("Content-Security-Policy")).toBeUndefined(); // set per request by proxy.ts
+    const csp = contentSecurityPolicy("abc123", false);
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
-    expect(csp).toMatch(/script-src 'self' 'unsafe-inline'/);
+    expect(csp).toContain("script-src 'self' 'nonce-abc123' 'strict-dynamic';");
+    expect(contentSecurityPolicy("abc123", true)).toContain("'strict-dynamic' 'unsafe-eval';");
   });
 });
 
