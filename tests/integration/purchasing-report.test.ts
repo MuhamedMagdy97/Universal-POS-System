@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
-import { createPurchaseOrder, createSupplier, orderPurchaseOrder } from "@/modules/purchasing";
+import { createPurchaseOrder, createSupplier, orderPurchaseOrder, type PoDetail } from "@/modules/purchasing";
 import { canRunReport, exportReportCsv, getReport } from "@/modules/reports";
 import { createMember, createProduct, createTenant, expectAppError, testDb, uniqueCode } from "./helpers";
 
@@ -54,6 +54,38 @@ async function receipt(supplierId: string, receivedAt: string, lines: [number, n
       };
     }),
   });
+  return po;
+}
+
+/** Inserts a return to the supplier of `qty` of the PO's line costing `unitCostMinor` at `returnedAt` (purchase-returns-spec R12). */
+async function supplierReturn(po: PoDetail, returnedAt: string, qty: number, unitCostMinor: number) {
+  const id = randomUUID();
+  const line = po.lines.find((l) => l.unitCostMinor === unitCostMinor);
+  if (!line) throw new Error("line missing");
+  await db.purchaseReturn.create({
+    data: {
+      id,
+      orgId: tenant.org.id,
+      branchId: po.branch.id,
+      purchaseOrderId: po.id,
+      seq: 1,
+      reason: "DAMAGED",
+      idempotencyKey: randomUUID(),
+      requestHash: "fixture",
+      returnedById: admin.userId,
+      returnedAt: new Date(returnedAt),
+    },
+  });
+  await db.purchaseReturnItem.create({
+    data: {
+      orgId: tenant.org.id,
+      purchaseReturnId: id,
+      poItemId: line.id,
+      productId: line.productId,
+      qty,
+      unitCostMinor: line.unitCostMinor,
+    },
+  });
 }
 
 beforeAll(async () => {
@@ -64,16 +96,20 @@ beforeAll(async () => {
   nile = await createSupplier(admin, { name: `Nile ${uniqueCode()}` });
   delta = await createSupplier(admin, { name: `Delta ${uniqueCode()}` });
   // 2026-03-10 in Cairo (UTC+2): two Nile receipts and one Delta receipt.
-  await receipt(nile.id, "2026-03-10T08:00:00Z", [
+  const nileFirst = await receipt(nile.id, "2026-03-10T08:00:00Z", [
     [10, 150],
     [2, 1000],
   ]);
   await receipt(nile.id, "2026-03-10T21:30:00Z", [[1, 99]]); // 23:30 Cairo, still the 10th
-  await receipt(delta.id, "2026-03-10T09:00:00Z", [[4, 250]]);
+  const deltaFirst = await receipt(delta.id, "2026-03-10T09:00:00Z", [[4, 250]]);
   // 22:30 UTC on the 10th is 00:30 on the 11th in Cairo.
   await receipt(delta.id, "2026-03-10T22:30:00Z", [[3, 100]]);
   // Another branch, same day.
   await receipt(nile.id, "2026-03-10T10:00:00Z", [[5, 10]], tenant.branchB.id);
+  // Returns on their own day: one Delta unit the same day, two Nile units (cost 150) on the 11th,
+  // a day Nile delivered nothing.
+  await supplierReturn(deltaFirst, "2026-03-10T12:00:00Z", 1, 250);
+  await supplierReturn(nileFirst, "2026-03-11T10:00:00Z", 2, 150);
 });
 
 afterAll(async () => {
@@ -87,23 +123,51 @@ describe("purchases report", () => {
       from: "2026-03-10",
       to: "2026-03-11",
     });
-    expect(result.rows.map((r) => [r.day, r.supplierName, r.receiptsCount, r.units, r.valueMinor])).toEqual([
-      ["2026-03-10", delta.name, 1, 4, 1000],
-      ["2026-03-10", nile.name, 2, 13, 3599],
-      ["2026-03-11", delta.name, 1, 3, 300],
+    expect(
+      result.rows.map((r) => [
+        r.day,
+        r.supplierName,
+        r.receiptsCount,
+        r.units,
+        r.valueMinor,
+        r.returnedUnits,
+        r.returnedValueMinor,
+        r.netValueMinor,
+      ]),
+    ).toEqual([
+      ["2026-03-10", delta.name, 1, 4, 1000, 1, 250, 750],
+      ["2026-03-10", nile.name, 2, 13, 3599, 0, 0, 3599],
+      ["2026-03-11", delta.name, 1, 3, 300, 0, 0, 300],
+      ["2026-03-11", nile.name, 0, 0, 0, 2, 300, -300],
     ]);
-    expect(result.totals).toEqual({ receiptsCount: 4, units: 20, valueMinor: 4899 });
+    expect(result.totals).toEqual({
+      receiptsCount: 4,
+      units: 20,
+      valueMinor: 4899,
+      returnedUnits: 3,
+      returnedValueMinor: 550,
+      netValueMinor: 4349,
+    });
   });
 
   it("covers every branch in scope when no branch is given", async () => {
     const result = await getReport(admin, "purchases", { from: "2026-03-10", to: "2026-03-10" });
-    expect(result.totals).toEqual({ receiptsCount: 4, units: 22, valueMinor: 4649 });
+    expect(result.totals).toEqual({
+      receiptsCount: 4,
+      units: 22,
+      valueMinor: 4649,
+      returnedUnits: 1,
+      returnedValueMinor: 250,
+      netValueMinor: 4399,
+    });
   });
 
   it("exports CSV with a total line", async () => {
     const { body } = await exportReportCsv(admin, "purchases", { from: "2026-03-11", to: "2026-03-11" });
     expect(body).toContain(delta.name);
     expect(body).toContain("3.00");
+    // The Nile row of the 11th has only a return: net is negative.
+    expect(body).toContain("-3.00");
   });
 
   it("is refused to a manager (no purchases.manage), audited, and hidden from the picker", async () => {

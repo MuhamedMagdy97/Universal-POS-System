@@ -20,6 +20,7 @@ export type MovementReason =
   | "SALE_VOID"
   | "REFUND"
   | "PURCHASE_RECEIPT"
+  | "PURCHASE_RETURN"
   | "ADJUSTMENT"
   | "TRANSFER_OUT"
   | "TRANSFER_IN";
@@ -41,11 +42,17 @@ export type ApplyInput = {
 
 /**
  * Reasons that may move an archived item's stock: a refund or void returns stock, and a
- * transfer moves what is left to another branch. Decreasing adjustments are allowed too (see
+ * transfer moves what is left to another branch, and a purchase return sends it back. Decreasing adjustments are allowed too (see
  * `archivedAllowed`), so archived stock can always be written off. Nothing may add new stock
  * to an archived item.
  */
-const ARCHIVED_ALLOWED: ReadonlySet<MovementReason> = new Set(["SALE_VOID", "REFUND", "TRANSFER_OUT", "TRANSFER_IN"]);
+const ARCHIVED_ALLOWED: ReadonlySet<MovementReason> = new Set([
+  "SALE_VOID",
+  "REFUND",
+  "TRANSFER_OUT",
+  "TRANSFER_IN",
+  "PURCHASE_RETURN",
+]);
 
 function archivedAllowed(reason: MovementReason, qtyDelta: number): boolean {
   return ARCHIVED_ALLOWED.has(reason) || (reason === "ADJUSTMENT" && qtyDelta < 0);
@@ -137,8 +144,8 @@ export async function applyLines(
 
 export type RecordMovementsInput = {
   branchId: string;
-  reason: "SALE" | "SALE_VOID" | "REFUND" | "PURCHASE_RECEIPT";
-  refType: "Sale" | "Refund" | "GoodsReceipt" | null;
+  reason: "SALE" | "SALE_VOID" | "REFUND" | "PURCHASE_RECEIPT" | "PURCHASE_RETURN";
+  refType: "Sale" | "Refund" | "GoodsReceipt" | "PurchaseReturn" | null;
   refId: string | null;
   /** Positive quantities; the sign comes from the reason. */
   lines: readonly { ref: ItemRef; qty: number }[];
@@ -159,7 +166,7 @@ export async function recordMovements(
   for (const line of input.lines) {
     if (!Qty.safeParse(line.qty).success) throw invalidInput("QTY_INVALID", "Quantity must be a whole number from 1");
   }
-  const sign = input.reason === "SALE" ? -1 : 1;
+  const sign = input.reason === "SALE" || input.reason === "PURCHASE_RETURN" ? -1 : 1;
   return applyLines(tx, ctx, {
     branchId: input.branchId,
     reason: input.reason,

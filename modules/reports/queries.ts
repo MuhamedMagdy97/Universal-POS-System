@@ -585,29 +585,66 @@ export type PurchasesRow = {
   receiptsCount: number;
   units: number;
   valueMinor: number;
+  returnedUnits: number;
+  returnedValueMinor: number;
+  netValueMinor: number;
 };
 
-/** Goods received per local day and supplier: receipts, units and value at the received unit cost. */
+/**
+ * Goods received per local day and supplier: receipts, units and value at the received unit cost.
+ * Returns to the supplier go in their own columns on their own day, valued at the PO cost
+ * (purchase-returns-spec R12); a day with only returns has a row with nothing received.
+ */
 export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
   const rows = await getDb().$queryRaw<
-    { day: string; supplierId: string; supplierName: string; n: Big; units: Big; value: Big }[]
+    {
+      day: string;
+      supplierId: string;
+      supplierName: string;
+      n: Big;
+      units: Big;
+      value: Big;
+      returnedUnits: Big;
+      returnedValue: Big;
+    }[]
   >`
-    SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, s."id"::text AS "supplierId", s."name" AS "supplierName",
-           COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
-           SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS value
-    FROM "GoodsReceipt" g
-    JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
-    JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
-    JOIN "Supplier" s ON s."orgId" = p."orgId" AND s."id" = p."supplierId"
-    WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
-    GROUP BY 1, s."id", s."name"
+    WITH received AS (
+      SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, p."supplierId",
+             COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
+             SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS value
+      FROM "GoodsReceipt" g
+      JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
+      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
+      WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
+      GROUP BY 1, 2
+    ), returned AS (
+      SELECT ${localDay(col("r", "returnedAt"), scope.zone)} AS day, p."supplierId",
+             SUM(i."qty") AS units, SUM(i."qty"::bigint * i."unitCostMinor") AS value
+      FROM "PurchaseReturn" r
+      JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
+      JOIN "PurchaseOrder" p ON p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId"
+      WHERE ${inScope("r", scope)} AND ${inRange(col("r", "returnedAt"), scope)}
+      GROUP BY 1, 2
+    )
+    SELECT COALESCE(rc.day, rt.day) AS day, s."id"::text AS "supplierId", s."name" AS "supplierName",
+           rc.n, rc.units, rc.value, rt.units AS "returnedUnits", rt.value AS "returnedValue"
+    FROM received rc
+    FULL OUTER JOIN returned rt ON rt.day = rc.day AND rt."supplierId" = rc."supplierId"
+    JOIN "Supplier" s ON s."orgId" = ${scope.orgId}::uuid AND s."id" = COALESCE(rc."supplierId", rt."supplierId")
     ORDER BY 1, s."name", s."id"`;
-  return rows.map((row) => ({
-    day: row.day,
-    supplierId: row.supplierId,
-    supplierName: row.supplierName,
-    receiptsCount: num(row.n),
-    units: num(row.units),
-    valueMinor: num(row.value),
-  }));
+  return rows.map((row) => {
+    const valueMinor = num(row.value);
+    const returnedValueMinor = num(row.returnedValue);
+    return {
+      day: row.day,
+      supplierId: row.supplierId,
+      supplierName: row.supplierName,
+      receiptsCount: num(row.n),
+      units: num(row.units),
+      valueMinor,
+      returnedUnits: num(row.returnedUnits),
+      returnedValueMinor,
+      netValueMinor: valueMinor - returnedValueMinor,
+    };
+  });
 }

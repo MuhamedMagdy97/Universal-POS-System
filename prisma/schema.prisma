@@ -72,9 +72,19 @@ enum MovementReason {
   SALE_VOID
   REFUND
   PURCHASE_RECEIPT
+  PURCHASE_RETURN
   ADJUSTMENT
   TRANSFER_OUT
   TRANSFER_IN
+}
+
+// Why goods went back to the supplier (purchase-returns-spec R5).
+enum PurchaseReturnReason {
+  DAMAGED
+  DEFECTIVE
+  WRONG_ITEM
+  EXPIRED
+  OTHER
 }
 
 enum PurchaseOrderStatus {
@@ -262,6 +272,8 @@ model Organization {
   poItems            POItem[]
   goodsReceipts      GoodsReceipt[]
   goodsReceiptItems  GoodsReceiptItem[]
+  purchaseReturns    PurchaseReturn[]
+  returnItems        PurchaseReturnItem[]
   sales              Sale[]
   saleItems          SaleItem[]
   payments           Payment[]
@@ -348,6 +360,7 @@ model Branch {
   movements          InventoryMovement[]
   purchaseOrders     PurchaseOrder[]
   goodsReceipts      GoodsReceipt[]
+  purchaseReturns    PurchaseReturn[]
   sales              Sale[]
   refunds            Refund[]
   shifts             RegisterShift[]
@@ -460,14 +473,15 @@ model Product {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  org           Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  category      Category?           @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  category      Category?            @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
   variants      ProductVariant[]
   barcodes      Barcode[]
   stockBalances StockBalance[]
   movements     InventoryMovement[]
   poItems       POItem[]
   receiptItems  GoodsReceiptItem[]
+  returnItems   PurchaseReturnItem[]
   saleItems     SaleItem[]
 
   @@unique([orgId, id])
@@ -492,14 +506,15 @@ model ProductVariant {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  org             Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  product         Product             @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  barcodes        Barcode[]           @relation("BarcodeVariant")
-  productBarcodes Barcode[]           @relation("BarcodeVariantOfProduct")
+  org             Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product         Product              @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  barcodes        Barcode[]            @relation("BarcodeVariant")
+  productBarcodes Barcode[]            @relation("BarcodeVariantOfProduct")
   stockBalances   StockBalance[]
   movements       InventoryMovement[]
   poItems         POItem[]
   receiptItems    GoodsReceiptItem[]
+  returnItems     PurchaseReturnItem[]
   saleItems       SaleItem[]
 
   @@unique([orgId, id])
@@ -620,11 +635,12 @@ model PurchaseOrder {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  org      Organization   @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  branch   Branch         @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  supplier Supplier       @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  org      Organization     @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch   Branch           @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  supplier Supplier         @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
   items    POItem[]
   receipts GoodsReceipt[]
+  returns  PurchaseReturn[]
 
   @@unique([orgId, id])
   @@unique([orgId, number])
@@ -640,13 +656,16 @@ model POItem {
   variantId       String? @db.Uuid
   qtyOrdered      Int
   qtyReceived     Int     @default(0)
+  // Units sent back to the supplier (purchase-returns-spec R2); CHECK 0 ≤ qtyReturned ≤ qtyReceived.
+  qtyReturned     Int     @default(0)
   unitCostMinor   Int
 
-  org           Organization       @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder      @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Cascade)
-  product       Product            @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  variant       ProductVariant?    @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder        @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Cascade)
+  product       Product              @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant       ProductVariant?      @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
   receiptItems  GoodsReceiptItem[]
+  returnItems   PurchaseReturnItem[]
 
   @@unique([orgId, id])
 }
@@ -689,6 +708,51 @@ model GoodsReceiptItem {
   poItem       POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
   product      Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
   variant      ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+}
+
+// Goods sent back to the supplier against a PO (purchase-returns-spec). Append-only, like receipts.
+model PurchaseReturn {
+  id              String               @id @default(uuid()) @db.Uuid
+  orgId           String               @db.Uuid
+  branchId        String               @db.Uuid
+  purchaseOrderId String               @db.Uuid
+  // 1, 2, … per PO, taken under the PO lock; shown as PO-000123-R1 (R9).
+  seq             Int
+  reason          PurchaseReturnReason
+  note            String?
+  idempotencyKey  String
+  // sha256 of the canonical request body, like GoodsReceipt (R7).
+  requestHash     String
+  returnedById    String               @db.Uuid
+  returnedAt      DateTime             @default(now())
+
+  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch        Branch               @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder        @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  items         PurchaseReturnItem[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+  @@unique([orgId, purchaseOrderId, seq])
+  @@index([orgId, branchId, returnedAt])
+}
+
+model PurchaseReturnItem {
+  id               String  @id @default(uuid()) @db.Uuid
+  orgId            String  @db.Uuid
+  purchaseReturnId String  @db.Uuid
+  poItemId         String  @db.Uuid
+  productId        String  @db.Uuid
+  variantId        String? @db.Uuid
+  qty              Int
+  // The PO line's unit cost (R4).
+  unitCostMinor    Int
+
+  org            Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  purchaseReturn PurchaseReturn  @relation(fields: [orgId, purchaseReturnId], references: [orgId, id], onDelete: Restrict)
+  poItem         POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
+  product        Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant        ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
 }
 
 // ──────────────────────────── Sales ────────────────────────────

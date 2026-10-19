@@ -18,11 +18,13 @@ import {
   orderPurchaseOrder,
   receivePurchaseOrder,
   restoreSupplier,
+  returnToSupplier,
   updatePurchaseOrder,
   updateSupplier,
   type PoInput,
   type PoPatch,
   type ReceiptInput,
+  type ReturnInput,
   type SupplierInput,
   type SupplierPatch,
   type SupplierRow,
@@ -87,4 +89,15 @@ export async function updateSupplierAction(
 
 export async function setSupplierActiveAction(supplierId: string, active: boolean): Promise<ActionResult<SupplierRow>> {
   return run((ctx, meta) => (active ? restoreSupplier(ctx, supplierId, meta) : archiveSupplier(ctx, supplierId, meta)));
+}
+
+/** Like receiving: one key per return form, kept across a retry, so a retry never returns twice. */
+export async function returnPoAction(
+  poId: string,
+  idempotencyKey: string,
+  input: z.input<typeof ReturnInput>,
+): Promise<ActionResult<{ returnId: string }>> {
+  return run(async (ctx, meta) => ({
+    returnId: (await returnToSupplier(ctx, poId, idempotencyKey, input, meta)).returnId,
+  }));
 }

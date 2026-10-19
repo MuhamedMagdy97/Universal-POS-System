@@ -7,12 +7,14 @@ import {
   canOrder,
   canReceive,
   formatPoNumber,
+  formatReturnNumber,
   mergePoLines,
   outstanding,
   poTotals,
+  returnable,
   statusAfterReceipt,
 } from "@/modules/purchasing/rules";
-import { PoInput, ReceiptInput, SupplierInput } from "@/modules/purchasing/schemas";
+import { PoInput, ReceiptInput, ReturnInput, SupplierInput } from "@/modules/purchasing/schemas";
 
 const P = randomUUID();
 const V = randomUUID();
@@ -112,5 +114,27 @@ describe("schemas", () => {
       taxNumber: null,
     });
     expect(SupplierInput.safeParse({ name: " " }).success).toBe(false);
+  });
+});
+
+describe("purchase returns (purchase-returns-spec R1, R5, R9)", () => {
+  it("returns what was received minus what went back, numbered per PO", () => {
+    expect(returnable({ qtyReceived: 10, qtyReturned: 3 })).toBe(7);
+    expect(returnable({ qtyReceived: 0, qtyReturned: 0 })).toBe(0);
+    expect(formatReturnNumber("PO-000042", 2)).toBe("PO-000042-R2");
+  });
+
+  it("needs a known reason, strict lines and no cost from the client", () => {
+    const poItemId = randomUUID();
+    expect(ReturnInput.parse({ reason: "DAMAGED", lines: [{ poItemId, qty: 1 }], note: "" })).toEqual({
+      reason: "DAMAGED",
+      lines: [{ poItemId, qty: 1 }],
+      note: null,
+    });
+    expect(ReturnInput.safeParse({ reason: "LOST", lines: [{ poItemId, qty: 1 }] }).success).toBe(false);
+    expect(ReturnInput.safeParse({ reason: "OTHER", lines: [{ poItemId, qty: 1, unitCostMinor: 5 }] }).success).toBe(
+      false,
+    );
+    expect(ReturnInput.safeParse({ reason: "OTHER", lines: [{ poItemId, qty: -1 }] }).success).toBe(false);
   });
 });
