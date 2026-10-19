@@ -73,6 +73,9 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
           <Link href={`/inventory/low-stock?${branchParam}`} className="rounded-md border border-border px-3 py-2">
             {tr("inventory.action.lowStock")}
           </Link>
+          <Link href={`/inventory/counts?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+            {tr("inventory.action.counts")}
+          </Link>
           {can.adjust ? (
             <Link href={`/inventory/opening?${branchParam}`} className="rounded-md border border-border px-3 py-2">
               {tr("inventory.action.opening")}

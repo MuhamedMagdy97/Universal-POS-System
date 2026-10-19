@@ -145,6 +145,19 @@ enum AdjustmentReason {
   OTHER
 }
 
+enum StockCountStatus {
+  DRAFT
+  COUNTING
+  POSTED
+  CANCELLED
+}
+
+enum StockCountScope {
+  FULL
+  CATEGORY
+  ITEMS
+}
+
 // ─────────────────────── Auth (Better-Auth) ───────────────────────
 
 model User {
@@ -267,6 +280,8 @@ model Organization {
   barcodes           Barcode[]
   stockBalances      StockBalance[]
   movements          InventoryMovement[]
+  stockCounts        StockCount[]
+  stockCountLines    StockCountLine[]
   suppliers          Supplier[]
   purchaseOrders     PurchaseOrder[]
   poItems            POItem[]
@@ -358,6 +373,7 @@ model Branch {
   membershipBranches MembershipBranch[]
   stockBalances      StockBalance[]
   movements          InventoryMovement[]
+  stockCounts        StockCount[]
   purchaseOrders     PurchaseOrder[]
   goodsReceipts      GoodsReceipt[]
   purchaseReturns    PurchaseReturn[]
@@ -479,6 +495,7 @@ model Product {
   barcodes      Barcode[]
   stockBalances StockBalance[]
   movements     InventoryMovement[]
+  countLines    StockCountLine[]
   poItems       POItem[]
   receiptItems  GoodsReceiptItem[]
   returnItems   PurchaseReturnItem[]
@@ -512,6 +529,7 @@ model ProductVariant {
   productBarcodes Barcode[]            @relation("BarcodeVariantOfProduct")
   stockBalances   StockBalance[]
   movements       InventoryMovement[]
+  countLines      StockCountLine[]
   poItems         POItem[]
   receiptItems    GoodsReceiptItem[]
   returnItems     PurchaseReturnItem[]
@@ -597,6 +615,55 @@ model InventoryMovement {
   @@index([orgId, branchId, productId, variantId, createdAt])
   @@index([orgId, refType, refId])
   @@index([orgId, transferGroupId])
+}
+
+// Stock count session (docs/planning/stock-counts/stock-counts-spec.md). One open count per branch
+// (partial unique index in SQL). Posting writes ADJUSTMENT/COUNT_CORRECTION rows with refType "StockCount".
+model StockCount {
+  id              String           @id @default(uuid()) @db.Uuid
+  orgId           String           @db.Uuid
+  branchId        String           @db.Uuid
+  status          StockCountStatus @default(DRAFT)
+  scope           StockCountScope
+  // Set only for CATEGORY scope (DB CHECK); sub-categories are included.
+  categoryId      String?          @db.Uuid
+  note            String?
+  createdByUserId String           @db.Uuid
+  postedByUserId  String?          @db.Uuid
+  postedAt        DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  org    Organization     @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch Branch           @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  lines  StockCountLine[]
+
+  @@unique([orgId, id])
+  @@index([orgId, branchId, createdAt])
+}
+
+model StockCountLine {
+  id           String    @id @default(uuid()) @db.Uuid
+  orgId        String    @db.Uuid
+  countId      String    @db.Uuid
+  productId    String    @db.Uuid
+  variantId    String?   @db.Uuid
+  // Null until counted. expectedQty is on-hand when first counted (both set or both null, DB CHECK).
+  countedQty   Int?
+  expectedQty  Int?
+  countedAt    DateTime?
+  // Filled when the count is posted.
+  onHandAtPost Int?
+  qtyDelta     Int?
+  updatedAt    DateTime  @updatedAt
+
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  count   StockCount      @relation(fields: [orgId, countId], references: [orgId, id], onDelete: Cascade)
+  product Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, countId, productId, variantId])
 }
 
 // ────────────────────────── Purchasing ──────────────────────────

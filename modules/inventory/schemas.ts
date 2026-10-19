@@ -180,3 +180,54 @@ export type LowStockQuery = z.input<typeof LowStockQuery>;
 export function isLowStock(qty: number, reorderPoint: number | null): boolean {
   return reorderPoint !== null && qty <= reorderPoint;
 }
+
+// ── Stock counts (docs/planning/stock-counts/stock-counts-spec.md) ──
+
+export const COUNT_SCOPE_VALUES = ["FULL", "CATEGORY", "ITEMS"] as const;
+
+/** A category count names its category; the other scopes must not (C2). */
+export const CountCreateInput = z
+  .object({
+    branchId: Uuid,
+    scope: z.enum(COUNT_SCOPE_VALUES),
+    categoryId: Uuid.optional(),
+    note: Note.optional(),
+  })
+  .strict()
+  .refine((input) => (input.scope === "CATEGORY") === (input.categoryId !== undefined), {
+    message: "categoryId is required for a category count, and only for one",
+    path: ["categoryId"],
+  });
+export type CountCreateInput = z.infer<typeof CountCreateInput>;
+
+export const CountListQuery = z.object({ branchId: Uuid }).strict();
+export type CountListQuery = z.input<typeof CountListQuery>;
+
+/** Items chosen for an ITEMS-scope draft. */
+export const CountItemsInput = z.object({ refs: z.array(ItemRefInput).min(1).max(500) }).strict();
+export type CountItemsInput = z.infer<typeof CountItemsInput>;
+
+export const CountItemInput = z.object({ ref: ItemRefInput }).strict();
+export type CountItemInput = z.infer<typeof CountItemInput>;
+
+/** A scan adds (`add`), a typed quantity replaces (`set`), `set: null` clears the count (C4). */
+export const CountEntryInput = z
+  .object({
+    ref: ItemRefInput,
+    add: Qty.optional(),
+    set: z.number().int().min(0).max(MAX_QTY).nullable().optional(),
+  })
+  .strict()
+  .refine((input) => (input.add === undefined) !== (input.set === undefined), {
+    message: "Provide exactly one of add or set",
+    path: ["add"],
+  });
+export type CountEntryInput = z.infer<typeof CountEntryInput>;
+
+/**
+ * Difference a counted line posts (C5, C6): the variance when it was counted, applied to live
+ * on-hand at posting. Null for an uncounted line.
+ */
+export function countDelta(countedQty: number | null, expectedQty: number | null): number | null {
+  return countedQty === null || expectedQty === null ? null : countedQty - expectedQty;
+}

@@ -68,6 +68,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
   const displayName = label.variantName ? `${label.name} — ${label.variantName}` : label.name;
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
   const reasonLabel = (row: (typeof history.rows)[number]) => {
+    if (row.refType === "StockCount") return tr("inventory.count.ledgerReason");
     if (row.adjustmentReason) return plain(locale, `inventory.reason.${row.adjustmentReason}` as MessageKey);
     return plain(locale, `inventory.movement.${row.reason}` as MessageKey);
   };

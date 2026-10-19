@@ -25,6 +25,26 @@ export {
   type LowStockRow,
 } from "./reorder";
 export {
+  listCounts,
+  createCount,
+  getCount,
+  addCountItems,
+  removeCountItem,
+  startCount,
+  recordCountEntry,
+  postCount,
+  cancelCount,
+  type CountSummary,
+  type CountDetail,
+  type CountLineView,
+  type PostResult,
+} from "./counts";
+export {
+  CountCreateInput,
+  CountListQuery,
+  CountItemsInput,
+  CountItemInput,
+  CountEntryInput,
   OpeningInput,
   AdjustInput,
   TransferInput,
