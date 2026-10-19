@@ -11,4 +11,5 @@
 - [x] 8–11 — Checkout, registers, returns, reports (T6–T9), purchasing (T5, phase-10/purchasing-spec.md) and the T10
   hardening slice (receipts, print, rate limit, headers, RTL; phase-11/hardening-as-built.md).
 - [ ] 12 — Validated industry module (evidence-gated, one at a time).
-- [ ] 13 — Hardening & integrations. 14 — Release readiness.
+- [ ] 13 — Hardening & integrations.
+- [x] 14 — Release readiness (checklist ticked 2026-10-19; see quality/release-checklist.md).

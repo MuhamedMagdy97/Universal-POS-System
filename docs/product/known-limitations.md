@@ -3,7 +3,8 @@
 Everything below is **not built** in the current release. Collected on 2026-10-19 from the "Not built", "Deferred",
 "Out of scope" and "Not done" notes in [`docs/planning/`](../planning/) and [`mvp-scope.md`](mvp-scope.md); items that
 those notes deferred and a later task then built (voids and refunds, receipts and Z-report printing, PO printing, the
-shift list, purchasing, the pay-in/pay-out/drop screen) are left out. Source in brackets.
+shift list, purchasing, the pay-in/pay-out/drop screen, split tenders on the till, profit and margin) are left out.
+Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Product-wide
 
@@ -37,10 +38,12 @@ shift list, purchasing, the pay-in/pay-out/drop screen) are left out. Source in 
 
 ## Checkout (POS till)
 
-- Split tenders: the API accepts several payments per sale, the till screen takes one. [phase-8/checkout-ux §3,
-  phase-status]
 - No discounts (`discountMinor` is always 0). [phase-8/checkout-spec Q3]
 - On-hand stock is not shown at the till; keyboard shortcuts beyond Enter are not built. [phase-8/checkout-ux §3]
+- A cash payment needs the amount received typed in, even when it is exact; there is no "exact cash" button.
+  [user guide review]
+- A cashier can reprint only the last sale on their screen; older receipts are reprinted by a Manager or Owner from
+  Returns. [phase-11/hardening-spec, user guide review]
 
 ## Shifts and cash
 
@@ -54,9 +57,8 @@ shift list, purchasing, the pay-in/pay-out/drop screen) are left out. Source in 
 
 ## Reports
 
-- No profit or margin report (needs a cost snapshot on sale lines, P12). No split of 0% VAT into zero-rated and
-  exempt. No charts beyond totals, scheduled or emailed reports, or custom reports. [phase-9/reports-audit-spec,
-  phase-status]
+- No split of 0% VAT into zero-rated and exempt. No charts beyond totals, scheduled or emailed reports, or custom
+  reports. [phase-9/reports-audit-spec, phase-status]
 
 ## Purchasing
 
@@ -74,3 +76,5 @@ shift list, purchasing, the pay-in/pay-out/drop screen) are left out. Source in 
   Migrations are forward-only. [operations/backup-restore, operations/deploy-and-rollback]
 - Server Action failures are mostly not written to the server log (only Route Handler failures are).
   [operations/troubleshooting]
+- While the database is unreachable, business API routes answer 500 `INTERNAL`, not 503; only `/api/health` answers
+  503. The till retries both the same way. [operations/failure-recovery]
