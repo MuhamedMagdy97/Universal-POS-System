@@ -87,6 +87,12 @@ enum PurchaseReturnReason {
   OTHER
 }
 
+// supplier-invoices-spec I1: what a supplier sends.
+enum SupplierDocumentKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
 enum SupplierPaymentMethod {
   CASH
   BANK_TRANSFER
@@ -285,39 +291,42 @@ model Organization {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
-  inventoryLink      InventoryLink?
-  stockPostings      ExternalStockPosting[]
-  branches           Branch[]
-  registers          Register[]
-  memberships        Membership[]
-  membershipBranches MembershipBranch[]
-  categories         Category[]
-  products           Product[]
-  variants           ProductVariant[]
-  barcodes           Barcode[]
-  stockBalances      StockBalance[]
-  movements          InventoryMovement[]
-  stockCounts        StockCount[]
-  stockCountLines    StockCountLine[]
-  stockTransfers     StockTransfer[]
-  stockTransferLines StockTransferLine[]
-  suppliers          Supplier[]
-  purchaseOrders     PurchaseOrder[]
-  poItems            POItem[]
-  goodsReceipts      GoodsReceipt[]
-  goodsReceiptItems  GoodsReceiptItem[]
-  purchaseReturns    PurchaseReturn[]
-  returnItems        PurchaseReturnItem[]
-  supplierPayments   SupplierPayment[]
-  customers          Customer[]
-  sales              Sale[]
-  saleItems          SaleItem[]
-  payments           Payment[]
-  refunds            Refund[]
-  refundItems        RefundItem[]
-  shifts             RegisterShift[]
-  cashMovements      CashMovement[]
-  auditEvents        AuditEvent[]
+  inventoryLink              InventoryLink?
+  stockPostings              ExternalStockPosting[]
+  branches                   Branch[]
+  registers                  Register[]
+  memberships                Membership[]
+  membershipBranches         MembershipBranch[]
+  categories                 Category[]
+  products                   Product[]
+  variants                   ProductVariant[]
+  barcodes                   Barcode[]
+  stockBalances              StockBalance[]
+  movements                  InventoryMovement[]
+  stockCounts                StockCount[]
+  stockCountLines            StockCountLine[]
+  stockTransfers             StockTransfer[]
+  stockTransferLines         StockTransferLine[]
+  suppliers                  Supplier[]
+  purchaseOrders             PurchaseOrder[]
+  poItems                    POItem[]
+  goodsReceipts              GoodsReceipt[]
+  goodsReceiptItems          GoodsReceiptItem[]
+  purchaseReturns            PurchaseReturn[]
+  returnItems                PurchaseReturnItem[]
+  supplierPayments           SupplierPayment[]
+  supplierInvoices           SupplierInvoice[]
+  supplierInvoiceReceipts    SupplierInvoiceReceipt[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
+  customers                  Customer[]
+  sales                      Sale[]
+  saleItems                  SaleItem[]
+  payments                   Payment[]
+  refunds                    Refund[]
+  refundItems                RefundItem[]
+  shifts                     RegisterShift[]
+  cashMovements              CashMovement[]
+  auditEvents                AuditEvent[]
 }
 
 // Phase 13 (I3): the shop's link to the inventory system. The API key is AES-256-GCM sealed
@@ -757,6 +766,7 @@ model Supplier {
   org            Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
   purchaseOrders PurchaseOrder[]
   payments       SupplierPayment[]
+  invoices       SupplierInvoice[]
 
   @@unique([orgId, id])
 }
@@ -826,10 +836,11 @@ model GoodsReceipt {
   note            String?
   receivedAt      DateTime @default(now())
 
-  org           Organization       @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  branch        Branch             @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder      @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  org           Organization             @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch        Branch                   @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder            @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
   items         GoodsReceiptItem[]
+  invoiceLinks  SupplierInvoiceReceipt[]
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
@@ -874,6 +885,7 @@ model PurchaseReturn {
   branch        Branch               @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
   purchaseOrder PurchaseOrder        @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
   items         PurchaseReturnItem[]
+  creditNotes   SupplierInvoice[]
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
@@ -920,16 +932,94 @@ model SupplierPayment {
   createdById     String                @db.Uuid
   createdAt       DateTime              @default(now())
 
-  org           Organization     @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  supplier      Supplier         @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder?   @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
-  reversalOf    SupplierPayment? @relation("PaymentReversal", fields: [orgId, reversalOfId], references: [orgId, id], onDelete: Restrict)
-  reversedBy    SupplierPayment? @relation("PaymentReversal")
+  org           Organization                @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  supplier      Supplier                    @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?              @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  reversalOf    SupplierPayment?            @relation("PaymentReversal", fields: [orgId, reversalOfId], references: [orgId, id], onDelete: Restrict)
+  reversedBy    SupplierPayment?            @relation("PaymentReversal")
+  allocations   SupplierPaymentAllocation[]
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
   @@unique([orgId, reversalOfId])
   @@index([orgId, supplierId, paidOn])
+}
+
+// Supplier invoices and credit notes (docs/planning/supplier-invoices/supplier-invoices-spec.md). Never
+// edited or deleted; voided once (I6, trigger). The number is unique per supplier and kind among
+// documents that are not voided (partial index in the migration, I2).
+model SupplierInvoice {
+  id                 String               @id @default(uuid()) @db.Uuid
+  orgId              String               @db.Uuid
+  supplierId         String               @db.Uuid
+  kind               SupplierDocumentKind
+  number             String
+  // Shop-local days (I1). Credit notes have no due date.
+  issuedOn           DateTime             @db.Date
+  dueOn              DateTime?            @db.Date
+  netMinor           Int
+  vatMinor           Int
+  totalMinor         Int
+  note               String?
+  // Credit notes only: the return it credits and the invoice it reduces (I4).
+  purchaseReturnId   String?              @db.Uuid
+  appliesToInvoiceId String?              @db.Uuid
+  idempotencyKey     String
+  requestHash        String
+  createdById        String               @db.Uuid
+  createdAt          DateTime             @default(now())
+  voidedAt           DateTime?
+  voidedById         String?              @db.Uuid
+  voidReason         String?
+
+  org            Organization                @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  supplier       Supplier                    @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  purchaseReturn PurchaseReturn?             @relation(fields: [orgId, purchaseReturnId], references: [orgId, id], onDelete: Restrict)
+  appliesTo      SupplierInvoice?            @relation("CreditNoteInvoice", fields: [orgId, appliesToInvoiceId], references: [orgId, id], onDelete: Restrict)
+  creditNotes    SupplierInvoice[]           @relation("CreditNoteInvoice")
+  receipts       SupplierInvoiceReceipt[]
+  allocations    SupplierPaymentAllocation[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+  @@index([orgId, supplierId, issuedOn])
+}
+
+// The goods receipts an invoice covers (I3). Append-only.
+model SupplierInvoiceReceipt {
+  id             String @id @default(uuid()) @db.Uuid
+  orgId          String @db.Uuid
+  invoiceId      String @db.Uuid
+  goodsReceiptId String @db.Uuid
+
+  org          Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  invoice      SupplierInvoice @relation(fields: [orgId, invoiceId], references: [orgId, id], onDelete: Restrict)
+  goodsReceipt GoodsReceipt    @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([invoiceId, goodsReceiptId])
+  @@index([orgId, goodsReceiptId])
+}
+
+// Part of a payment applied to an invoice (I9). Append-only; ignored once the payment is reversed
+// or the invoice voided. One request writes rows sharing its Idempotency-Key.
+model SupplierPaymentAllocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  orgId          String   @db.Uuid
+  paymentId      String   @db.Uuid
+  invoiceId      String   @db.Uuid
+  amountMinor    Int
+  idempotencyKey String
+  requestHash    String
+  createdById    String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  org     Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  payment SupplierPayment @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Restrict)
+  invoice SupplierInvoice @relation(fields: [orgId, invoiceId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, idempotencyKey, invoiceId])
+  @@index([orgId, paymentId])
+  @@index([orgId, invoiceId])
 }
 
 // ──────────────────────────── Sales ────────────────────────────

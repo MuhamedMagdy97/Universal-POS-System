@@ -15,6 +15,12 @@ export type PurchasingConflictReason =
   | "SUPPLIER_NAME_TAKEN"
   | "PAYMENT_ALREADY_REVERSED"
   | "PAYMENT_NOT_REVERSIBLE"
+  | "INVOICE_NUMBER_TAKEN"
+  | "RECEIPT_ALREADY_INVOICED"
+  | "RETURN_ALREADY_CREDITED"
+  | "INVOICE_VOIDED"
+  | "AMOUNT_EXCEEDS_OPEN"
+  | "AMOUNT_EXCEEDS_UNALLOCATED"
   | "IDEMPOTENCY_CONFLICT";
 
 export function purchasingConflict(
@@ -29,7 +35,16 @@ export function purchasingConflict(
 }
 
 export type PurchasingValidationReason =
-  "NOTHING_TO_RECEIVE" | "NOTHING_TO_RETURN" | "AMOUNT_TOO_LARGE" | "PAYMENT_DATE_IN_FUTURE";
+  | "NOTHING_TO_RECEIVE"
+  | "NOTHING_TO_RETURN"
+  | "AMOUNT_TOO_LARGE"
+  | "PAYMENT_DATE_IN_FUTURE"
+  | "INVOICE_DATE_IN_FUTURE"
+  | "DUE_BEFORE_ISSUE"
+  | "VAT_ABOVE_RATE"
+  | "TOTAL_NOT_POSITIVE"
+  | "INVALID_DOCUMENT_LINK"
+  | "ALLOCATION_EXCEEDS_PAYMENT";
 
 export function purchasingInvalid(
   reason: PurchasingValidationReason,

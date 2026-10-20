@@ -709,13 +709,19 @@ export type SupplierBalanceRow = {
   openingMinor: number;
   receivedMinor: number;
   returnedMinor: number;
+  /** Invoices and credit notes beyond the at-cost value they replace, net of voids (supplier-invoices-spec I7). */
+  adjustedMinor: number;
   paidMinor: number;
   closingMinor: number;
+  /** Receipts on no live invoice at the end of the range, at cost (I8). Not part of the closing sum. */
+  uninvoicedMinor: number;
 };
 
 /**
  * One row per supplier with an opening balance or movements in the range. The account is org-wide
- * (S2): every branch counts and `scope.branchIds` is not applied. Paid is net of reversals.
+ * (S2): every branch counts and `scope.branchIds` is not applied. Paid is net of reversals. Mirrors
+ * `balanceEffect` in modules/purchasing/rules.ts: an invoice adds its total less the receipts it
+ * covers on its issue day, a credit note the reverse, and a void undoes it on the void's local day.
  */
 export async function supplierBalances(scope: ReportScope): Promise<SupplierBalanceRow[]> {
   const start = localMidnight(scope.from, scope.zone);
@@ -727,42 +733,81 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
       opening: Big;
       received: Big;
       returned: Big;
+      adjusted: Big;
       paid: Big;
+      uninvoiced: Big | null;
     }[]
   >`
-    WITH flows AS (
+    WITH rvalue AS (
+      SELECT i."goodsReceiptId" AS id, SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS v
+      FROM "GoodsReceiptItem" i WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
+    ), tvalue AS (
+      SELECT i."purchaseReturnId" AS id, SUM(i."qty"::bigint * i."unitCostMinor") AS v
+      FROM "PurchaseReturnItem" i WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
+    ), docs AS (
+      SELECT d."supplierId", d."issuedOn", d."voidedAt",
+             (CASE WHEN d."kind" = 'INVOICE' THEN 1 ELSE -1 END)
+               * (d."totalMinor" - COALESCE(CASE WHEN d."kind" = 'INVOICE'
+                   THEN (SELECT SUM(rv.v) FROM "SupplierInvoiceReceipt" l JOIN rvalue rv ON rv.id = l."goodsReceiptId"
+                         WHERE l."orgId" = d."orgId" AND l."invoiceId" = d."id")
+                   ELSE (SELECT tv.v FROM tvalue tv WHERE tv.id = d."purchaseReturnId") END, 0)) AS effect
+      FROM "SupplierInvoice" d WHERE d."orgId" = ${scope.orgId}::uuid
+    ), flows AS (
       SELECT p."supplierId", g."receivedAt" < ${start} AS early,
-             i."qtyReceived"::bigint * i."unitCostMinor" AS received, 0::bigint AS returned, 0::bigint AS paid
+             rv.v AS received, 0::bigint AS returned, 0::bigint AS adjusted, 0::bigint AS paid
       FROM "GoodsReceipt" g
-      JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
+      JOIN rvalue rv ON rv.id = g."id"
       JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
       WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
       UNION ALL
-      SELECT p."supplierId", r."returnedAt" < ${start}, 0, i."qty"::bigint * i."unitCostMinor", 0
+      SELECT p."supplierId", r."returnedAt" < ${start}, 0, tv.v, 0, 0
       FROM "PurchaseReturn" r
-      JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
+      JOIN tvalue tv ON tv.id = r."id"
       JOIN "PurchaseOrder" p ON p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId"
       WHERE r."orgId" = ${scope.orgId}::uuid AND r."returnedAt" < ${end}
       UNION ALL
-      SELECT sp."supplierId", sp."paidOn" < ${scope.from}::date, 0, 0,
+      SELECT d."supplierId", d."issuedOn" < ${scope.from}::date, 0, 0, d.effect, 0
+      FROM docs d WHERE d."issuedOn" <= ${scope.to}::date
+      UNION ALL
+      SELECT d."supplierId", d."voidedAt" < ${start}, 0, 0, -d.effect, 0
+      FROM docs d WHERE d."voidedAt" < ${end}
+      UNION ALL
+      SELECT sp."supplierId", sp."paidOn" < ${scope.from}::date, 0, 0, 0,
              CASE WHEN sp."reversalOfId" IS NULL THEN sp."amountMinor" ELSE -sp."amountMinor" END
       FROM "SupplierPayment" sp
       WHERE sp."orgId" = ${scope.orgId}::uuid AND sp."paidOn" <= ${scope.to}::date
+    ), uninvoiced AS (
+      SELECT p."supplierId", SUM(rv.v) AS v
+      FROM "GoodsReceipt" g
+      JOIN rvalue rv ON rv.id = g."id"
+      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
+      WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
+        AND NOT EXISTS (
+          SELECT 1 FROM "SupplierInvoiceReceipt" l
+          JOIN "SupplierInvoice" d ON d."orgId" = l."orgId" AND d."id" = l."invoiceId"
+          WHERE l."orgId" = g."orgId" AND l."goodsReceiptId" = g."id"
+            AND d."issuedOn" <= ${scope.to}::date AND (d."voidedAt" IS NULL OR d."voidedAt" >= ${end}))
+      GROUP BY 1
     )
     SELECT s."id"::text AS "supplierId", s."name" AS "supplierName",
-           SUM(CASE WHEN f.early THEN f.received - f.returned - f.paid ELSE 0 END) AS opening,
+           SUM(CASE WHEN f.early THEN f.received - f.returned + f.adjusted - f.paid ELSE 0 END) AS opening,
            SUM(CASE WHEN f.early THEN 0 ELSE f.received END) AS received,
            SUM(CASE WHEN f.early THEN 0 ELSE f.returned END) AS returned,
-           SUM(CASE WHEN f.early THEN 0 ELSE f.paid END) AS paid
+           SUM(CASE WHEN f.early THEN 0 ELSE f.adjusted END) AS adjusted,
+           SUM(CASE WHEN f.early THEN 0 ELSE f.paid END) AS paid,
+           MAX(u.v) AS uninvoiced
     FROM flows f
     JOIN "Supplier" s ON s."orgId" = ${scope.orgId}::uuid AND s."id" = f."supplierId"
+    LEFT JOIN uninvoiced u ON u."supplierId" = s."id"
     GROUP BY s."id", s."name"
-    HAVING bool_or(NOT f.early) OR SUM(CASE WHEN f.early THEN f.received - f.returned - f.paid ELSE 0 END) <> 0
+    HAVING bool_or(NOT f.early)
+        OR SUM(CASE WHEN f.early THEN f.received - f.returned + f.adjusted - f.paid ELSE 0 END) <> 0
     ORDER BY s."name", s."id"`;
   return rows.map((row) => {
     const openingMinor = num(row.opening);
     const receivedMinor = num(row.received);
     const returnedMinor = num(row.returned);
+    const adjustedMinor = num(row.adjusted);
     const paidMinor = num(row.paid);
     return {
       supplierId: row.supplierId,
@@ -770,8 +815,78 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
       openingMinor,
       receivedMinor,
       returnedMinor,
+      adjustedMinor,
       paidMinor,
-      closingMinor: openingMinor + receivedMinor - returnedMinor - paidMinor,
+      closingMinor: openingMinor + receivedMinor - returnedMinor + adjustedMinor - paidMinor,
+      uninvoicedMinor: num(row.uninvoiced),
+    };
+  });
+}
+
+export type InputVatRow = {
+  month: string;
+  invoicesCount: number;
+  invoiceNetMinor: number;
+  invoiceVatMinor: number;
+  creditNetMinor: number;
+  creditVatMinor: number;
+  inputVatMinor: number;
+  outputVatMinor: number;
+  netVatMinor: number;
+};
+
+/** The shop-local `YYYY-MM` of a UTC timestamp column. */
+function localMonth(column: Prisma.Sql, zone: string): Prisma.Sql {
+  return Prisma.sql`to_char(((${column} AT TIME ZONE 'UTC') AT TIME ZONE ${zone}::text), 'YYYY-MM')`;
+}
+
+/**
+ * Input VAT by shop-local month of the issue date (supplier-invoices-spec I14), with the month's
+ * output VAT (sales VAT − refund VAT over `scope.branchIds`, as the VAT summary) for net VAT. Voided
+ * documents are left out. Issue dates are already shop-local days, so they need no time-zone shift.
+ */
+export async function inputVat(scope: ReportScope): Promise<InputVatRow[]> {
+  const rows = await getDb().$queryRaw<
+    { month: string; n: Big; inet: Big; ivat: Big; cnet: Big; cvat: Big; out: Big }[]
+  >`
+    WITH f AS (
+      SELECT to_char(d."issuedOn", 'YYYY-MM') AS month,
+             (d."kind" = 'INVOICE')::int AS n,
+             CASE WHEN d."kind" = 'INVOICE' THEN d."netMinor" ELSE 0 END AS inet,
+             CASE WHEN d."kind" = 'INVOICE' THEN d."vatMinor" ELSE 0 END AS ivat,
+             CASE WHEN d."kind" = 'CREDIT_NOTE' THEN d."netMinor" ELSE 0 END AS cnet,
+             CASE WHEN d."kind" = 'CREDIT_NOTE' THEN d."vatMinor" ELSE 0 END AS cvat,
+             0 AS out
+      FROM "SupplierInvoice" d
+      WHERE d."orgId" = ${scope.orgId}::uuid AND d."voidedAt" IS NULL
+        AND d."issuedOn" BETWEEN ${scope.from}::date AND ${scope.to}::date
+      UNION ALL
+      SELECT ${localMonth(col("s", "createdAt"), scope.zone)}, 0, 0, 0, 0, 0, si."vatMinor"
+      FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
+      WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
+      UNION ALL
+      SELECT ${localMonth(col("r", "createdAt"), scope.zone)}, 0, 0, 0, 0, 0, -ri."vatMinor"
+      FROM "RefundItem" ri JOIN "Refund" r ON r."orgId" = ri."orgId" AND r."id" = ri."refundId"
+      WHERE ${inScope("r", scope)} AND ${inRange(col("r", "createdAt"), scope)}
+    )
+    SELECT month, SUM(n) AS n, SUM(inet) AS inet, SUM(ivat) AS ivat, SUM(cnet) AS cnet, SUM(cvat) AS cvat,
+           SUM(out) AS out
+    FROM f GROUP BY 1 ORDER BY 1`;
+  return rows.map((row) => {
+    const invoiceVatMinor = num(row.ivat);
+    const creditVatMinor = num(row.cvat);
+    const outputVatMinor = num(row.out);
+    const inputVatMinor = invoiceVatMinor - creditVatMinor;
+    return {
+      month: row.month,
+      invoicesCount: num(row.n),
+      invoiceNetMinor: num(row.inet),
+      invoiceVatMinor,
+      creditNetMinor: num(row.cnet),
+      creditVatMinor,
+      inputVatMinor,
+      outputVatMinor,
+      netVatMinor: outputVatMinor - inputVatMinor,
     };
   });
 }

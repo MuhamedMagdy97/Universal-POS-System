@@ -22,6 +22,8 @@ const PERMISSION_FOR: Record<Area, Permission> = { reports: "reports.view", audi
 const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = {
   purchases: "purchases.manage",
   "supplier-balances": "purchases.manage",
+  // Input VAT comes from supplier invoices (supplier-invoices-spec I14).
+  "input-vat": "purchases.manage",
   // Names and phones of customers (customers-spec CU15).
   customers: "customers.read",
   // Profit shows cost: only those who see cost elsewhere (canSeeCost), P12 M7.
@@ -61,7 +63,7 @@ export async function requireAccess(
 }
 
 /** Reports over org-wide accounts ignore the branch filter, so they need a membership covering every branch. */
-export const ORG_WIDE_REPORTS: ReadonlySet<ReportName> = new Set<ReportName>(["supplier-balances"]);
+export const ORG_WIDE_REPORTS: ReadonlySet<ReportName> = new Set<ReportName>(["supplier-balances", "input-vat"]);
 
 export async function requireAllBranches(ctx: TenantContext, operation: string, meta?: AuditRequestMeta) {
   const membership = await prismaTenantRepository(getDb()).findMembership(ctx.orgId, ctx.userId);

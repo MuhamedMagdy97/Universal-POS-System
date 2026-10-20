@@ -150,8 +150,23 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("openingMinor", "reports.col.openingBalance", "money"),
     c("receivedMinor", "reports.col.purchaseValue", "money"),
     c("returnedMinor", "reports.col.returnedValue", "money"),
+    // Invoices and credit notes beyond the cost they replace (supplier-invoices-spec I7).
+    c("adjustedMinor", "reports.col.invoiceAdjustments", "money"),
     c("paidMinor", "reports.col.paid", "money"),
     c("closingMinor", "reports.col.closingBalance", "money"),
+    c("uninvoicedMinor", "reports.col.uninvoicedReceipts", "money"),
+  ],
+  // Input VAT (supplier-invoices-spec I14), next to the output VAT of the same months.
+  "input-vat": [
+    c("month", "reports.col.month", "day"),
+    c("invoicesCount", "reports.col.invoices", "int"),
+    c("invoiceNetMinor", "reports.col.invoiceNet", "money"),
+    c("invoiceVatMinor", "reports.col.invoiceVat", "money"),
+    c("creditNetMinor", "reports.col.creditNoteNet", "money"),
+    c("creditVatMinor", "reports.col.creditNoteVat", "money"),
+    c("inputVatMinor", "reports.col.inputVat", "money"),
+    c("outputVatMinor", "reports.col.outputVat", "money"),
+    c("netVatMinor", "reports.col.netVatPayable", "money"),
   ],
   // Profit (P12 M8): cost values, so products.update is needed too (M7).
   "profit-products": [c("sku", "reports.col.sku", "text"), c("name", "reports.col.product", "name"), ...PROFIT_COLUMNS],

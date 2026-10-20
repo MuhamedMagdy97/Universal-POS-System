@@ -2,14 +2,15 @@ import "server-only";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { multiply, sum, type CurrencyCode } from "@/lib/money";
+import type { CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { reportSettings } from "@/modules/reports";
 import { resolveRange, todayIn } from "@/modules/reports/timezone";
 import { requestHashOf } from "@/modules/sales";
 import { requireAccountAccess } from "./access";
 import { purchasingConflict, purchasingInvalid } from "./errors";
-import { formatReturnNumber, statementOf, type AccountEntry } from "./rules";
+import { allocateNewPayment, loadAccount, requireSupplier } from "./invoices";
+import { statementOf, type AccountEntry } from "./rules";
 import {
   IdempotencyKey,
   PaymentInput,
@@ -32,7 +33,7 @@ export type StatementEntry = AccountEntry & {
   id: string;
   /** When it was recorded: orders entries within one day. */
   at: Date;
-  /** PO number for a receipt or a linked payment, `PO-…-R1` for a return. */
+  /** PO number for a receipt or a linked payment, `PO-…-R1` for a return, the supplier's number for a document. */
   number: string | null;
   purchaseOrderId: string | null;
   method: SupplierPaymentMethod | null;
@@ -56,23 +57,8 @@ export type SupplierStatement = {
   entries: StatementEntry[];
 };
 
-const SUPPLIER_SELECT = { id: true, name: true, phone: true, email: true, taxNumber: true, isActive: true } as const;
-
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
-}
-
-function dayOf(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-async function requireSupplier(db: Db, ctx: TenantContext, supplierId: string): Promise<SupplierRow> {
-  const parsed = Uuid.safeParse(supplierId);
-  const supplier = parsed.success
-    ? await db.supplier.findFirst({ where: { id: parsed.data, orgId: ctx.orgId }, select: SUPPLIER_SELECT })
-    : null;
-  if (!supplier) throw notFound("Supplier");
-  return supplier;
 }
 
 /** The supplier's statement for a local date range (S13); defaults to the whole of this month. */
@@ -89,81 +75,75 @@ export async function getSupplierStatement(
   const today = todayIn(zone);
   const range = resolveRange({ from: query.from ?? `${today.slice(0, 8)}01`, to: query.to ?? today }, zone);
 
-  const scope = { orgId: ctx.orgId, purchaseOrder: { supplierId: supplier.id } };
-  // ponytail: reads the supplier's whole history to get the opening balance; aggregate in SQL if a supplier outgrows it.
-  const [receipts, returns, payments] = await Promise.all([
-    db.goodsReceipt.findMany({
-      where: scope,
-      select: {
-        id: true,
-        receivedAt: true,
-        purchaseOrder: { select: { id: true, number: true } },
-        items: { select: { qtyReceived: true, unitCostMinor: true } },
-      },
-    }),
-    db.purchaseReturn.findMany({
-      where: scope,
-      select: {
-        id: true,
-        seq: true,
-        returnedAt: true,
-        purchaseOrder: { select: { id: true, number: true } },
-        items: { select: { qty: true, unitCostMinor: true } },
-      },
-    }),
-    db.supplierPayment.findMany({
-      where: { orgId: ctx.orgId, supplierId: supplier.id },
-      select: {
-        id: true,
-        amountMinor: true,
-        method: true,
-        paidOn: true,
-        reference: true,
-        note: true,
-        reversalOfId: true,
-        createdAt: true,
-        purchaseOrder: { select: { id: true, number: true } },
-        reversedBy: { select: { id: true } },
-      },
-    }),
-  ]);
+  const account = await loadAccount(db, ctx.orgId, supplier.id, today);
 
   const none = { method: null, reference: null, note: null, reversalOfId: null, reversed: false };
+  const docEntries = account.invoices.flatMap((doc) => {
+    const isInvoice = doc.kind === "INVOICE";
+    const base = {
+      ...none,
+      amountMinor: doc.totalMinor,
+      coveredMinor: doc.coveredMinor,
+      number: doc.number,
+      purchaseOrderId: null,
+    };
+    const issued = {
+      ...base,
+      kind: isInvoice ? ("INVOICE" as const) : ("CREDIT_NOTE" as const),
+      id: doc.id,
+      at: doc.createdAt,
+      day: doc.issuedOn,
+      note: doc.note,
+    };
+    if (!doc.voidedAt) return [issued];
+    return [
+      issued,
+      {
+        ...base,
+        kind: isInvoice ? ("INVOICE_VOID" as const) : ("CREDIT_NOTE_VOID" as const),
+        id: `${doc.id}:void`,
+        at: doc.voidedAt,
+        day: todayIn(zone, doc.voidedAt),
+        note: doc.voidReason,
+      },
+    ];
+  });
   const all: Omit<StatementEntry, "balanceMinor">[] = [
-    ...receipts.map((r) => ({
+    ...account.receipts.map((r) => ({
       ...none,
       kind: "RECEIPT" as const,
       id: r.id,
-      at: r.receivedAt,
-      day: todayIn(zone, r.receivedAt),
-      amountMinor: sum(r.items.map((i) => multiply(i.unitCostMinor, i.qtyReceived))),
-      number: r.purchaseOrder.number,
-      purchaseOrderId: r.purchaseOrder.id,
+      at: r.at,
+      day: todayIn(zone, r.at),
+      amountMinor: r.valueMinor,
+      number: r.number,
+      purchaseOrderId: r.purchaseOrderId,
     })),
-    ...returns.map((r) => ({
+    ...account.returns.map((r) => ({
       ...none,
       kind: "RETURN" as const,
       id: r.id,
-      at: r.returnedAt,
-      day: todayIn(zone, r.returnedAt),
-      amountMinor: sum(r.items.map((i) => multiply(i.unitCostMinor, i.qty))),
-      number: formatReturnNumber(r.purchaseOrder.number, r.seq),
-      purchaseOrderId: r.purchaseOrder.id,
+      at: r.at,
+      day: todayIn(zone, r.at),
+      amountMinor: r.valueMinor,
+      number: r.number,
+      purchaseOrderId: r.purchaseOrderId,
     })),
-    ...payments.map((p) => ({
+    ...account.payments.map((p) => ({
       kind: p.reversalOfId ? ("REVERSAL" as const) : ("PAYMENT" as const),
       id: p.id,
       at: p.createdAt,
-      day: dayOf(p.paidOn),
+      day: p.paidOn,
       amountMinor: p.amountMinor,
-      number: p.purchaseOrder?.number ?? null,
-      purchaseOrderId: p.purchaseOrder?.id ?? null,
+      number: p.poNumber,
+      purchaseOrderId: p.purchaseOrderId,
       method: p.method,
       reference: p.reference,
       note: p.note,
       reversalOfId: p.reversalOfId,
-      reversed: p.reversedBy !== null,
+      reversed: p.reversed,
     })),
+    ...docEntries,
   ].sort((a, b) => a.day.localeCompare(b.day) || a.at.getTime() - b.at.getTime() || a.id.localeCompare(b.id));
 
   const statement = statementOf(all, range.from, range.to);
@@ -217,6 +197,18 @@ export async function recordSupplierPayment(
         },
         select: { id: true },
       });
+      if (parsed.allocations && parsed.allocations.length > 0) {
+        await allocateNewPayment(
+          tx,
+          ctx,
+          supplier.id,
+          { id: payment.id, amountMinor: parsed.amountMinor },
+          parsed.allocations,
+          idempotencyKey,
+          requestHash,
+          todayIn(zone),
+        );
+      }
       await record(tx, {
         ctx,
         meta,
@@ -229,6 +221,7 @@ export async function recordSupplierPayment(
           method: parsed.method,
           paidOn: parsed.paidOn,
           purchaseOrderId: parsed.purchaseOrderId,
+          allocations: parsed.allocations ?? [],
         },
       });
       return payment.id;

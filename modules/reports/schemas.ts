@@ -12,6 +12,7 @@ export const REPORT_NAMES = [
   "shifts",
   "refunds-voids",
   "vat",
+  "input-vat",
   "purchases",
   "supplier-balances",
   "profit-products",
