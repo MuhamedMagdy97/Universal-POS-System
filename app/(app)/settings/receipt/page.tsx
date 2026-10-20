@@ -7,6 +7,7 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { translator } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { getReceiptSettings } from "@/modules/org";
+import { isSaudiVatNumber } from "@/modules/sales/zatca";
 import { ReceiptSettingsForm } from "./receipt-settings-form";
 
 /** Receipt settings (T10 H3): what every printed receipt carries. Owner and Admin (`settings.manage`). */
@@ -41,6 +42,11 @@ async function ReceiptSettingsContent() {
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">{tr("settings.receipt.title")}</h1>
       <p className="text-muted">{tr("settings.receipt.intro")}</p>
+      {settings.countryCode === "SA" && !isSaudiVatNumber(settings.taxNumber ?? "") ? (
+        <p role="alert" data-testid="zatca-warning" className="rounded-md border border-amber-600 p-3 text-amber-900">
+          {tr("settings.receipt.zatcaWarning")}
+        </p>
+      ) : null}
       <ReceiptSettingsForm locale={locale} initial={settings} />
     </div>
   );

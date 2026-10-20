@@ -1293,4 +1293,12 @@ export const en = {
   "audit.action.customer.updated": "Customer edited",
   "audit.action.customer.archived": "Customer archived",
   "audit.action.customer.restored": "Customer restored",
+  // ZATCA Phase 1 (zatca-phase1-spec)
+  "receipt.zatca.invoice": "Simplified Tax Invoice / فاتورة ضريبية مبسطة",
+  "receipt.zatca.creditNote": "Credit Note / إشعار دائن",
+  "receipt.zatca.qr": "ZATCA tax invoice QR code",
+  "settings.receipt.vatHintSA": "15 digits, starting and ending with 3. Printed with the ZATCA QR code.",
+  "settings.receipt.vatInvalid": "Enter a 15-digit VAT number that starts and ends with 3.",
+  "settings.receipt.zatcaWarning":
+    "Add your VAT registration number. Until then receipts print without the ZATCA tax invoice title and QR code.",
 } as const;

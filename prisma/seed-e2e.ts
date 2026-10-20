@@ -44,7 +44,7 @@ export const E2E_ORGS = {
   },
 } as const;
 
-export type E2EUserKey = "ownerA" | "adminA" | "managerA" | "cashierA" | "reportingA" | "adminB";
+export type E2EUserKey = "ownerA" | "adminA" | "managerA" | "cashierA" | "reportingA" | "adminB" | "cashierB";
 
 export const E2E_USERS: Record<E2EUserKey, { email: string; password: string; name: string; role: Role; org: OrgKey }> =
   {
@@ -88,6 +88,14 @@ export const E2E_USERS: Record<E2EUserKey, { email: string; password: string; na
       password: "e2e-AdminB-pw-5e62c0",
       name: "Badr Admin",
       role: "ADMIN",
+      org: "B",
+    },
+    /** Sells in the Saudi shop (ZATCA receipts). */
+    cashierB: {
+      email: "cashier@org-b.e2e.test",
+      password: "e2e-CashierB-pw-3a8d17",
+      name: "Sami Cashier",
+      role: "CASHIER",
       org: "B",
     },
   };

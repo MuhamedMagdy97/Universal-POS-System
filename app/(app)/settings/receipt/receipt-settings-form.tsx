@@ -7,7 +7,7 @@ import type { ReceiptSettings } from "@/modules/org";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { saveReceiptSettingsAction } from "../actions";
 
-type Field = Exclude<keyof ReceiptSettings, "name" | "maxCashierDiscountBp">;
+type Field = Exclude<keyof ReceiptSettings, "name" | "maxCashierDiscountBp" | "countryCode">;
 
 const FIELDS: { key: Field; label: MessageKey; max: number; ltr?: boolean }[] = [
   { key: "legalName", label: "settings.receipt.legalName", max: 120 },
@@ -27,7 +27,8 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
   const [limitRaw, setLimitRaw] = useState(String(initial.maxCashierDiscountBp / 100));
   const limitBp = parsePercentBp(limitRaw);
   const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<"saved" | "error" | null>(null);
+  const [status, setStatus] = useState<"saved" | "error" | "vat" | null>(null);
+  const saudi = initial.countryCode === "SA";
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -36,7 +37,8 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
     setStatus(null);
     const result = await safeAction(() => saveReceiptSettingsAction({ ...values, maxCashierDiscountBp: limitBp }));
     setPending(false);
-    setStatus(result.ok ? "saved" : "error");
+    const reason = result.ok ? null : (result.error.details as { reason?: string } | null)?.reason;
+    setStatus(result.ok ? "saved" : reason === "INVALID_VAT_NUMBER" ? "vat" : "error");
   }
 
   return (
@@ -50,9 +52,15 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
             maxLength={field.max}
             dir={field.ltr ? "ltr" : undefined}
             placeholder={field.key === "legalName" ? initial.name : undefined}
+            aria-describedby={saudi && field.key === "taxNumber" ? "vat-hint" : undefined}
             onChange={(e) => setValues((current) => ({ ...current, [field.key]: e.target.value }))}
             className="rounded-md border border-border bg-background px-3 py-2"
           />
+          {saudi && field.key === "taxNumber" ? (
+            <span id="vat-hint" className="text-sm text-muted">
+              {tr("settings.receipt.vatHintSA")}
+            </span>
+          ) : null}
         </label>
       ))}
       <label className="flex flex-col gap-1">
@@ -74,6 +82,11 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
       {status === "saved" ? (
         <p role="status" className="text-green-800">
           {tr("settings.receipt.saved")}
+        </p>
+      ) : null}
+      {status === "vat" ? (
+        <p role="alert" className="text-red-700">
+          {tr("settings.receipt.vatInvalid")}
         </p>
       ) : null}
       {status === "error" ? (

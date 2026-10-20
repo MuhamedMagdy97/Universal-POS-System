@@ -43,8 +43,10 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
         {shop.taxNumber ? <p>{tr("receipt.vatNo", { number: shop.taxNumber })}</p> : null}
         {shop.header ? <p>{shop.header}</p> : null}
       </header>
-      <p className="receipt-center receipt-strong receipt-rule">
-        {tr(`receipt.title.${doc.kind}`)}
+      <p className="receipt-center receipt-strong receipt-rule" data-testid="receipt-title">
+        {doc.zatca ? tr(doc.kind === "SALE" ? "receipt.zatca.invoice" : "receipt.zatca.creditNote") : null}
+        {doc.zatca && doc.kind !== "SALE" ? " · " : null}
+        {doc.zatca && doc.kind === "SALE" ? null : tr(`receipt.title.${doc.kind}`)}
         {doc.copy ? ` · ${tr("receipt.copy")}` : ""}
       </p>
       <p>{tr("receipt.sale", { number: doc.saleNumber })}</p>
@@ -130,6 +132,18 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
           ) : null}
         </tbody>
       </table>
+      {doc.zatca ? (
+        <svg
+          viewBox={`0 0 ${doc.zatca.qr.size} ${doc.zatca.qr.size}`}
+          className="receipt-qr"
+          role="img"
+          aria-label={tr("receipt.zatca.qr")}
+          data-testid="receipt-qr"
+        >
+          <rect width="100%" height="100%" fill="#fff" />
+          <path d={doc.zatca.qr.path} fill="#000" />
+        </svg>
+      ) : null}
       {shop.footer ? <p className="receipt-center receipt-rule">{shop.footer}</p> : null}
     </article>
   );
