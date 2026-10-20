@@ -9,6 +9,7 @@ import type { Discount, PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
 import { createSaleAction, tillStockAction } from "../actions";
+import { CustomerPicker } from "./customer-picker";
 import {
   addToCart,
   bumpQty,
@@ -31,6 +32,7 @@ import {
   stockShort,
   tillShortcut,
   type CartLine,
+  type TillCustomer,
   type TillItem,
   type TillSettings,
 } from "../_lib/till";
@@ -64,6 +66,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   // The cash box on screen: "Cash received", or the cash row of a split.
   const cashRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
+  const customerRef = useRef<HTMLInputElement>(null);
   const money = (minor: number) => formatMoney(minor, settings.currency, locale);
 
   const [query, setQuery] = useState("");
@@ -88,6 +91,8 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   // Discounts (discounts-spec §4): the sale's, and the box being edited.
   const [saleDiscount, setSaleDiscount] = useState<Discount | null>(null);
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
+  // The sale's customer; null = walk-in (customers-spec CU7, CU12).
+  const [customer, setCustomer] = useState<TillCustomer | null>(null);
   const limitLabel = settings.discount.limitBp === null ? null : `${settings.discount.limitBp / 100}%`;
 
   const preview = previewCart(cart, settings, saleDiscount);
@@ -209,7 +214,9 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
         if (method !== "SPLIT") setMethod("CASH");
         requestAnimationFrame(() => cashRef.current?.focus());
       } else if (action === "exact") fillExactCash();
-      else if (action === "lineDiscount") {
+      else if (action === "customer") {
+        if (settings.customers.read) customerRef.current?.focus();
+      } else if (action === "lineDiscount") {
         if (selected) openDiscount(selected);
       } else if (action === "saleDiscount") openDiscount("SALE");
       else if (selected) setCart((current) => bumpQty(current, selected, action === "inc" ? 1 : -1));
@@ -258,6 +265,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setSelectedKey(null);
     setSaleDiscount(null);
     setDiscountDraft(null);
+    setCustomer(null);
     if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
     setError(null);
@@ -281,6 +289,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
             ...(line.discount ? { discount: line.discount } : {}),
           })),
           ...(saleDiscount ? { discount: saleDiscount } : {}),
+          ...(customer ? { customerId: customer.id } : {}),
           payments: plan.payments,
         },
         saleKey,
@@ -318,6 +327,11 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
           {tr("pos.receipt.title", { number: receipt.number })}
         </h2>
         <p className="text-muted">{new Date(receipt.createdAt).toLocaleString(locale)}</p>
+        {receipt.customer ? (
+          <p data-testid="receipt-customer">
+            {tr("pos.customer.label")}: {receipt.customer.name}
+          </p>
+        ) : null}
         <ul className="flex flex-col gap-1">
           {receipt.lines.map((line) => (
             <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
@@ -431,6 +445,16 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
             {tr("pos.search.submit")}
           </button>
         </div>
+        {settings.customers.read ? (
+          <CustomerPicker
+            locale={locale}
+            customer={customer}
+            onChange={setCustomer}
+            canCreate={settings.customers.create}
+            inputRef={customerRef}
+            onDone={focusSearch}
+          />
+        ) : null}
         <p className="text-xs text-muted" data-testid="till-keys">
           {tr("pos.keys.hint")}
         </p>

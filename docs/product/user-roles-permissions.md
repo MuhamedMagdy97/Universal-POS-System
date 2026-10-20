@@ -8,18 +8,20 @@ Gate on action grants, never role-name string checks in business logic:
 
 - products.read/create/update, inventory.adjust/transfer
 - sales.create/void/refund, discounts.apply/override
+- customers.read/create/manage (customer records; customers-spec CU6)
 - registers.open/close, purchases.manage (suppliers, POs), purchases.receive (receive against a PO)
 - reports.view, users.manage, settings.manage
 
 ## Matrix (MVP default)
 - Owner: all.
-- Admin: users.manage, settings.manage, products.*, inventory.*, purchases.*, reports.view.
+- Admin: users.manage, settings.manage, products.*, inventory.*, purchases.*, reports.view, customers.*.
 - Manager: products.read, inventory.* (read included), sales.create, registers.open/close, sales.void, refunds,
-  discounts.override, purchases.receive (their branches; T5 P1), reports.view. Managers can work a till so they can cover a register and refund at it
+  discounts.override, purchases.receive (their branches; T5 P1), reports.view, customers.*. Managers can work a till so they can cover a register and refund at it
   (owner decision 2026-10-12, T8 follow-up).
 - Cashier: products.read, sales.create, registers.open/close, discounts.apply (up to the shop's cashier discount limit,
-  default 10%; discounts-spec DC7–DC8). Manager and Owner discount without a limit (`discounts.override`).
-- Reporting: reports.view, inventory.read (read-only stock; D5).
+  default 10%; discounts-spec DC7–DC8), customers.read/create (pick or quick-add a customer at the till). Manager and
+  Owner discount without a limit (`discounts.override`).
+- Reporting: reports.view, inventory.read (read-only stock; D5), customers.read.
 
 Branch scoping enforced alongside role checks, server-side.
 

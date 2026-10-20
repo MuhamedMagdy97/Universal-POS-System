@@ -432,6 +432,55 @@ export async function cashiers(scope: ReportScope): Promise<CashiersRow[]> {
     .sort((a, b) => b.grossMinor - a.grossMinor || a.name.localeCompare(b.name));
 }
 
+// ---------- customers ----------
+
+export type CustomersRow = {
+  customerId: string;
+  name: string;
+  phone: string;
+  salesCount: number;
+  grossMinor: number;
+  refundsCount: number;
+  refundsMinor: number;
+  netMinor: number;
+};
+
+/** Completed sales by `Sale.customerId` on their day, refunds of those customers' sales on theirs (CU15). */
+export async function customers(scope: ReportScope): Promise<CustomersRow[]> {
+  const rows = await getDb().$queryRaw<
+    { customerId: string; name: string; phone: string; sn: Big; sa: Big; rn: Big; ra: Big }[]
+  >`
+    WITH f AS (
+      SELECT s."customerId", 1 AS sn, s."totalMinor" AS sa, 0 AS rn, 0 AS ra
+      FROM "Sale" s
+      WHERE ${inScope("s", scope)} AND s."customerId" IS NOT NULL AND s."status" = 'COMPLETED'
+        AND ${inRange(col("s", "createdAt"), scope)}
+      UNION ALL
+      SELECT s."customerId", 0, 0, 1, r."totalMinor"
+      FROM "Refund" r JOIN "Sale" s ON s."orgId" = r."orgId" AND s."id" = r."saleId"
+      WHERE ${inScope("r", scope)} AND s."customerId" IS NOT NULL AND ${inRange(col("r", "createdAt"), scope)}
+    )
+    SELECT f."customerId", c."name", c."phone", SUM(sn) AS sn, SUM(sa) AS sa, SUM(rn) AS rn, SUM(ra) AS ra
+    FROM f JOIN "Customer" c ON c."orgId" = ${scope.orgId}::uuid AND c."id" = f."customerId"
+    GROUP BY 1, 2, 3`;
+  return rows
+    .map((row) => {
+      const grossMinor = num(row.sa);
+      const refundsMinor = num(row.ra);
+      return {
+        customerId: row.customerId,
+        name: row.name,
+        phone: row.phone,
+        salesCount: num(row.sn),
+        grossMinor,
+        refundsCount: num(row.rn),
+        refundsMinor,
+        netMinor: grossMinor - refundsMinor,
+      };
+    })
+    .sort((a, b) => b.netMinor - a.netMinor || a.name.localeCompare(b.name));
+}
+
 // ---------- shifts ----------
 
 export type ShiftsRow = {

@@ -40,6 +40,8 @@ export const SaleInput = z
     lines: z.array(SaleLineInput).min(1).max(200),
     // Whole-sale discount, allocated across lines on the server (DC4).
     discount: DiscountInput.optional(),
+    // Optional customer (customers-spec CU7). Left out for a walk-in, so older requests hash as before (CU9).
+    customerId: Uuid.optional(),
     payments: z
       .array(PaymentInput)
       // Empty only for a zero-total sale; settlePayments rejects it otherwise.

@@ -101,6 +101,20 @@ Refusals: "Enter a quantity for at least one line.", "A quantity is more than is
 latest.", "This order cannot be received now." (draft, cancelled or fully received). Returning goods to a supplier is
 not built.
 
+## Customers
+
+**Customers** [العملاء] lists the shop's customers. Search by name or phone; **Show archived** [عرض المؤرشفين] lists
+archived ones too. Cashiers pick and add customers at the till (see [cashier.md](cashier.md)); you also edit them.
+
+- **Add customer** [إضافة عميل]: name and phone are required; email, **VAT number** [الرقم الضريبي] (printed on the
+  receipt for business customers) and a note are optional. A phone can belong to one customer only ("A customer with
+  this phone already exists.").
+- Open a customer to see their **Sales**, **Refunds** and **Net** totals and their latest sales and refunds in your
+  branches. Voided sales are listed but not counted.
+- **Edit** [تعديل] changes the details; past receipts keep the name and VAT number they were printed with.
+  **Archive** [أرشفة] hides the customer from the till; their history stays. **Restore** [استعادة] brings them back.
+- Customers are never deleted. Keep only what the shop needs: there are no marketing fields.
+
 ## Reports
 
 **Reports** [التقارير]: pick a **Report**, a **Branch** (or **All my branches** [كل فروعي]), dates or a quick range
@@ -108,7 +122,8 @@ not built.
 rows; the screen shows the first 500.
 
 Managers and reporting users see: Sales summary, Payments, Products, Categories, Cashiers, Shifts (with a Z-report
-print button on closed shifts), Refunds and voids, VAT. Profit and Purchases received are for the owner and admins.
+print button on closed shifts), Refunds and voids, VAT, Sales by customer (one row per customer with a sale or
+refund in the range; walk-in sales are not listed). Profit and Purchases received are for the owner and admins.
 
 Days run midnight to midnight in Cairo or Riyadh time. A report covers at most 366 days ("Check the dates…").
 

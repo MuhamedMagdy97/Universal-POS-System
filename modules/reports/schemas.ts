@@ -8,6 +8,7 @@ export const REPORT_NAMES = [
   "products",
   "categories",
   "cashiers",
+  "customers",
   "shifts",
   "refunds-voids",
   "vat",

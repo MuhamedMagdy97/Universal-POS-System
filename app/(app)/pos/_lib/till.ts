@@ -15,7 +15,12 @@ export type TillSettings = {
   pricesIncludeVat: boolean;
   /** Who may discount (discounts-spec DC7, DC8): not at all, up to `limitBp`, or without a limit (null). */
   discount: { allowed: boolean; limitBp: number | null };
+  /** Pick a customer (read) and quick-add one (create) at the till (customers-spec CU12). */
+  customers: { read: boolean; create: boolean };
 };
+
+/** The customer on the sale; null = walk-in (customers-spec CU7). */
+export type TillCustomer = { id: string; name: string; phone: string; taxNumber: string | null };
 
 /** A sellable item as the catalog search returns it (no cost). */
 export type TillItem = {
@@ -220,6 +225,7 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
   const reason = (error.details as { reason?: string } | null)?.reason;
   if (reason === "DISCOUNT_LIMIT") return "pos.error.discountLimit";
   if (error.code === "FORBIDDEN") return "pos.error.forbidden";
+  if (reason === "CUSTOMER_INACTIVE") return "pos.error.customerInactive";
   if (error.code === "NOT_FOUND") return "pos.error.notFound";
   switch (reason) {
     case "INSUFFICIENT_STOCK":
@@ -284,11 +290,12 @@ export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): 
   return cart.map((line) => (lineKey(line) === key ? { ...line, qty: Math.max(line.qty + delta, 1) } : line));
 }
 
-export type TillShortcut = "search" | "cash" | "exact" | "close" | "inc" | "dec" | "lineDiscount" | "saleDiscount";
+export type TillShortcut =
+  "search" | "cash" | "exact" | "close" | "inc" | "dec" | "lineDiscount" | "saleDiscount" | "customer";
 
 /**
  * Till keys (docs/user/cashier.md): F2 search, F4 cash, F6 discount on the selected line, F7
- * discount on the sale, F8 exact cash, Esc close, + and - change the selected line. + and - are
+ * discount on the sale, F8 exact cash, F9 customer, Esc close, + and - change the selected line. + and - are
  * typed text inside a field, so they act only outside one.
  */
 export function tillShortcut(key: string, inField: boolean): TillShortcut | null {
@@ -303,6 +310,8 @@ export function tillShortcut(key: string, inField: boolean): TillShortcut | null
       return "saleDiscount";
     case "F8":
       return "exact";
+    case "F9":
+      return "customer";
     case "Escape":
       return "close";
     case "+":

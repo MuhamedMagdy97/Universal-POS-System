@@ -10,6 +10,7 @@ import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
 import { ReturnsNavLink } from "./_components/returns-nav-link";
+import { CustomersNavLink } from "./_components/customers-nav-link";
 import { ReportsNavLink } from "./_components/reports-nav-link";
 import { PurchasingNavLink } from "./_components/purchasing-nav-link";
 import { SettingsNavLink } from "./_components/settings-nav-link";
@@ -34,6 +35,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Suspense>
           <Suspense fallback={null}>
             <ReturnsNavLink />
+          </Suspense>
+          <Suspense fallback={null}>
+            <CustomersNavLink />
           </Suspense>
           <Suspense fallback={null}>
             <CatalogNavLink />

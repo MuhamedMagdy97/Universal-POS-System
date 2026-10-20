@@ -258,32 +258,32 @@ model ApiRateLimit {
 // ───────────────────── Tenancy: org / branch ─────────────────────
 
 model Organization {
-  id                 String          @id @default(uuid()) @db.Uuid
-  name               String
-  businessType       BusinessType
-  countryCode        CountryCode
-  currency           Currency
-  vatRateBp          Int
-  blockNegativeStock Boolean         @default(true)
+  id                   String          @id @default(uuid()) @db.Uuid
+  name                 String
+  businessType         BusinessType
+  countryCode          CountryCode
+  currency             Currency
+  vatRateBp            Int
+  blockNegativeStock   Boolean         @default(true)
   // Shelf prices include VAT (EG and SA consumer pricing). Read by checkout (T6).
-  pricesIncludeVat   Boolean         @default(true)
+  pricesIncludeVat     Boolean         @default(true)
   // Last issued sale number (checkout): bumped in the sale transaction, gap-free on rollback.
-  lastSaleNo         Int             @default(0)
+  lastSaleNo           Int             @default(0)
   // Last issued purchase order number (T5): bumped in the PO create transaction, like lastSaleNo.
-  lastPoNo           Int             @default(0)
+  lastPoNo             Int             @default(0)
   // Most a cashier (discounts.apply only) may take off, in basis points; 1000 = 10% (discounts-spec DC8).
-  maxCashierDiscountBp Int           @default(1000)
+  maxCashierDiscountBp Int             @default(1000)
   // Receipt fields
-  legalName          String?
-  taxNumber          String?
-  receiptHeader      String?
-  receiptFooter      String?
-  receiptAddress     String?
-  receiptPhone       String?
+  legalName            String?
+  taxNumber            String?
+  receiptHeader        String?
+  receiptFooter        String?
+  receiptAddress       String?
+  receiptPhone         String?
   // Phase 13 (I1): EXTERNAL = the inventory system is master; changed only through modules/integrations.
-  inventorySource    InventorySource @default(BUILT_IN)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  inventorySource      InventorySource @default(BUILT_IN)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   inventoryLink      InventoryLink?
   stockPostings      ExternalStockPosting[]
@@ -309,7 +309,8 @@ model Organization {
   purchaseReturns    PurchaseReturn[]
   returnItems        PurchaseReturnItem[]
   supplierPayments   SupplierPayment[]
-  sales             Sale[]
+  customers          Customer[]
+  sales              Sale[]
   saleItems          SaleItem[]
   payments           Payment[]
   refunds            Refund[]
@@ -463,17 +464,17 @@ model MembershipBranch {
 // ─────────────────────────── Catalog ───────────────────────────
 
 model Category {
-  id        String   @id @default(uuid()) @db.Uuid
-  orgId     String   @db.Uuid
-  parentId  String?  @db.Uuid
-  name      String
-  nameAr    String?
-  isActive  Boolean  @default(true)
-  sortOrder Int      @default(0)
+  id                 String   @id @default(uuid()) @db.Uuid
+  orgId              String   @db.Uuid
+  parentId           String?  @db.Uuid
+  name               String
+  nameAr             String?
+  isActive           Boolean  @default(true)
+  sortOrder          Int      @default(0)
   // Inventory-system category id (category sync); unique per org (partial index in SQL).
   externalCategoryId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Sibling names are unique per (orgId, parentId), case-insensitive: raw SQL
   // index "Category_sibling_name_key" in the catalog_hardening migration.
@@ -777,9 +778,9 @@ model PurchaseOrder {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  org      Organization     @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  branch   Branch           @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  supplier Supplier         @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  org      Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch   Branch            @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  supplier Supplier          @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
   items    POItem[]
   receipts GoodsReceipt[]
   returns  PurchaseReturn[]
@@ -933,32 +934,60 @@ model SupplierPayment {
 
 // ──────────────────────────── Sales ────────────────────────────
 
+// Customer records (docs/planning/customers/customers-spec.md). Phone is E.164, unique per org;
+// archived rather than deleted. No marketing fields (CU1).
+model Customer {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  phone     String
+  email     String?
+  taxNumber String?
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  sales Sale[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, phone])
+  @@index([orgId, name])
+}
+
 model Sale {
-  id             String     @id @default(uuid()) @db.Uuid
-  orgId          String     @db.Uuid
-  branchId       String     @db.Uuid
-  registerId     String     @db.Uuid
-  shiftId        String     @db.Uuid
-  cashierId      String     @db.Uuid
-  number         String
-  idempotencyKey String
-  status         SaleStatus @default(COMPLETED)
-  currency       Currency
-  subtotalMinor  Int
-  discountMinor  Int        @default(0)
-  vatMinor       Int
-  totalMinor     Int
+  id                String     @id @default(uuid()) @db.Uuid
+  orgId             String     @db.Uuid
+  branchId          String     @db.Uuid
+  registerId        String     @db.Uuid
+  shiftId           String     @db.Uuid
+  cashierId         String     @db.Uuid
+  number            String
+  idempotencyKey    String
+  status            SaleStatus @default(COMPLETED)
+  currency          Currency
+  subtotalMinor     Int
+  discountMinor     Int        @default(0)
+  vatMinor          Int
+  totalMinor        Int
   // Cash handed back to the customer (tendered cash minus the cash applied to the sale).
-  changeMinor    Int        @default(0)
+  changeMinor       Int        @default(0)
   // SHA-256 of the canonical request body; a replayed Idempotency-Key must match it.
-  requestHash    String?
-  createdAt      DateTime   @default(now())
-  voidedAt       DateTime?
-  voidedById     String?    @db.Uuid
-  voidReason     String?
+  requestHash       String?
+  createdAt         DateTime   @default(now())
+  voidedAt          DateTime?
+  voidedById        String?    @db.Uuid
+  voidReason        String?
+  // Optional customer (customers-spec CU7, CU8). The snapshot is what receipts print; NULL = walk-in.
+  customerId        String?    @db.Uuid
+  customerName      String?
+  customerPhone     String?
+  customerTaxNumber String?
 
   org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  customer Customer?     @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
   register Register      @relation(fields: [orgId, branchId, registerId], references: [orgId, branchId, id], onDelete: Restrict)
   shift    RegisterShift @relation(fields: [orgId, shiftId], references: [orgId, id], onDelete: Restrict)
   items    SaleItem[]
@@ -970,6 +999,7 @@ model Sale {
   @@unique([orgId, number])
   @@index([orgId, branchId, createdAt])
   @@index([orgId, shiftId])
+  @@index([orgId, customerId, createdAt])
 }
 
 // Snapshot of product data at sale time; later price edits never touch it.

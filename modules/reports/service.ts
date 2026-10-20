@@ -52,6 +52,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   products: q.products,
   categories: q.categories,
   cashiers: q.cashiers,
+  customers: q.customers,
   shifts: q.shifts,
   "refunds-voids": q.refundsVoids,
   vat: q.vat,

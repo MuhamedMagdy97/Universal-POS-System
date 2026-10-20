@@ -6,9 +6,9 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
     for (const permission of PERMISSIONS) expect(hasPermission("OWNER", permission)).toBe(true);
   });
 
-  it("limits reporting users to reports.view and read-only stock (inventory D5)", () => {
+  it("limits reporting users to reports.view, read-only stock (inventory D5) and reading customers", () => {
     const granted = PERMISSIONS.filter((permission) => hasPermission("REPORTING", permission));
-    expect(granted).toEqual(["inventory.read", "reports.view"]);
+    expect(granted).toEqual(["inventory.read", "customers.read", "reports.view"]);
   });
 
   it("lets managers, admins and owners read stock; cashiers get no stock screens (inventory D5)", () => {
@@ -72,5 +72,17 @@ describe("permission matrix (docs/product/user-roles-permissions.md)", () => {
     expect(hasPermission("ADMIN", "settings.manage")).toBe(true);
     expect(hasPermission("ADMIN", "products.create")).toBe(true);
     expect(hasPermission("ADMIN", "sales.void")).toBe(false);
+  });
+
+  it("lets cashiers read and add customers, and managers, admins and owners manage them (customers-spec CU6)", () => {
+    expect(hasPermission("CASHIER", "customers.read")).toBe(true);
+    expect(hasPermission("CASHIER", "customers.create")).toBe(true);
+    expect(hasPermission("CASHIER", "customers.manage")).toBe(false);
+    for (const role of ["OWNER", "ADMIN", "MANAGER"] as const) {
+      for (const permission of ["customers.read", "customers.create", "customers.manage"] as const) {
+        expect(hasPermission(role, permission)).toBe(true);
+      }
+    }
+    expect(hasPermission("REPORTING", "customers.create")).toBe(false);
   });
 });
