@@ -112,6 +112,14 @@ body {
   margin-top: 1.5mm;
   padding-top: 1.5mm;
 }
+/* ZATCA QR (zatca-phase1-spec Z9): 30 mm square, crisp modules. */
+.receipt-qr {
+  display: block;
+  width: 30mm;
+  height: 30mm;
+  margin: 2mm auto 0;
+  shape-rendering: crispEdges;
+}
 
 .print-a4 {
   page: a4;

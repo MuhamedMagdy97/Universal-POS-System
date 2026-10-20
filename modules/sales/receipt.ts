@@ -8,6 +8,7 @@ import { record, type AuditRequestMeta } from "@/modules/audit";
 import { Uuid } from "@/modules/inventory/schemas";
 import { zoneFor } from "@/modules/reports/timezone";
 import { requireBranch } from "./access";
+import { isSaudiVatNumber, qrSvg, zatcaTlvBase64, type QrSvg } from "./zatca";
 
 /**
  * Printable receipt for a sale, one of its refunds, or its void (T10 H2, H4). Built on the server
@@ -52,6 +53,11 @@ export type ReceiptDoc = {
   vatRatesBp: number[];
   payments: { method: string; amountMinor: number }[];
   changeMinor: number;
+  /**
+   * ZATCA Phase 1 (zatca-phase1-spec Z4, Z8): set for a Saudi shop with a valid VAT number. A sale prints as a
+   * simplified tax invoice, a refund or void as a credit note; both carry the QR of `tlv`.
+   */
+  zatca: { tlv: string; qr: QrSvg } | null;
 };
 
 export type ReceiptRequest = { kind: ReceiptKind; refundId?: string; copy: boolean };
@@ -141,6 +147,7 @@ export async function getReceipt(
       vatRatesBp: rates(refund.items.map((item) => byId.get(item.saleItemId)?.vatRateBp ?? 0)),
       payments: [{ method: refund.method, amountMinor: refund.totalMinor }],
       changeMinor: 0,
+      zatca: null,
     };
   } else {
     const isVoid = request.kind === "VOID";
@@ -159,7 +166,19 @@ export async function getReceipt(
       payments: sale.payments.map((payment) => ({ method: payment.method, amountMinor: payment.amountMinor })),
       // A void hands back what was taken: the slip shows the total as refunded and no change (H2).
       changeMinor: isVoid ? 0 : sale.changeMinor,
+      zatca: null,
     };
+  }
+
+  if (org.countryCode === "SA" && org.taxNumber && isSaudiVatNumber(org.taxNumber)) {
+    const tlv = zatcaTlvBase64({
+      sellerName: shop.name,
+      vatNumber: org.taxNumber,
+      at: doc.at,
+      totalMinor: doc.totalMinor,
+      vatMinor: doc.vatMinor,
+    });
+    doc.zatca = { tlv, qr: qrSvg(tlv) };
   }
 
   if (request.copy) {

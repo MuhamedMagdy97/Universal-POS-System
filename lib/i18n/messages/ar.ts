@@ -1279,4 +1279,12 @@ export const ar: Messages = {
   "audit.action.customer.updated": "تعديل عميل",
   "audit.action.customer.archived": "أرشفة عميل",
   "audit.action.customer.restored": "استعادة عميل",
+  // ZATCA Phase 1 (zatca-phase1-spec)
+  "receipt.zatca.invoice": "فاتورة ضريبية مبسطة / Simplified Tax Invoice",
+  "receipt.zatca.creditNote": "إشعار دائن / Credit Note",
+  "receipt.zatca.qr": "رمز QR للفاتورة الضريبية (هيئة الزكاة والضريبة والجمارك)",
+  "settings.receipt.vatHintSA": "15 رقمًا تبدأ وتنتهي بالرقم 3. يُطبع مع رمز QR الخاص بهيئة الزكاة والضريبة والجمارك.",
+  "settings.receipt.vatInvalid": "أدخل رقمًا ضريبيًا من 15 رقمًا يبدأ وينتهي بالرقم 3.",
+  "settings.receipt.zatcaWarning":
+    "أضف رقم تسجيلك في ضريبة القيمة المضافة. حتى ذلك الحين تُطبع الإيصالات بدون عنوان الفاتورة الضريبية ورمز QR.",
 };
