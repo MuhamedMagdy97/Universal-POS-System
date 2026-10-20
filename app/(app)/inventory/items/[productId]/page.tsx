@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppError } from "@/lib/errors";
 import { translator, type MessageKey } from "@/lib/i18n";
 import { Uuid, getItemLedger } from "@/modules/inventory";
+import { transferReference } from "@/modules/inventory/schemas";
 import { itemLabel, loadInventoryContext } from "../../_lib/context";
 import { plain } from "../../_lib/form";
 import { NotAllowed, NotFound } from "../../_components/states";
@@ -131,6 +132,14 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
                         ? tr("inventory.history.transferTo", { branch: row.transfer.otherBranch.name })
                         : tr("inventory.history.transferFrom", { branch: row.transfer.otherBranch.name })}
                     </span>
+                  ) : null}
+                  {row.refType === "StockTransfer" && row.refId ? (
+                    <Link
+                      href={`/inventory/transfers/${row.refId}`}
+                      className="block underline-offset-4 hover:underline"
+                    >
+                      {tr("inventory.history.transferLink", { reference: transferReference(row.refId) })}
+                    </Link>
                   ) : null}
                 </td>
                 <td dir="ltr" className={row.qtyDelta < 0 ? "text-red-700" : ""}>

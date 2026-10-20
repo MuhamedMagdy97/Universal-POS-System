@@ -153,6 +153,13 @@ enum AdjustmentReason {
   OTHER
 }
 
+// Two-step transfer (docs/planning/transfers/transit-transfers-spec.md T2).
+enum StockTransferStatus {
+  SENT
+  RECEIVED
+  CANCELLED
+}
+
 enum StockCountStatus {
   DRAFT
   COUNTING
@@ -292,6 +299,8 @@ model Organization {
   movements          InventoryMovement[]
   stockCounts        StockCount[]
   stockCountLines    StockCountLine[]
+  stockTransfers     StockTransfer[]
+  stockTransferLines StockTransferLine[]
   suppliers          Supplier[]
   purchaseOrders     PurchaseOrder[]
   poItems            POItem[]
@@ -385,6 +394,8 @@ model Branch {
   stockBalances      StockBalance[]
   movements          InventoryMovement[]
   stockCounts        StockCount[]
+  transfersOut       StockTransfer[]     @relation("TransferFrom")
+  transfersIn        StockTransfer[]     @relation("TransferTo")
   purchaseOrders     PurchaseOrder[]
   goodsReceipts      GoodsReceipt[]
   purchaseReturns    PurchaseReturn[]
@@ -507,6 +518,7 @@ model Product {
   stockBalances StockBalance[]
   movements     InventoryMovement[]
   countLines    StockCountLine[]
+  transferLines StockTransferLine[]
   poItems       POItem[]
   receiptItems  GoodsReceiptItem[]
   returnItems   PurchaseReturnItem[]
@@ -541,6 +553,7 @@ model ProductVariant {
   stockBalances   StockBalance[]
   movements       InventoryMovement[]
   countLines      StockCountLine[]
+  transferLines   StockTransferLine[]
   poItems         POItem[]
   receiptItems    GoodsReceiptItem[]
   returnItems     PurchaseReturnItem[]
@@ -675,6 +688,56 @@ model StockCountLine {
   variant ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
 
   @@unique([orgId, countId, productId, variantId])
+}
+
+// Two-step transfer (docs/planning/transfers/transit-transfers-spec.md). The id is the client's
+// send key and the ledger rows' transferGroupId. In transit = lines of SENT transfers; never on hand.
+model StockTransfer {
+  id                String              @id @db.Uuid
+  orgId             String              @db.Uuid
+  fromBranchId      String              @db.Uuid
+  toBranchId        String              @db.Uuid
+  status            StockTransferStatus @default(SENT)
+  note              String?
+  sentByUserId      String              @db.Uuid
+  sentAt            DateTime            @default(now())
+  receivedByUserId  String?             @db.Uuid
+  receivedAt        DateTime?
+  // Idempotency key of the receive call (T9).
+  receiveKey        String?             @db.Uuid
+  receiveNote       String?
+  cancelledByUserId String?             @db.Uuid
+  cancelledAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  org        Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  fromBranch Branch              @relation("TransferFrom", fields: [orgId, fromBranchId], references: [orgId, id], onDelete: Restrict)
+  toBranch   Branch              @relation("TransferTo", fields: [orgId, toBranchId], references: [orgId, id], onDelete: Restrict)
+  lines      StockTransferLine[]
+
+  @@unique([orgId, id])
+  @@index([orgId, fromBranchId, sentAt])
+  @@index([orgId, toBranchId, status])
+}
+
+model StockTransferLine {
+  id              String            @id @default(uuid()) @db.Uuid
+  orgId           String            @db.Uuid
+  transferId      String            @db.Uuid
+  productId       String            @db.Uuid
+  variantId       String?           @db.Uuid
+  qtySent         Int
+  // Set on receipt; the shortfall (qtySent − qtyReceived) is written off with shortfallReason (T5).
+  qtyReceived     Int?
+  shortfallReason AdjustmentReason?
+
+  org      Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  transfer StockTransfer   @relation(fields: [orgId, transferId], references: [orgId, id], onDelete: Restrict)
+  product  Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant  ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, transferId, productId, variantId])
 }
 
 // ────────────────────────── Purchasing ──────────────────────────

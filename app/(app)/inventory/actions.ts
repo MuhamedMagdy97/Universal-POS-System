@@ -26,6 +26,10 @@ import {
   recordOpeningBalances,
   setReorderPoint,
   transferStock,
+  sendTransfer,
+  receiveTransfer,
+  cancelTransfer,
+  type TransferReceiveInput,
   type AdjustInput,
   type OpeningInput,
   type ReorderPointInput,
@@ -94,4 +98,18 @@ export async function postCountAction(countId: string) {
 
 export async function cancelCountAction(countId: string) {
   return run((ctx, meta) => cancelCount(ctx, countId, meta));
+}
+
+// ── Two-step transfers ──
+
+export async function sendTransferAction(input: z.input<typeof TransferInput>) {
+  return run((ctx, meta) => sendTransfer(ctx, input, meta));
+}
+
+export async function receiveTransferAction(transferId: string, input: z.input<typeof TransferReceiveInput>) {
+  return run((ctx, meta) => receiveTransfer(ctx, transferId, input, meta));
+}
+
+export async function cancelTransferAction(transferId: string) {
+  return run((ctx, meta) => cancelTransfer(ctx, transferId, meta));
 }

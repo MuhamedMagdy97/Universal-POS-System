@@ -76,3 +76,11 @@ export function countEmpty(): AppError {
     reason: "COUNT_EMPTY",
   });
 }
+
+/** The transfer is not in a status that allows this step (transit-transfers-spec T2, T9). */
+export function transferState(status: string): AppError {
+  return new AppError("CONFLICT", "This transfer cannot be changed in its current status", {
+    reason: "TRANSFER_STATE",
+    status,
+  });
+}

@@ -21,6 +21,8 @@ export type StockRow = {
   qty: number;
   /** Reorder point at this branch; null = not tracked (low-stock-spec L1). */
   reorderPoint: number | null;
+  /** Sent to this branch and not received yet; never part of qty (transit-transfers-spec T8). */
+  incoming: number;
   archived: boolean;
   updatedAt: Date | null;
 };
@@ -92,7 +94,11 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
              COALESCE(b.qty, 0) AS qty, b."reorderPoint" AS "reorderPoint", b."updatedAt" AS "updatedAt",
              (SELECT bc.code FROM "Barcode" bc
               WHERE bc."orgId" = p."orgId" AND bc."productId" = p.id AND bc."isPrimary"
-                AND bc."variantId" IS NOT DISTINCT FROM v.id) AS "primaryBarcode"
+                AND bc."variantId" IS NOT DISTINCT FROM v.id) AS "primaryBarcode",
+             (SELECT COALESCE(SUM(l."qtySent"), 0) FROM "StockTransferLine" l
+              JOIN "StockTransfer" t ON t."orgId" = l."orgId" AND t.id = l."transferId"
+              WHERE l."orgId" = p."orgId" AND t."toBranchId" = ${parsed.branchId}::uuid AND t.status = 'SENT'
+                AND l."productId" = p.id AND l."variantId" IS NOT DISTINCT FROM v.id) AS incoming
       FROM "Product" p
       LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id
       LEFT JOIN "StockBalance" b ON b."orgId" = p."orgId" AND b."branchId" = ${parsed.branchId}::uuid
@@ -100,9 +106,9 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
       WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL)
     )
     SELECT "productId", "variantId", name, "nameAr", sku, "variantName", active, qty::int AS qty,
-           "reorderPoint", "updatedAt", "primaryBarcode"
+           "reorderPoint", "updatedAt", "primaryBarcode", incoming::int AS incoming
     FROM items
-    WHERE (active OR qty <> 0) AND ${filterSql} ${searchSql} ${cursorSql}
+    WHERE (active OR qty <> 0 OR incoming > 0) AND ${filterSql} ${searchSql} ${cursorSql}
     ORDER BY name, "productId", COALESCE("variantId"::text, '')
     LIMIT ${parsed.limit + 1}`;
 

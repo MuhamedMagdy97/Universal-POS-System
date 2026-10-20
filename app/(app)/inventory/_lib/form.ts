@@ -100,6 +100,14 @@ export function errorMessageKey(error: ErrorBody): MessageKey {
       return "inventory.error.itemNotSellable";
     case "OPENING_BALANCE_EXISTS":
       return "inventory.error.openingTaken";
+    case "TRANSFER_STATE":
+      return "inventory.error.transferState";
+    case "QTY_OVER_SENT":
+      return "inventory.error.overSent";
+    case "SHORTFALL_REASON":
+      return "inventory.error.shortfallReason";
+    case "LINES_MISMATCH":
+      return "inventory.error.linesMismatch";
     default:
       return "inventory.error.generic";
   }
@@ -170,4 +178,10 @@ export function pickScanned<R extends { primaryBarcode: string | null; sku: stri
   if (rows.length === 1) return rows[0];
   const exact = rows.filter((row) => row.primaryBarcode === code || row.sku === code.toUpperCase());
   return exact.length === 1 ? exact[0] : null;
+}
+
+/** Received-quantity box on the receive form: 0 … sent, Arabic-Indic digits accepted; null otherwise. */
+export function parseReceived(input: string, qtySent: number): number | null {
+  const value = normalizeCount(input);
+  return value !== null && value <= qtySent ? value : null;
 }
