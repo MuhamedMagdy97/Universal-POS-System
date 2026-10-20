@@ -11,6 +11,7 @@ import {
   expectAppError,
   expectReconciled,
   testDb,
+  uniqueCode,
 } from "./helpers";
 
 /** Stock counts (docs/planning/stock-counts/stock-counts-spec.md). */
@@ -343,6 +344,49 @@ describe("database rules", () => {
     await expect(
       db.stockCountLine.create({ data: { orgId, countId: id, productId: product.id, countedQty: 1 } }),
     ).rejects.toThrow();
+    await inventory.cancelCount(admin, id);
+  });
+});
+
+describe("count sheet (C15)", () => {
+  it("lists the in-scope items with primary barcode and category, blind unless asked", async () => {
+    const branchId = await freshBranch();
+    const parentCat = await createCategory(db, orgId);
+    const childCat = await createCategory(db, orgId, undefined, parentCat.id);
+    const inChild = await stocked(3, branchId, childCat.id);
+    await db.barcode.create({ data: { orgId, productId: inChild.id, code: uniqueCode(), isPrimary: true } });
+    const parent = await createProduct(db, orgId);
+    await db.product.update({ where: { id: parent.id }, data: { categoryId: parentCat.id } });
+    const variant = await createVariant(db, orgId, parent.id);
+    await stocked(1, branchId); // outside the category
+    const id = await counting(branchId, "CATEGORY", parentCat.id);
+
+    const blind = await inventory.getCountSheet(admin, id);
+    expect(blind.map((row) => row.sku).sort()).toEqual([inChild.sku, variant.sku].sort());
+    expect(blind.every((row) => row.expected === null)).toBe(true);
+    expect(blind.find((row) => row.sku === inChild.sku)).toMatchObject({
+      categoryName: childCat.name,
+      barcode: expect.any(String),
+    });
+    expect(blind.find((row) => row.sku === variant.sku)).toMatchObject({ variantName: variant.name, barcode: null });
+
+    const reporter = await createMember(db, orgId, "REPORTING");
+    const shown = await inventory.getCountSheet(reporter, id, { showExpected: true });
+    expect(shown.find((row) => row.sku === inChild.sku)?.expected).toBe(3);
+    expect(shown.find((row) => row.sku === variant.sku)?.expected).toBe(0);
+
+    await expectAppError(inventory.getCountSheet(await createMember(db, orgId, "CASHIER"), id), 403);
+    await inventory.cancelCount(admin, id);
+    await expectAppError(inventory.getCountSheet(admin, id), 409, "COUNT_STATE");
+  });
+
+  it("lists only the chosen items for an items count", async () => {
+    const branchId = await freshBranch();
+    const chosen = await stocked(2, branchId);
+    await stocked(2, branchId);
+    const id = await counting(branchId, "ITEMS");
+    await inventory.addCountItems(admin, id, { refs: [ref(chosen.id)] });
+    expect((await inventory.getCountSheet(admin, id)).map((row) => row.sku)).toEqual([chosen.sku]);
     await inventory.cancelCount(admin, id);
   });
 });

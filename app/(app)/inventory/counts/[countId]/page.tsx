@@ -6,6 +6,7 @@ import { getCount } from "@/modules/inventory";
 import { loadInventoryContext } from "../../_lib/context";
 import { CountSession } from "../../_components/count-session";
 import { NotAllowed, NotFound } from "../../_components/states";
+import { CountSheetPrint } from "./count-sheet";
 
 type Params = Promise<{ countId: string }>;
 
@@ -36,6 +37,15 @@ async function CountContent({ params }: { params: Params }) {
   }
   const branch = branches.find((b) => b.id === count.branchId);
   const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+  const heading = [
+    branch ? `${tr("inventory.branch")}: ${branch.name}` : null,
+    `${tr(`inventory.count.scope.${count.scope}` as const)}${count.categoryName ? `: ${count.categoryName}` : ""}`,
+    dateFormat.format(count.createdAt),
+    count.note,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const open = count.status === "DRAFT" || count.status === "COUNTING";
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,12 +58,8 @@ async function CountContent({ params }: { params: Params }) {
           {tr(`inventory.count.status.${count.status}` as const)}
         </span>
       </div>
-      <p className="text-muted">
-        {branch ? `${tr("inventory.branch")}: ${branch.name} · ` : ""}
-        {tr(`inventory.count.scope.${count.scope}` as const)}
-        {count.categoryName ? `: ${count.categoryName}` : ""} · {dateFormat.format(count.createdAt)}
-        {count.note ? ` · ${count.note}` : ""}
-      </p>
+      <p className="text-muted">{heading}</p>
+      {open ? <CountSheetPrint locale={locale} countId={count.id} heading={heading} /> : null}
       <CountSession locale={locale} count={count} canEdit={can.adjust} />
     </div>
   );
