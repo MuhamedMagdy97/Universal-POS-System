@@ -112,6 +112,12 @@
   [spec](transfers/transit-transfers-spec.md)); customer records on sales, receipts and a Sales by customer report
   (PR #48, [spec](customers/customers-spec.md)); category kept on a synced rename clash (PR #45).
 
+- 2026-10-20 batch 4: ZATCA Phase 1 QR on Saudi receipts and credit notes (PR #53,
+  [spec](zatca/zatca-phase1-spec.md)); supplier invoices and credit notes, payment allocation and an Input VAT report
+  (PR #54, [spec](supplier-invoices/supplier-invoices-spec.md)); specs approved as recommended, not built: offline till
+  (PR #51, [spec](offline-till/offline-till-spec.md)) and Egypt ETA e-receipts (PR #52,
+  [spec](eta-e-receipt/eta-e-receipt-spec.md)).
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
