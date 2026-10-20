@@ -17,6 +17,17 @@ export { recordOpeningBalances } from "./opening";
 export { adjustStock } from "./adjust";
 export { transferStock } from "./transfer";
 export {
+  sendTransfer,
+  receiveTransfer,
+  cancelTransfer,
+  listTransfers,
+  getTransfer,
+  type TransferSummary,
+  type TransferDetail,
+  type TransferLineView,
+  type ReceiveResult,
+} from "./transit";
+export {
   setReorderPoint,
   listLowStock,
   countLowStock,
@@ -50,6 +61,8 @@ export {
   OpeningInput,
   AdjustInput,
   TransferInput,
+  TransferListQuery,
+  TransferReceiveInput,
   StockQuery,
   LedgerQuery,
   ReorderPointInput,

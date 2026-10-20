@@ -22,7 +22,7 @@ test("sets a reorder point, adjusts below it and finds the item on Low stock", a
   // 1. Reorder point 3 on the stock list.
   await page.goto(`/inventory?branch=${MAIN}&q=${sku}`);
   const row = page.getByRole("row").filter({ hasText: sku });
-  const pointCell = row.getByRole("cell").nth(3);
+  const pointCell = row.getByRole("cell").nth(4); // after On hand and Incoming
   await expect(pointCell).toHaveText("—");
   await row.getByRole("button", { name: "Reorder point", exact: true }).click();
   const pointDialog = page.getByRole("dialog", { name: `Reorder point: ${name}` });

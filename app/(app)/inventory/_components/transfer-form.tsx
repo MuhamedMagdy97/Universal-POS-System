@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { StockPage, StockRow } from "@/modules/inventory";
-import { transferStockAction } from "../actions";
+import { sendTransferAction, transferStockAction } from "../actions";
 import { normalizeQty } from "@/modules/inventory/schemas";
 import { overSourceLines, plain, safeAction, transferErrorKey, type ItemRef, type Line } from "../_lib/form";
 
@@ -39,6 +39,8 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
   const [results, setResults] = useState<StockRow[]>([]);
   const [lines, setLines] = useState<FormLine[]>([]);
   const [note, setNote] = useState("");
+  // Instant stays the default (transit-transfers-spec T1).
+  const [mode, setMode] = useState<"instant" | "transit">("instant");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
@@ -91,15 +93,24 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
       return;
     }
     setPending(true);
-    const result = await safeAction(() =>
-      transferStockAction({
-        transferId,
-        fromBranchId: fromBranch.id,
-        toBranchId,
-        lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
-        note: note.trim() || undefined,
-      }),
-    );
+    const input = {
+      transferId,
+      fromBranchId: fromBranch.id,
+      toBranchId,
+      lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
+      note: note.trim() || undefined,
+    };
+    if (mode === "transit") {
+      const sent = await safeAction(() => sendTransferAction(input));
+      if (sent.ok) {
+        router.push(`/inventory/transfers/${transferId}?sent=1`);
+        return;
+      }
+      setPending(false);
+      setMessage({ kind: "error", text: plain(locale, transferErrorKey(sent.error)) });
+      return;
+    }
+    const result = await safeAction(() => transferStockAction(input));
     setPending(false);
     if (result.ok) {
       setMessage({ kind: "ok", text: tr("inventory.transfer.success", { count: lines.length }) });
@@ -132,6 +143,16 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
           ))}
         </select>
       </label>
+
+      <fieldset className="flex flex-col gap-1">
+        <legend>{tr("inventory.transfer.mode.label")}</legend>
+        {(["instant", "transit"] as const).map((value) => (
+          <label key={value} className="flex items-center gap-2">
+            <input type="radio" name="mode" value={value} checked={mode === value} onChange={() => setMode(value)} />
+            {tr(`inventory.transfer.mode.${value}` as const)}
+          </label>
+        ))}
+      </fieldset>
 
       <div className="flex flex-col gap-2">
         <div className="flex gap-2">
@@ -237,7 +258,7 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
         disabled={!canSubmit}
         className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
       >
-        {tr("inventory.transfer.submit")}
+        {mode === "transit" ? tr("inventory.transfer.send") : tr("inventory.transfer.submit")}
       </button>
     </form>
   );

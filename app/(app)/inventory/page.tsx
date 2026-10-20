@@ -73,6 +73,9 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
           <Link href={`/inventory/low-stock?${branchParam}`} className="rounded-md border border-border px-3 py-2">
             {tr("inventory.action.lowStock")}
           </Link>
+          <Link href={`/inventory/transfers?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+            {tr("inventory.action.transfers")}
+          </Link>
           <Link href={`/inventory/counts?${branchParam}`} className="rounded-md border border-border px-3 py-2">
             {tr("inventory.action.counts")}
           </Link>
@@ -145,6 +148,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                 <th className="py-2">{tr("inventory.column.item")}</th>
                 <th>{tr("inventory.column.sku")}</th>
                 <th>{tr("inventory.column.onHand")}</th>
+                <th>{tr("inventory.column.incoming")}</th>
                 <th>{tr("inventory.column.reorderPoint")}</th>
                 <th>{tr("inventory.column.updated")}</th>
                 <th>{tr("inventory.column.actions")}</th>
@@ -172,6 +176,9 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                           {tr("inventory.badge.oversold")}
                         </span>
                       ) : null}
+                    </td>
+                    <td dir="ltr" data-testid="incoming">
+                      {row.incoming || "—"}
                     </td>
                     <td dir="ltr">
                       {row.reorderPoint ?? "—"}

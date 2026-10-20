@@ -231,3 +231,90 @@ export type CountEntryInput = z.infer<typeof CountEntryInput>;
 export function countDelta(countedQty: number | null, expectedQty: number | null): number | null {
   return countedQty === null || expectedQty === null ? null : countedQty - expectedQty;
 }
+
+// ── Two-step transfers (docs/planning/transfers/transit-transfers-spec.md) ──
+
+/** Why part of a transfer did not arrive (T5); written off at the destination with this sub-reason. */
+export const SHORTFALL_REASON_VALUES = ["DAMAGED", "LOST_OR_STOLEN", "OTHER"] as const;
+export type ShortfallReason = (typeof SHORTFALL_REASON_VALUES)[number];
+export const TRANSFER_STATUS_VALUES = ["SENT", "RECEIVED", "CANCELLED"] as const;
+
+export const TransferListQuery = z
+  .object({
+    branchId: Uuid,
+    direction: z.enum(["outgoing", "incoming"]),
+    status: z.enum(TRANSFER_STATUS_VALUES).optional(),
+  })
+  .strict();
+export type TransferListQuery = z.input<typeof TransferListQuery>;
+
+/** Every line once, received 0 … sent (T4, T6); OTHER needs a note (ledger CHECK). */
+export const TransferReceiveInput = z
+  .object({
+    receiveKey: Uuid,
+    lines: z
+      .array(
+        z
+          .object({
+            ref: ItemRefInput,
+            qtyReceived: z.number().int().min(0).max(MAX_QTY),
+            shortfallReason: z.enum(SHORTFALL_REASON_VALUES).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+    note: Note.optional(),
+  })
+  .strict()
+  .superRefine((input, ctx) => {
+    if (input.lines.some((line) => line.shortfallReason === "OTHER") && !(input.note ?? "").trim()) {
+      ctx.addIssue({ code: "custom", message: "A note is required for OTHER", path: ["note"] });
+    }
+  });
+export type TransferReceiveInput = z.infer<typeof TransferReceiveInput>;
+
+type SentLine = { productId: string; variantId: string | null; qtySent: number };
+type ReceivedLine = {
+  ref: { productId: string; variantId: string | null };
+  qtyReceived: number;
+  shortfallReason?: ShortfallReason;
+};
+export type ReceiptPlan = SentLine & {
+  qtyReceived: number;
+  shortfall: number;
+  shortfallReason: ShortfallReason | null;
+};
+
+/**
+ * Matches a receipt to the sent lines (T4–T6): every sent line exactly once, received ≤ sent, and a
+ * shortfall reason exactly on the short lines. Pure, so it is unit-tested without a DB.
+ */
+export function planReceipt(sent: readonly SentLine[], received: readonly ReceivedLine[]): ReceiptPlan[] {
+  const key = (ref: { productId: string; variantId: string | null }) => `${ref.productId}|${ref.variantId ?? ""}`;
+  assertNoDuplicateRefs(received.map((line) => line.ref));
+  const byKey = new Map(received.map((line) => [key(line.ref), line]));
+  return sent.map((line) => {
+    const got = byKey.get(key(line));
+    if (!got || received.length !== sent.length) {
+      throw new AppError("VALIDATION_FAILED", "Enter a received quantity for every line of the transfer", {
+        reason: "LINES_MISMATCH",
+      });
+    }
+    if (got.qtyReceived > line.qtySent) {
+      throw new AppError("VALIDATION_FAILED", "More was received than was sent", { reason: "QTY_OVER_SENT" });
+    }
+    const shortfall = line.qtySent - got.qtyReceived;
+    if (shortfall > 0 !== (got.shortfallReason !== undefined)) {
+      throw new AppError("VALIDATION_FAILED", "Choose a reason for each short line, and only for those", {
+        reason: "SHORTFALL_REASON",
+      });
+    }
+    return { ...line, qtyReceived: got.qtyReceived, shortfall, shortfallReason: got.shortfallReason ?? null };
+  });
+}
+
+/** Short reference shown on screens and the transfer note (T14). */
+export function transferReference(id: string): string {
+  return `TR-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
