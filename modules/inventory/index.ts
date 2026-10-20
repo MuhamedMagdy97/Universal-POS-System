@@ -28,6 +28,7 @@ export {
   listCounts,
   createCount,
   getCount,
+  getCountSheet,
   addCountItems,
   removeCountItem,
   startCount,
@@ -37,6 +38,7 @@ export {
   type CountSummary,
   type CountDetail,
   type CountLineView,
+  type CountSheetItem,
   type PostResult,
 } from "./counts";
 export {

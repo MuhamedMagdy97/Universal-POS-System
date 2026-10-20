@@ -297,6 +297,56 @@ async function uncountedInScope(orgId: string, count: CountRow, uncountedLines: 
   return rows[0]?.n ?? 0;
 }
 
+export type CountSheetItem = {
+  name: string;
+  nameAr: string | null;
+  variantName: string | null;
+  sku: string;
+  barcode: string | null;
+  categoryName: string | null;
+  categoryNameAr: string | null;
+  /** Live on-hand at printing; null unless asked for (blind count by default). */
+  expected: number | null;
+};
+
+/**
+ * The items of an open count for a printed count sheet (C15): the chosen items, or the stock-list
+ * items in scope (the same set `uncountedInScope` counts), with their primary barcode. Unsorted;
+ * the sheet sorts by category and name in the reader's language.
+ */
+export async function getCountSheet(
+  ctx: TenantContext,
+  id: string,
+  { showExpected = false }: { showExpected?: boolean } = {},
+): Promise<CountSheetItem[]> {
+  await requirePermission(ctx, "inventory.read");
+  const count = await findCount(ctx, id);
+  requireStatus(count, ...OPEN);
+  const scopeSql =
+    count.scope === "ITEMS"
+      ? Prisma.sql`AND EXISTS (
+          SELECT 1 FROM "StockCountLine" l
+          WHERE l."orgId" = p."orgId" AND l."countId" = ${count.id}::uuid AND l."productId" = p.id
+            AND l."variantId" IS NOT DISTINCT FROM v.id)`
+      : Prisma.sql`${
+          count.scope === "CATEGORY" && count.categoryId
+            ? Prisma.sql`AND p."categoryId" IN ${categoryTree(ctx.orgId, count.categoryId)}`
+            : Prisma.empty
+        } AND ((CASE WHEN v.id IS NULL THEN p."isActive" ELSE p."isActive" AND v."isActive" END) OR COALESCE(b.qty, 0) <> 0)`;
+  const rows = await getDb().$queryRaw<(Omit<CountSheetItem, "expected"> & { onHand: number })[]>`
+    SELECT p.name, p."nameAr", v.name AS "variantName", COALESCE(v.sku, p.sku) AS sku, bc.code AS barcode,
+      c.name AS "categoryName", c."nameAr" AS "categoryNameAr", COALESCE(b.qty, 0)::int AS "onHand"
+    FROM "Product" p
+    LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id
+    LEFT JOIN "StockBalance" b ON b."orgId" = p."orgId" AND b."branchId" = ${count.branchId}::uuid
+      AND b."productId" = p.id AND b."variantId" IS NOT DISTINCT FROM v.id
+    LEFT JOIN "Barcode" bc ON bc."orgId" = p."orgId" AND bc."productId" = p.id
+      AND bc."variantId" IS NOT DISTINCT FROM v.id AND bc."isPrimary"
+    LEFT JOIN "Category" c ON c."orgId" = p."orgId" AND c.id = p."categoryId"
+    WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) ${scopeSql}`;
+  return rows.map(({ onHand, ...row }) => ({ ...row, expected: showExpected ? onHand : null }));
+}
+
 /** Adds items to a chosen-items draft. Items already on the list are skipped. */
 export async function addCountItems(
   ctx: TenantContext,

@@ -29,7 +29,7 @@ transaction, without losing sales that happened while the count was open.
 | C12 | Linked shops                      | Refused with `409 MANAGED_BY_INVENTORY` (shared write guard before, and `assertBuiltIn` inside, the posting transaction). The screens hide the actions.                                                                                                                                                                                    |
 | C13 | Audit                             | `inventory.count.created`, `inventory.count.started`, `inventory.count.cancelled`, `inventory.count.posted` (`{ branchId, lines, totalDelta }`). Individual count entries are not audited (the posted lines are the record).                                                                                                              |
 | C14 | Scope of queries                  | Every query filters by `orgId`; the count's branch must be in the caller's branch scope (else 404).                                                                                                                                                                                                                                        |
-| C15 | Not built                         | Count sheets/printing, multiple counters per item with reconciliation, freezing sales during a count, partial posting, recount workflows, cost/variance value reports.                                                                                                                                                                   |
+| C15 | Not built                         | Multiple counters per item with reconciliation, freezing sales during a count, partial posting, recount workflows, cost/variance value reports.                                                                                                                                                                   |
 
 ## 3. Data
 
@@ -53,10 +53,20 @@ transaction, without losing sales that happened while the count was open.
 - Count page by status: draft (pick items for `ITEMS`, Start, Cancel), counting (scan/search box, counted rows with
   quantity box and clear, Review), review (expected, since, counted, difference, uncounted total, Post, Back),
   posted/cancelled (read-only summary).
+- Count sheet (as built after the first release, which listed it under C15 as not built): an open count (draft or
+  counting) has "Print count sheet", an A4 print of every in-scope item (the chosen items, or the stock-list items of
+  the category or branch, the same set as the uncounted total) with category, name, SKU, primary barcode and a blank
+  "Counted" column, sorted by category (none last), then name in the reader's language. "Show expected quantities"
+  (off by default: a blind count) adds the live on-hand at printing. The rows load on demand through a read-only
+  Server Action (`getCountSheet`, `inventory.read`); posted and cancelled counts have no sheet (`409 COUNT_STATE`). It
+  prints through the shared print helper and `.print-a4` CSS on its own named page: the table head repeats on every
+  page, rows do not split, and the bottom margin shows "page / pages". EN/AR, RTL. No REST route (screens only).
 
 ## 6. Tests
 
-- Unit: input schemas, the difference rule.
+- Unit: input schemas, the difference rule, count-sheet row order and names.
 - Integration: full flow and ledger rows, a sale during counting (difference applied to live on-hand), scope refusals,
-  one open count per branch, replayed post, negative refusal, permissions, branch/tenant isolation, linked shop refused.
-- E2E: create a full count → scan an item twice → type a quantity → review → post → stock and ledger updated.
+  one open count per branch, replayed post, negative refusal, permissions, branch/tenant isolation, linked shop refused,
+  count-sheet items (category tree, variants, primary barcode, blind or with expected, chosen items, closed refused).
+- E2E: create a full count → scan an item twice → type a quantity → review → post → stock and ledger updated; print a
+  category count sheet → rows sorted and blind, then with expected.
