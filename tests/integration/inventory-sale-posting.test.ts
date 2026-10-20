@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
+import { createCustomer, updateCustomer } from "@/modules/customers";
 import { recordMovements } from "@/modules/inventory";
 import { getTillOnHand } from "@/modules/inventory/till-stock";
 import {
@@ -129,6 +130,35 @@ describe("discounts on a linked till (discounts-spec DC16)", () => {
     const shop = await linkedShop("Post Discount Limit");
     const body = { ...sale(shop, [[0, 1]], 500), discount: { kind: "PERCENT" as const, percentBp: 5000 } };
     await expectAppError(createSale(shop.cashier, body, saleKey()), 403, "DISCOUNT_LIMIT");
+    expect(reserveCalls()).toBe(0);
+    expect(available(shop, 0)).toBe(10);
+  });
+});
+
+describe("a customer on a linked till (customers-spec CU17)", () => {
+  it("sells to the customer and fulfils as usual", async () => {
+    const shop = await linkedShop("Post Customer");
+    const customer = await createCustomer(shop.cashier, { name: "Linked Buyer", phone: "0100 555 0101" });
+    const { sale: made } = await createSale(
+      shop.cashier,
+      { ...sale(shop, [[0, 2]]), customerId: customer.id },
+      saleKey(),
+    );
+    expect(made.customer).toMatchObject({ id: customer.id, name: "Linked Buyer" });
+    expect(onHandIms(shop, 0)).toBe(8);
+    const rows = await postingsOf(shop.org.id);
+    expect(rows.map((r) => [r.kind, r.status, r.qty])).toEqual([["FULFIL", "DONE", 2]]);
+  });
+
+  it("refuses an archived customer before holding anything in the inventory system", async () => {
+    const shop = await linkedShop("Post Customer Archived");
+    const customer = await createCustomer(shop.owner, { name: "Archived Buyer", phone: "0100 555 0102" });
+    await updateCustomer(shop.owner, customer.id, { isActive: false });
+    await expectAppError(
+      createSale(shop.cashier, { ...sale(shop, [[0, 1]]), customerId: customer.id }, saleKey()),
+      409,
+      "CUSTOMER_INACTIVE",
+    );
     expect(reserveCalls()).toBe(0);
     expect(available(shop, 0)).toBe(10);
   });

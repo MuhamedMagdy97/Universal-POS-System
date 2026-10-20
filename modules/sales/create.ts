@@ -7,6 +7,7 @@ import { AppError } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getSellableItems } from "@/modules/catalog";
+import { customerForSale, type CustomerSnapshot } from "@/modules/customers";
 import { recordMovements } from "@/modules/inventory";
 import {
   postAfterCommit,
@@ -61,6 +62,8 @@ export type SaleDetail = {
     lineTotalMinor: number;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
+  /** The customer as snapshotted on the sale; null for a walk-in (customers-spec CU8). */
+  customer: { id: string; name: string; phone: string; taxNumber: string | null } | null;
 };
 
 export type CreateSaleResult = { sale: SaleDetail; created: boolean };
@@ -188,6 +191,9 @@ async function sell(
     return replayed;
   }
 
+  // Checked before anything is held in the inventory system (customers-spec CU17).
+  const customer = parsed.customerId ? await customerForSale(ctx, parsed.customerId, meta) : null;
+
   let held: HeldSale | null = null;
   if (linked) {
     // Refuse what the POS can refuse on its own before holding anything in the inventory system.
@@ -210,7 +216,9 @@ async function sell(
 
   let result: CreateSaleResult;
   try {
-    result = await db.$transaction((tx) => writeSale(tx, ctx, parsed, idempotencyKey, requestHash, held, meta));
+    result = await db.$transaction((tx) =>
+      writeSale(tx, ctx, parsed, idempotencyKey, requestHash, held, customer, meta),
+    );
   } catch (err) {
     // A concurrent request with the same key won the unique index. Our transaction rolled back.
     if (isUniqueViolation(err)) {
@@ -262,6 +270,7 @@ async function writeSale(
   idempotencyKey: string,
   requestHash: string,
   held: HeldSale | null,
+  customer: CustomerSnapshot | null,
   meta: AuditRequestMeta | undefined,
 ): Promise<CreateSaleResult> {
   await requireRegister(tx, ctx.orgId, input.branchId, input.registerId);
@@ -346,6 +355,12 @@ async function writeSale(
       vatMinor: totals.vatMinor,
       totalMinor: totals.totalMinor,
       changeMinor: settlement.changeMinor,
+      ...(customer && {
+        customerId: customer.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        customerTaxNumber: customer.taxNumber,
+      }),
     },
   });
   await tx.saleItem.createMany({
@@ -391,6 +406,7 @@ async function writeSale(
       changeMinor: settlement.changeMinor,
       lineCount: items.length,
       paymentMethods: settlement.payments.map((payment) => payment.method),
+      ...(customer && { customerId: customer.id }),
       // What was asked for and what each line got (DC10).
       ...(totals.discountMinor > 0 && {
         discount: {
@@ -450,5 +466,14 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       amountMinor: payment.amountMinor,
       reference: payment.reference,
     })),
+    customer:
+      sale.customerId && sale.customerName
+        ? {
+            id: sale.customerId,
+            name: sale.customerName,
+            phone: sale.customerPhone ?? "",
+            taxNumber: sale.customerTaxNumber,
+          }
+        : null,
   };
 }

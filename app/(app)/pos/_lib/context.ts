@@ -113,6 +113,11 @@ export async function loadPosContext(
         allowed: hasPermission(ctx.role, "discounts.apply") || hasPermission(ctx.role, "discounts.override"),
         limitBp: hasPermission(ctx.role, "discounts.override") ? null : org.maxCashierDiscountBp,
       },
+      // UI gating only: the customers service re-checks (customers-spec CU6, CU12).
+      customers: {
+        read: hasPermission(ctx.role, "customers.read"),
+        create: hasPermission(ctx.role, "customers.create"),
+      },
     },
     canOpenShift: hasPermission(ctx.role, "registers.open"),
     canCloseShift,

@@ -22,6 +22,8 @@ const PERMISSION_FOR: Record<Area, Permission> = { reports: "reports.view", audi
 const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = {
   purchases: "purchases.manage",
   "supplier-balances": "purchases.manage",
+  // Names and phones of customers (customers-spec CU15).
+  customers: "customers.read",
   // Profit shows cost: only those who see cost elsewhere (canSeeCost), P12 M7.
   "profit-products": "products.update",
   "profit-categories": "products.update",

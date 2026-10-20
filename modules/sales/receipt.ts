@@ -40,6 +40,8 @@ export type ReceiptDoc = {
   registerName: string;
   /** Refund or void reason. */
   reason: string | null;
+  /** The sale's customer snapshot, on its refund and void slips too; no phone (customers-spec CU10, CU11). */
+  customer: { name: string; taxNumber: string | null } | null;
   /** `discountMinor`: what the line was discounted, shown under it on a sale or void slip (discounts-spec DC14). */
   lines: { name: string; nameAr: string | null; qty: number; discountMinor: number; lineTotalMinor: number }[];
   /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
@@ -96,6 +98,7 @@ export async function getReceipt(
     currency: sale.currency,
     timeZone: zoneFor(org.countryCode),
     registerName: sale.register.name,
+    customer: sale.customerName ? { name: sale.customerName, taxNumber: sale.customerTaxNumber } : null,
   };
   const saleLines = sale.items.map((item) => ({
     name: item.nameSnapshot,

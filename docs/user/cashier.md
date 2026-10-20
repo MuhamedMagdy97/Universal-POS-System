@@ -67,7 +67,22 @@ One till has at most one open shift. Anyone allowed to sell can sell on an open 
      gives change." **Exact cash** next to the cash amount fills in what card and wallet leave unpaid.
 5. Press **Charge {total}** [تحصيل]. A sale that totals 0 shows **Complete free sale** [إتمام بيع مجاني] instead.
 
-There are no customer names at the till.
+### Customer
+
+Every sale is a walk-in sale unless you add a customer. Add one when the customer asks for their name or their
+company's VAT number on the receipt.
+
+- Press **F9** (or click the **Customer phone or name (F9)** [هاتف العميل أو اسمه] box) and type at least 2 characters
+  of their phone or name. Matching customers appear: press ↑ / ↓ and Enter, or click one. Esc closes the list.
+- The customer shows above the sale with their phone (and VAT number if they have one). **Remove customer**
+  [إزالة العميل] makes it a walk-in sale again. **New sale** always starts as walk-in.
+- **New customer:** press **Add customer** [إضافة عميل], type the name and phone, and press **Add and use**
+  [إضافة واستخدام]. A typed phone is filled in for you. Local numbers are fine (0100 123 4567, 050 123 4567);
+  a foreign number needs + or 00 in front.
+  - "Enter a valid mobile or landline number." — check the number.
+  - "A customer with this phone already exists." — they are already saved: they are listed, pick them.
+- Archived customers are not found. Only a manager can edit or archive a customer.
+- "This customer is archived. Pick another or sell as walk-in." after **Charge**: remove the customer and charge again.
 
 ### Discounts
 
@@ -97,8 +112,9 @@ The keys are also listed under the search box.
 | F6 | Discount on the selected line. |
 | F7 | Discount on the whole sale. |
 | F8 | **Exact cash**: fills the cash box with what is due in cash. Press Enter to charge. |
+| F9 | Go to the customer box. |
 | + / − | Add or take 1 from the selected line (not below 1). They work outside a box, or in the empty search box. |
-| Esc | Close the discount box or the search results list, or cancel **Cash in / out** and **Close shift**. |
+| Esc | Close the discount box, the search results or the customer list, or cancel **Cash in / out** and **Close shift**. |
 
 Refusals after **Charge**:
 
@@ -119,6 +135,7 @@ Refusals after **Charge**:
 After the charge you see **Sale {number}** with the lines, totals, what was paid and the change.
 
 - **Print** [طباعة] opens the browser print dialog for the receipt. Pick the receipt printer.
+- With a customer, the receipt prints "Customer: {name}" and their VAT number if they have one (never their phone).
 - **New sale** [بيع جديد] starts the next sale.
 - **Reprint last receipt** [إعادة طباعة آخر إيصال] appears above the empty sale after that. It prints the last sale
   made on this screen, marked "Copy".

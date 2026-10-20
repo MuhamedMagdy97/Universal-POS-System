@@ -84,6 +84,16 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("refundsCount", "reports.col.refundsCount", "int"),
     c("refundsMinor", "reports.col.refunds", "money"),
   ],
+  // Sales by customer (customers-spec CU15): walk-in sales are not a row.
+  customers: [
+    c("name", "reports.col.customer", "text"),
+    c("phone", "reports.col.phone", "text"),
+    c("salesCount", "reports.col.salesCount", "int"),
+    c("grossMinor", "reports.col.sales", "money"),
+    c("refundsCount", "reports.col.refundsCount", "int"),
+    c("refundsMinor", "reports.col.refunds", "money"),
+    c("netMinor", "reports.col.netAfterRefunds", "money"),
+  ],
   shifts: [
     c("registerName", "reports.col.register", "text"),
     c("status", "reports.col.status", "status"),

@@ -30,6 +30,7 @@ const EG: TillSettings = {
   vatRateBp: 1400,
   pricesIncludeVat: true,
   discount: { allowed: true, limitBp: 1000 },
+  customers: { read: true, create: true },
 };
 
 const item = (id: string, price = 1000, variantId: string | null = null): TillItem => ({
@@ -144,6 +145,7 @@ describe("discount box", () => {
   it("opens with F6 (line) and F7 (sale), also inside a field", () => {
     expect(tillShortcut("F6", true)).toBe("lineDiscount");
     expect(tillShortcut("F7", false)).toBe("saleDiscount");
+    expect(tillShortcut("F9", true)).toBe("customer");
   });
 
   it("names a refused discount", () => {

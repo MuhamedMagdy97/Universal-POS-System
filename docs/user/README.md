@@ -24,6 +24,7 @@ The top bar only shows links you are allowed to use. If you open a page by its a
 |---|---|---|---|---|---|
 | Till · نقطة البيع | ✓ | – | ✓ | ✓ | – |
 | Returns · المرتجعات (refund, void) | ✓ | – | ✓ | – | – |
+| Customers · العملاء | edit | edit | edit | view, add | view |
 | Catalog · الكتالوج | edit | edit | view | view | – |
 | Inventory · المخزون | ✓ | ✓ | ✓ | – | view |
 | Purchasing · المشتريات | ✓ | ✓ | receive only | – | – |

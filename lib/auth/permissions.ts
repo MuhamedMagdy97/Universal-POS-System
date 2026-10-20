@@ -14,6 +14,10 @@ export const PERMISSIONS = [
   "sales.refund",
   "discounts.apply",
   "discounts.override",
+  // Customer records (customers-spec CU6): read and search, add, edit and archive.
+  "customers.read",
+  "customers.create",
+  "customers.manage",
   "registers.open",
   "registers.close",
   "purchases.manage",
@@ -31,6 +35,7 @@ export type Role = "OWNER" | "ADMIN" | "MANAGER" | "CASHIER" | "REPORTING";
 
 const PRODUCTS: Permission[] = ["products.read", "products.create", "products.update"];
 const INVENTORY: Permission[] = ["inventory.adjust", "inventory.transfer"];
+const CUSTOMERS: Permission[] = ["customers.read", "customers.create", "customers.manage"];
 
 export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
   OWNER: new Set(PERMISSIONS),
@@ -43,6 +48,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchases.manage",
     "purchases.receive",
     "reports.view",
+    ...CUSTOMERS,
   ]),
   // products.read lets managers and cashiers search and scan at the POS (catalog Q1).
   // Cost fields stay hidden from them: they require products.update.
@@ -60,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "discounts.override",
     "purchases.receive",
     "reports.view",
+    ...CUSTOMERS,
   ]),
   // discounts.apply: cashiers discount up to the shop's maxCashierDiscountBp (discounts-spec DC7, DC8).
   CASHIER: new Set<Permission>([
@@ -68,9 +75,12 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "registers.open",
     "registers.close",
     "discounts.apply",
+    // Pick a customer and quick-add one at the till; editing and archiving need a manager (CU6).
+    "customers.read",
+    "customers.create",
   ]),
   // Reporting reads stock (D5) but cannot change it.
-  REPORTING: new Set<Permission>(["reports.view", "inventory.read"]),
+  REPORTING: new Set<Permission>(["reports.view", "inventory.read", "customers.read"]),
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
