@@ -21,6 +21,7 @@ const PERMISSION_FOR: Record<Area, Permission> = { reports: "reports.view", audi
 /** Reports that show cost need a second grant on top of reports.view (T5 P5). */
 const EXTRA_PERMISSION: Partial<Record<ReportName, Permission>> = {
   purchases: "purchases.manage",
+  "supplier-balances": "purchases.manage",
   // Profit shows cost: only those who see cost elsewhere (canSeeCost), P12 M7.
   "profit-products": "products.update",
   "profit-categories": "products.update",
@@ -55,6 +56,26 @@ export async function requireAccess(
     // A failed audit write must not turn a 403 into a 500.
   }
   throw forbidden("Missing permission for this action");
+}
+
+/** Reports over org-wide accounts ignore the branch filter, so they need a membership covering every branch. */
+export const ORG_WIDE_REPORTS: ReadonlySet<ReportName> = new Set<ReportName>(["supplier-balances"]);
+
+export async function requireAllBranches(ctx: TenantContext, operation: string, meta?: AuditRequestMeta) {
+  const membership = await prismaTenantRepository(getDb()).findMembership(ctx.orgId, ctx.userId);
+  if (membership?.isActive && membership.allBranches) return;
+  try {
+    await record(getDb(), {
+      ctx,
+      meta,
+      action: "reports.permission.denied",
+      entityType: "Report",
+      metadata: { permission: "allBranches", operation },
+    });
+  } catch {
+    // A failed audit write must not turn a 403 into a 500.
+  }
+  throw forbidden("This report needs access to every branch");
 }
 
 export type ReportBranch = { id: string; name: string };

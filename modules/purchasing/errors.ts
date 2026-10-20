@@ -13,6 +13,8 @@ export type PurchasingConflictReason =
   | "QTY_EXCEEDS_RETURNABLE"
   | "SUPPLIER_INACTIVE"
   | "SUPPLIER_NAME_TAKEN"
+  | "PAYMENT_ALREADY_REVERSED"
+  | "PAYMENT_NOT_REVERSIBLE"
   | "IDEMPOTENCY_CONFLICT";
 
 export function purchasingConflict(
@@ -26,7 +28,8 @@ export function purchasingConflict(
   });
 }
 
-export type PurchasingValidationReason = "NOTHING_TO_RECEIVE" | "NOTHING_TO_RETURN" | "AMOUNT_TOO_LARGE";
+export type PurchasingValidationReason =
+  "NOTHING_TO_RECEIVE" | "NOTHING_TO_RETURN" | "AMOUNT_TOO_LARGE" | "PAYMENT_DATE_IN_FUTURE";
 
 export function purchasingInvalid(
   reason: PurchasingValidationReason,
