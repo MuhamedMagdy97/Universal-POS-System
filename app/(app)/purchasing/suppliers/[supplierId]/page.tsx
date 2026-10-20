@@ -8,18 +8,23 @@ import { formatMinor, type CurrencyCode } from "@/lib/money";
 import {
   getSupplierStatement,
   listPurchaseOrders,
+  listSupplierInvoices,
+  type InvoiceRow,
   type StatementEntry,
+  type SupplierInvoices,
   type SupplierStatement,
 } from "@/modules/purchasing";
-import { balanceEffect } from "@/modules/purchasing/rules";
+import { balanceEffect, oldestFirst, type OpenInvoice } from "@/modules/purchasing/rules";
 import { todayIn } from "@/modules/reports";
 import { loadPurchasingContext } from "../../_lib/context";
 import { Denied } from "../../_components/states";
 import { PaymentForm, ReversePayment } from "../../_components/supplier-account";
+import { AllocatePayment, InvoiceForm, VoidInvoice } from "../../_components/supplier-invoices";
 
 /**
  * A supplier's account (supplier-payments-spec S13, S15): balance, statement for a date range,
- * record and reverse payments. purchases.manage with every branch; the service re-checks.
+ * record and reverse payments; invoices and credit notes, allocation (supplier-invoices-spec I16).
+ * purchases.manage with every branch; the service re-checks.
  */
 
 type Props = {
@@ -65,7 +70,16 @@ async function SupplierAccount({ params, searchParams }: Props) {
     throw err;
   }
   const { supplier } = statement;
-  const pos = page.can.manage ? (await listPurchaseOrders(ctx, { supplierId: supplier.id, status: "all" })).rows : [];
+  const [pos, docs] = await Promise.all([
+    page.can.manage ? listPurchaseOrders(ctx, { supplierId: supplier.id, status: "all" }).then((p) => p.rows) : [],
+    listSupplierInvoices(ctx, supplier.id),
+  ]);
+  const openInvoices: OpenInvoice[] = oldestFirst(
+    docs.invoices.filter((doc) => doc.kind === "INVOICE" && doc.openMinor > 0),
+  ).map(({ id, number, issuedOn, dueOn, openMinor }) => ({ id, number, issuedOn, dueOn, openMinor }));
+  const pick = (rows: SupplierInvoices["uninvoicedReceipts"]) =>
+    rows.map((r) => ({ id: r.id, number: r.number, day: todayIn(zone, r.at), valueMinor: r.valueMinor }));
+  const unallocated = new Map(docs.unallocatedPayments.map((p) => [p.id, p.unallocatedMinor]));
   const money = (minor: number) => formatMinor(minor, currency, locale);
 
   return (
@@ -95,7 +109,34 @@ async function SupplierAccount({ params, searchParams }: Props) {
           {money(statement.balanceMinor)}
         </p>
         {statement.balanceMinor < 0 ? <p className="text-sm text-muted">{tr("purchasing.account.credit")}</p> : null}
+        <p className="text-sm text-muted">
+          {tr("purchasing.account.uninvoiced")}{" "}
+          <span className="tabular-nums" dir="ltr" data-testid="supplier-uninvoiced">
+            {money(sumValues(docs.uninvoicedReceipts))}
+          </span>
+        </p>
       </section>
+
+      <InvoicesTable
+        docs={docs.invoices}
+        locale={locale}
+        currency={currency}
+        supplierId={supplier.id}
+        canVoid={page.can.manage}
+      />
+
+      {page.can.manage ? (
+        <InvoiceForm
+          locale={locale}
+          currency={currency}
+          supplierId={supplier.id}
+          today={docs.today}
+          vatRateBp={docs.vatRateBp}
+          receipts={pick(docs.uninvoicedReceipts)}
+          returns={pick(docs.uncreditedReturns)}
+          openInvoices={openInvoices}
+        />
+      ) : null}
 
       {page.can.manage ? (
         <PaymentForm
@@ -104,6 +145,7 @@ async function SupplierAccount({ params, searchParams }: Props) {
           supplierId={supplier.id}
           today={todayIn(zone)}
           pos={pos.filter((po) => po.status !== "DRAFT" && po.status !== "CANCELLED")}
+          openInvoices={openInvoices}
         />
       ) : null}
 
@@ -183,6 +225,8 @@ async function SupplierAccount({ params, searchParams }: Props) {
                 currency={currency}
                 supplierId={supplier.id}
                 canReverse={page.can.manage}
+                unallocatedMinor={unallocated.get(entry.id) ?? 0}
+                openInvoices={openInvoices}
               />
             ))}
             {statement.entries.length === 0 ? (
@@ -219,13 +263,21 @@ function EntryRow(props: {
   currency: CurrencyCode;
   supplierId: string;
   canReverse: boolean;
+  unallocatedMinor: number;
+  openInvoices: OpenInvoice[];
 }) {
   const { entry, locale, currency } = props;
   const tr = translator(locale);
   const isPayment = entry.kind === "PAYMENT" || entry.kind === "REVERSAL";
+  // An invoice or credit note shows its total less the cost it replaces (supplier-invoices-spec I7).
+  const covers =
+    entry.coveredMinor && entry.coveredMinor > 0
+      ? `${formatMinor(entry.amountMinor, currency, locale)} − ${formatMinor(entry.coveredMinor, currency, locale)}`
+      : null;
   const details = [
     entry.method ? tr(`purchasing.method.${entry.method}`) : null,
     entry.number,
+    covers,
     entry.reference,
     entry.note,
   ].filter(Boolean);
@@ -254,14 +306,150 @@ function EntryRow(props: {
         {entry.kind === "PAYMENT" && entry.reversed ? (
           <span className="text-xs text-muted">{tr("purchasing.payment.reversed")}</span>
         ) : entry.kind === "PAYMENT" && props.canReverse ? (
-          <ReversePayment
-            locale={locale}
-            supplierId={props.supplierId}
-            paymentId={entry.id}
-            label={`${entry.day} ${formatMinor(entry.amountMinor, currency, locale)}`}
-          />
+          <div className="flex flex-col items-start gap-1">
+            <ReversePayment
+              locale={locale}
+              supplierId={props.supplierId}
+              paymentId={entry.id}
+              label={`${entry.day} ${formatMinor(entry.amountMinor, currency, locale)}`}
+            />
+            {props.unallocatedMinor > 0 && props.openInvoices.length > 0 ? (
+              <AllocatePayment
+                locale={locale}
+                currency={currency}
+                supplierId={props.supplierId}
+                paymentId={entry.id}
+                unallocatedMinor={props.unallocatedMinor}
+                invoices={props.openInvoices}
+              />
+            ) : null}
+          </div>
         ) : null}
       </td>
     </tr>
+  );
+}
+
+function sumValues(rows: readonly { valueMinor: number }[]): number {
+  return rows.reduce((total, row) => total + row.valueMinor, 0);
+}
+
+const STATUS_TONE: Record<InvoiceRow["status"], string> = {
+  OPEN: "border-blue-600 text-blue-700",
+  PAID: "border-green-700 text-green-700",
+  OVERDUE: "border-red-700 text-red-700",
+  VOID: "border-border text-muted line-through",
+};
+
+/** The supplier's invoices and credit notes, newest first (I10, I16). */
+function InvoicesTable(props: {
+  docs: InvoiceRow[];
+  locale: Locale;
+  currency: CurrencyCode;
+  supplierId: string;
+  canVoid: boolean;
+}) {
+  const { docs, locale, currency } = props;
+  const tr = translator(locale);
+  const money = (minor: number) => formatMinor(minor, currency, locale);
+  const th = "px-2 py-2 text-start font-medium";
+  const thEnd = "px-2 py-2 text-end font-medium";
+  const num = "px-2 py-2 text-end tabular-nums";
+  return (
+    <section aria-labelledby="invoices" className="flex flex-col gap-2">
+      <h2 id="invoices" className="text-lg font-semibold">
+        {tr("purchasing.invoice.title")}
+      </h2>
+      {docs.length === 0 ? (
+        <p className="text-sm text-muted">{tr("purchasing.invoice.empty")}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <caption className="sr-only">{tr("purchasing.invoice.title")}</caption>
+            <thead>
+              <tr className="border-b border-border text-muted">
+                <th scope="col" className={th}>
+                  {tr("purchasing.invoice.number")}
+                </th>
+                <th scope="col" className={th}>
+                  {tr("purchasing.invoice.kind")}
+                </th>
+                <th scope="col" className={th}>
+                  {tr("purchasing.invoice.issuedOn")}
+                </th>
+                <th scope="col" className={th}>
+                  {tr("purchasing.invoice.dueOn")}
+                </th>
+                <th scope="col" className={thEnd}>
+                  {tr("purchasing.invoice.vat")}
+                </th>
+                <th scope="col" className={thEnd}>
+                  {tr("purchasing.invoice.total")}
+                </th>
+                <th scope="col" className={thEnd}>
+                  {tr("purchasing.invoice.paid")}
+                </th>
+                <th scope="col" className={thEnd}>
+                  {tr("purchasing.invoice.open")}
+                </th>
+                <th scope="col" className={th}>
+                  {tr("purchasing.invoice.status")}
+                </th>
+                <th scope="col" className="print:hidden" />
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map((doc) => (
+                <tr key={doc.id} className="border-b border-border" data-testid={`invoice-${doc.number}`}>
+                  <td className="px-2 py-2" dir="ltr">
+                    {doc.number}
+                  </td>
+                  <td className="px-2 py-2">{tr(`purchasing.invoice.kind.${doc.kind}`)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap" dir="ltr">
+                    {doc.issuedOn}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap" dir="ltr">
+                    {doc.dueOn ?? "—"}
+                  </td>
+                  <td className={num} dir="ltr">
+                    {money(doc.vatMinor)}
+                  </td>
+                  <td className={num} dir="ltr">
+                    {money(doc.totalMinor)}
+                  </td>
+                  <td className={num} dir="ltr">
+                    {doc.kind === "INVOICE" ? money(doc.paidMinor + doc.creditedMinor) : "—"}
+                  </td>
+                  <td className={num} dir="ltr">
+                    {doc.kind === "INVOICE" ? money(doc.openMinor) : "—"}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_TONE[doc.status]}`}
+                      data-testid="invoice-status"
+                    >
+                      {doc.kind === "INVOICE" || doc.status === "VOID"
+                        ? tr(`purchasing.invoice.status.${doc.status}`)
+                        : tr("purchasing.invoice.status.CREDITED")}
+                    </span>
+                    {doc.voidReason ? <span className="ms-2 text-xs text-muted">{doc.voidReason}</span> : null}
+                  </td>
+                  <td className="px-2 py-2 print:hidden">
+                    {props.canVoid && doc.status !== "VOID" ? (
+                      <VoidInvoice
+                        locale={locale}
+                        supplierId={props.supplierId}
+                        invoiceId={doc.id}
+                        label={doc.number}
+                      />
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

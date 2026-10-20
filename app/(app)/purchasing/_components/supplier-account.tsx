@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { CurrencyCode } from "@/lib/money";
 import { SUPPLIER_PAYMENT_METHODS, type SupplierPaymentMethod } from "@/modules/purchasing/schemas";
+import type { OpenInvoice } from "@/modules/purchasing/rules";
 import { recordPaymentAction, reversePaymentAction } from "../actions";
+import { AllocationEditor, allocationLines, suggestAllocation, type AllocationValues } from "./supplier-invoices";
 import { errorKey, parseCost, plain, safeAction } from "../_lib/purchasing";
 
 const INPUT = "rounded-md border border-border bg-background px-3 py-2";
@@ -16,13 +18,15 @@ type FormProps = {
   supplierId: string;
   today: string;
   pos: { id: string; number: string }[];
+  /** Open invoices, oldest first: the payment is allocated across them (supplier-invoices-spec I9). */
+  openInvoices: OpenInvoice[];
 };
 
 /**
  * Record a payment to the supplier (supplier-payments-spec S4, S5). One Idempotency-Key per form,
  * kept across retries, so a double submit never pays twice (S8).
  */
-export function PaymentForm({ locale, currency, supplierId, today, pos }: FormProps) {
+export function PaymentForm({ locale, currency, supplierId, today, pos, openInvoices }: FormProps) {
   const tr = translator(locale);
   const router = useRouter();
   const [key, setKey] = useState(() => crypto.randomUUID());
@@ -32,6 +36,10 @@ export function PaymentForm({ locale, currency, supplierId, today, pos }: FormPr
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [purchaseOrderId, setPurchaseOrderId] = useState("");
+  // Suggested oldest first from the amount until edited by hand.
+  const [allocations, setAllocations] = useState<AllocationValues | null>(null);
+  const typedMinor = parseCost(amount, currency);
+  const allocationValues = allocations ?? suggestAllocation(typedMinor ?? 0, openInvoices, currency);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +47,11 @@ export function PaymentForm({ locale, currency, supplierId, today, pos }: FormPr
     event.preventDefault();
     const amountMinor = parseCost(amount, currency);
     if (amountMinor === null || amountMinor === 0) {
+      setError(tr("purchasing.error.amount"));
+      return;
+    }
+    const lines = allocationLines(allocationValues, currency);
+    if (lines === null) {
       setError(tr("purchasing.error.amount"));
       return;
     }
@@ -51,6 +64,7 @@ export function PaymentForm({ locale, currency, supplierId, today, pos }: FormPr
         reference,
         note,
         purchaseOrderId: purchaseOrderId || null,
+        allocations: lines,
       }),
     );
     setPending(false);
@@ -63,6 +77,7 @@ export function PaymentForm({ locale, currency, supplierId, today, pos }: FormPr
     setReference("");
     setNote("");
     setPurchaseOrderId("");
+    setAllocations(null);
     setKey(crypto.randomUUID());
     router.refresh();
   }
@@ -129,6 +144,13 @@ export function PaymentForm({ locale, currency, supplierId, today, pos }: FormPr
           </label>
         ) : null}
       </div>
+      <AllocationEditor
+        locale={locale}
+        currency={currency}
+        invoices={openInvoices}
+        values={allocationValues}
+        onChange={setAllocations}
+      />
       <label className="flex flex-col gap-1">
         <span>{tr("purchasing.payment.note")}</span>
         <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} className={INPUT} />

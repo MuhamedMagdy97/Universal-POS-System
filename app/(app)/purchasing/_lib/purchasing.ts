@@ -36,6 +36,18 @@ const REASON_KEYS = {
   PAYMENT_ALREADY_REVERSED: "purchasing.error.PAYMENT_ALREADY_REVERSED",
   PAYMENT_NOT_REVERSIBLE: "purchasing.error.PAYMENT_NOT_REVERSIBLE",
   PAYMENT_DATE_IN_FUTURE: "purchasing.error.PAYMENT_DATE_IN_FUTURE",
+  INVOICE_DATE_IN_FUTURE: "purchasing.error.INVOICE_DATE_IN_FUTURE",
+  DUE_BEFORE_ISSUE: "purchasing.error.DUE_BEFORE_ISSUE",
+  VAT_ABOVE_RATE: "purchasing.error.VAT_ABOVE_RATE",
+  TOTAL_NOT_POSITIVE: "purchasing.error.TOTAL_NOT_POSITIVE",
+  INVALID_DOCUMENT_LINK: "purchasing.error.INVALID_DOCUMENT_LINK",
+  INVOICE_NUMBER_TAKEN: "purchasing.error.INVOICE_NUMBER_TAKEN",
+  RECEIPT_ALREADY_INVOICED: "purchasing.error.RECEIPT_ALREADY_INVOICED",
+  RETURN_ALREADY_CREDITED: "purchasing.error.RETURN_ALREADY_CREDITED",
+  INVOICE_VOIDED: "purchasing.error.INVOICE_VOIDED",
+  AMOUNT_EXCEEDS_OPEN: "purchasing.error.AMOUNT_EXCEEDS_OPEN",
+  AMOUNT_EXCEEDS_UNALLOCATED: "purchasing.error.AMOUNT_EXCEEDS_UNALLOCATED",
+  ALLOCATION_EXCEEDS_PAYMENT: "purchasing.error.ALLOCATION_EXCEEDS_PAYMENT",
 } as const satisfies Record<string, MessageKey>;
 
 /** The message for an error envelope: the specific reason first, then the status class. */

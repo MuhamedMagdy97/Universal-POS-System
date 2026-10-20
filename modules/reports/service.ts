@@ -56,6 +56,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   shifts: q.shifts,
   "refunds-voids": q.refundsVoids,
   vat: q.vat,
+  "input-vat": q.inputVat,
   purchases: q.purchases,
   "supplier-balances": q.supplierBalances,
   "profit-products": q.profitProducts,

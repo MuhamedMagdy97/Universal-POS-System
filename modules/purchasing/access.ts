@@ -32,7 +32,8 @@ export async function requirePermission(
   await deny(ctx, wanted, attempt);
 }
 
-type EntityType = "Supplier" | "PurchaseOrder" | "GoodsReceipt" | "PurchaseReturn" | "SupplierPayment";
+type EntityType =
+  "Supplier" | "PurchaseOrder" | "GoodsReceipt" | "PurchaseReturn" | "SupplierPayment" | "SupplierInvoice";
 
 /**
  * Supplier accounts span every branch (supplier-payments-spec S2, S3): `purchases.manage` and a

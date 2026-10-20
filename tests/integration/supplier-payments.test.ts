@@ -298,8 +298,10 @@ describe("Supplier balances report", () => {
         openingMinor: -300,
         receivedMinor: 2_000,
         returnedMinor: 500,
+        adjustedMinor: 0,
         paidMinor: 400,
         closingMinor: 800,
+        uninvoicedMinor: 2_000,
       },
       // No movement today, but an opening balance (a deposit).
       {
@@ -308,8 +310,10 @@ describe("Supplier balances report", () => {
         openingMinor: -250,
         receivedMinor: 0,
         returnedMinor: 0,
+        adjustedMinor: 0,
         paidMinor: 0,
         closingMinor: -250,
+        uninvoicedMinor: 0,
       },
     ]);
     expect(report.rows.some((row) => row.supplierId === quiet.id)).toBe(false);
@@ -317,8 +321,10 @@ describe("Supplier balances report", () => {
       openingMinor: -550,
       receivedMinor: 2_000,
       returnedMinor: 500,
+      adjustedMinor: 0,
       paidMinor: 400,
       closingMinor: 550,
+      uninvoicedMinor: 2_000,
     });
     for (const row of report.rows) {
       const statement = await getSupplierStatement(owner, row.supplierId as string, { from: today, to: today });
@@ -326,7 +332,7 @@ describe("Supplier balances report", () => {
     }
 
     const { body } = await exportReportCsv(owner, "supplier-balances", { from: today, to: today });
-    expect(body).toContain("Alpha,-3.00,20.00,5.00,4.00,8.00");
-    expect(body).toContain("Total,-5.50,20.00,5.00,4.00,5.50");
+    expect(body).toContain("Alpha,-3.00,20.00,5.00,0.00,4.00,8.00,20.00");
+    expect(body).toContain("Total,-5.50,20.00,5.00,0.00,4.00,5.50,20.00");
   });
 });

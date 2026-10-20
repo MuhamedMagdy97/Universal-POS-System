@@ -1,4 +1,4 @@
-import { multiply, sum } from "@/lib/money";
+import { multiply, sum, vatOnNet } from "@/lib/money";
 import type { PoLineInput, PoStatus } from "./schemas";
 
 /**
@@ -96,14 +96,37 @@ export function poTotals(lines: readonly (LineQty & { unitCostMinor: number })[]
 
 // ---------- supplier accounts (supplier-payments-spec S1, S13) ----------
 
-export type AccountEntryKind = "RECEIPT" | "RETURN" | "PAYMENT" | "REVERSAL";
+export type AccountEntryKind =
+  "RECEIPT" | "RETURN" | "PAYMENT" | "REVERSAL" | "INVOICE" | "CREDIT_NOTE" | "INVOICE_VOID" | "CREDIT_NOTE_VOID";
 
-/** One movement on a supplier account. `amountMinor` is always positive; the kind gives the sign. */
-export type AccountEntry = { kind: AccountEntryKind; day: string; amountMinor: number };
+/**
+ * One movement on a supplier account. `amountMinor` is always positive; the kind gives the sign. For
+ * invoices and credit notes (and their voids) `coveredMinor` is the at-cost value of the receipts or
+ * return the document replaces (supplier-invoices-spec I7).
+ */
+export type AccountEntry = { kind: AccountEntryKind; day: string; amountMinor: number; coveredMinor?: number };
 
-/** What the entry does to the balance owed (S1): receipts and reversals add, returns and payments subtract. */
-export function balanceEffect(entry: Pick<AccountEntry, "kind" | "amountMinor">): number {
-  return entry.kind === "RECEIPT" || entry.kind === "REVERSAL" ? entry.amountMinor : -entry.amountMinor;
+/**
+ * What the entry does to the balance owed (S1, I7): receipts and reversals add, returns and payments
+ * subtract; an invoice adds what it bills beyond the receipts it covers, a credit note the reverse,
+ * and a void undoes its document on the void day.
+ */
+export function balanceEffect(entry: Pick<AccountEntry, "kind" | "amountMinor" | "coveredMinor">): number {
+  const adjustment = entry.amountMinor - (entry.coveredMinor ?? 0);
+  switch (entry.kind) {
+    case "RECEIPT":
+    case "REVERSAL":
+      return entry.amountMinor;
+    case "RETURN":
+    case "PAYMENT":
+      return -entry.amountMinor;
+    case "INVOICE":
+    case "CREDIT_NOTE_VOID":
+      return adjustment;
+    case "CREDIT_NOTE":
+    case "INVOICE_VOID":
+      return -adjustment;
+  }
 }
 
 export type Statement<T extends AccountEntry> = {
@@ -130,4 +153,60 @@ export function statementOf<T extends AccountEntry>(all: readonly T[], from: str
     if (entry.day >= from && entry.day <= to) entries.push({ ...entry, balanceMinor });
   }
   return { openingMinor, entries, closingMinor, balanceMinor };
+}
+
+// ---------- supplier invoices (supplier-invoices-spec I5, I9, I10) ----------
+
+/** Per-line VAT rounding on a real invoice can exceed the rate on the total by this much (I5). */
+export const INPUT_VAT_TOLERANCE_MINOR = 100;
+
+/** Default input VAT: the shop rate on the net, rounded like sales (I5). */
+export function defaultInputVat(netMinor: number, rateBp: number): number {
+  return vatOnNet(netMinor, rateBp);
+}
+
+/** The most input VAT a document may carry: the rate on the net plus the rounding tolerance (I5). */
+export function maxInputVat(netMinor: number, rateBp: number): number {
+  return defaultInputVat(netMinor, rateBp) + INPUT_VAT_TOLERANCE_MINOR;
+}
+
+export type InvoiceStatus = "OPEN" | "PAID" | "OVERDUE" | "VOID";
+
+/** Open amount and status (I10). `today` and `dueOn` are shop-local `YYYY-MM-DD`. */
+export function invoiceState(
+  invoice: { voided: boolean; totalMinor: number; paidMinor: number; creditedMinor: number; dueOn: string | null },
+  today: string,
+): { openMinor: number; status: InvoiceStatus } {
+  if (invoice.voided) return { openMinor: 0, status: "VOID" };
+  const openMinor = Math.max(0, invoice.totalMinor - invoice.paidMinor - invoice.creditedMinor);
+  if (openMinor === 0) return { openMinor, status: "PAID" };
+  return { openMinor, status: invoice.dueOn !== null && invoice.dueOn < today ? "OVERDUE" : "OPEN" };
+}
+
+export type OpenInvoice = { id: string; number: string; issuedOn: string; dueOn: string | null; openMinor: number };
+
+/** Oldest first: by due date (none last), then issue date, then number (I9). */
+export function oldestFirst<T extends Omit<OpenInvoice, "openMinor">>(invoices: readonly T[]): T[] {
+  return [...invoices].sort(
+    (a, b) =>
+      (a.dueOn ?? "9999-12-31").localeCompare(b.dueOn ?? "9999-12-31") ||
+      a.issuedOn.localeCompare(b.issuedOn) ||
+      a.number.localeCompare(b.number),
+  );
+}
+
+/** Spreads `amountMinor` over open invoices, oldest first, each up to its open amount (I9). */
+export function allocateOldestFirst(
+  amountMinor: number,
+  invoices: readonly OpenInvoice[],
+): { invoiceId: string; amountMinor: number }[] {
+  let left = amountMinor;
+  const out: { invoiceId: string; amountMinor: number }[] = [];
+  for (const invoice of oldestFirst(invoices)) {
+    if (left <= 0) break;
+    const take = Math.min(left, invoice.openMinor);
+    if (take > 0) out.push({ invoiceId: invoice.id, amountMinor: take });
+    left -= take;
+  }
+  return out;
 }

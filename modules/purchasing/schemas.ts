@@ -159,6 +159,15 @@ const LocalDay = z
     return day ?? "";
   });
 
+/** I9: one line per invoice, each above 0. */
+export const AllocationLines = z
+  .array(z.object({ invoiceId: Uuid, amountMinor: z.number().int().min(1).max(MAX_STORABLE_MINOR) }).strict())
+  .max(MAX_PO_LINES)
+  .refine((lines) => new Set(lines.map((line) => line.invoiceId)).size === lines.length, {
+    message: "One line per invoice",
+  });
+export type AllocationLines = z.infer<typeof AllocationLines>;
+
 /** S4, S5: amount above 0, the shop-local day it was paid, an optional PO for reference only. */
 export const PaymentInput = z
   .object({
@@ -168,6 +177,8 @@ export const PaymentInput = z
     reference: OptionalText(80),
     note: OptionalText(500),
     purchaseOrderId: Uuid.nullish().transform((value) => value ?? null),
+    // supplier-invoices-spec I9: optional, checked against open amounts by the service.
+    allocations: AllocationLines.optional(),
   })
   .strict();
 export type PaymentInput = z.infer<typeof PaymentInput>;
@@ -180,3 +191,33 @@ export const StatementQuery = z
   .object({ from: z.string().max(20).optional(), to: z.string().max(20).optional() })
   .strict();
 export type StatementQuery = z.infer<typeof StatementQuery>;
+
+// ---------- supplier invoices (supplier-invoices-spec) ----------
+
+export const SUPPLIER_DOCUMENT_KINDS = ["INVOICE", "CREDIT_NOTE"] as const;
+export type SupplierDocumentKind = (typeof SUPPLIER_DOCUMENT_KINDS)[number];
+
+const Amount = z.number().int().min(0).max(MAX_STORABLE_MINOR);
+
+export const AllocationInput = z.object({ allocations: AllocationLines.refine((l) => l.length > 0) }).strict();
+export type AllocationInput = z.infer<typeof AllocationInput>;
+
+/** I1, I3, I4: kind-specific links are checked by the service (and a DB CHECK). */
+export const InvoiceInput = z
+  .object({
+    kind: z.enum(SUPPLIER_DOCUMENT_KINDS),
+    number: z.string().trim().min(1).max(40),
+    issuedOn: LocalDay,
+    dueOn: LocalDay.nullish().transform((value) => value || null),
+    netMinor: Amount,
+    vatMinor: Amount,
+    note: OptionalText(500),
+    goodsReceiptIds: z.array(Uuid).max(MAX_PO_LINES).optional().default([]),
+    purchaseReturnId: Uuid.nullish().transform((value) => value ?? null),
+    appliesToInvoiceId: Uuid.nullish().transform((value) => value ?? null),
+  })
+  .strict();
+export type InvoiceInput = z.infer<typeof InvoiceInput>;
+
+export const VoidInput = z.object({ reason: z.string().trim().min(1).max(500) }).strict();
+export type VoidInput = z.infer<typeof VoidInput>;

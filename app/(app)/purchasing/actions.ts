@@ -10,6 +10,7 @@ import type { z } from "zod";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { actionError, getRequestId } from "@/lib/http";
 import {
+  allocateSupplierPayment,
   archiveSupplier,
   cancelPurchaseOrder,
   closePurchaseOrder,
@@ -17,12 +18,16 @@ import {
   createSupplier,
   orderPurchaseOrder,
   receivePurchaseOrder,
+  recordSupplierInvoice,
   recordSupplierPayment,
   restoreSupplier,
   returnToSupplier,
   reverseSupplierPayment,
   updatePurchaseOrder,
   updateSupplier,
+  voidSupplierInvoice,
+  type AllocationInput,
+  type InvoiceInput,
   type PaymentInput,
   type PoInput,
   type PoPatch,
@@ -124,5 +129,38 @@ export async function reversePaymentAction(
 ): Promise<ActionResult<{ paymentId: string }>> {
   return run(async (ctx, meta) => ({
     paymentId: (await reverseSupplierPayment(ctx, supplierId, paymentId, idempotencyKey, { reason }, meta)).paymentId,
+  }));
+}
+
+/** Supplier invoices and credit notes (supplier-invoices-spec I12): one key per form, kept across a retry. */
+export async function recordInvoiceAction(
+  supplierId: string,
+  idempotencyKey: string,
+  input: z.input<typeof InvoiceInput>,
+): Promise<ActionResult<{ invoiceId: string }>> {
+  return run(async (ctx, meta) => ({
+    invoiceId: (await recordSupplierInvoice(ctx, supplierId, idempotencyKey, input, meta)).invoiceId,
+  }));
+}
+
+/** Voiding twice changes nothing (I6), so no key is needed. */
+export async function voidInvoiceAction(
+  supplierId: string,
+  invoiceId: string,
+  reason: string,
+): Promise<ActionResult<{ invoiceId: string }>> {
+  return run(async (ctx, meta) => ({
+    invoiceId: (await voidSupplierInvoice(ctx, supplierId, invoiceId, { reason }, meta)).invoiceId,
+  }));
+}
+
+export async function allocatePaymentAction(
+  supplierId: string,
+  paymentId: string,
+  idempotencyKey: string,
+  input: z.input<typeof AllocationInput>,
+): Promise<ActionResult<{ paymentId: string }>> {
+  return run(async (ctx, meta) => ({
+    paymentId: (await allocateSupplierPayment(ctx, supplierId, paymentId, idempotencyKey, input, meta)).paymentId,
   }));
 }
