@@ -134,6 +134,15 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("returnedValueMinor", "reports.col.returnedValue", "money"),
     c("netValueMinor", "reports.col.netPurchaseValue", "money"),
   ],
+  // Supplier balances (supplier-payments-spec S14): cost values, so purchases.manage is needed too.
+  "supplier-balances": [
+    c("supplierName", "reports.col.supplier", "text"),
+    c("openingMinor", "reports.col.openingBalance", "money"),
+    c("receivedMinor", "reports.col.purchaseValue", "money"),
+    c("returnedMinor", "reports.col.returnedValue", "money"),
+    c("paidMinor", "reports.col.paid", "money"),
+    c("closingMinor", "reports.col.closingBalance", "money"),
+  ],
   // Profit (P12 M8): cost values, so products.update is needed too (M7).
   "profit-products": [c("sku", "reports.col.sku", "text"), c("name", "reports.col.product", "name"), ...PROFIT_COLUMNS],
   "profit-categories": [c("name", "reports.col.category", "name"), ...PROFIT_COLUMNS],

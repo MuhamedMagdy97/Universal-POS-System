@@ -43,3 +43,8 @@ export function num(value: bigint | number | null | undefined): number {
   if (!Number.isSafeInteger(n)) throw new Error("Report total overflowed the safe integer range");
   return n;
 }
+
+/** The UTC instant of local midnight starting `localDate` (+ `days`), for comparing to a timestamp column. */
+export function localMidnight(localDate: string, zone: string, days = 0): Prisma.Sql {
+  return Prisma.sql`(((${localDate}::date + ${days}::int)::timestamp AT TIME ZONE ${zone}::text) AT TIME ZONE 'UTC')`;
+}

@@ -87,6 +87,14 @@ enum PurchaseReturnReason {
   OTHER
 }
 
+enum SupplierPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  CHEQUE
+  OTHER
+}
+
 enum PurchaseOrderStatus {
   DRAFT
   ORDERED
@@ -291,7 +299,8 @@ model Organization {
   goodsReceiptItems  GoodsReceiptItem[]
   purchaseReturns    PurchaseReturn[]
   returnItems        PurchaseReturnItem[]
-  sales              Sale[]
+  supplierPayments   SupplierPayment[]
+  sales             Sale[]
   saleItems          SaleItem[]
   payments           Payment[]
   refunds            Refund[]
@@ -681,8 +690,9 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org            Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  org            Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
   purchaseOrders PurchaseOrder[]
+  payments       SupplierPayment[]
 
   @@unique([orgId, id])
 }
@@ -710,6 +720,7 @@ model PurchaseOrder {
   items    POItem[]
   receipts GoodsReceipt[]
   returns  PurchaseReturn[]
+  payments SupplierPayment[]
 
   @@unique([orgId, id])
   @@unique([orgId, number])
@@ -822,6 +833,39 @@ model PurchaseReturnItem {
   poItem         POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
   product        Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
   variant        ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+}
+
+// A payment to a supplier, or the reversal of one (supplier-payments-spec S9). Append-only.
+model SupplierPayment {
+  id              String                @id @default(uuid()) @db.Uuid
+  orgId           String                @db.Uuid
+  supplierId      String                @db.Uuid
+  amountMinor     Int
+  method          SupplierPaymentMethod
+  // The shop-local day the money went out (S4); a reversal is dated the day it is recorded.
+  paidOn          DateTime              @db.Date
+  reference       String?
+  note            String?
+  // Optional, for reference only (S5).
+  purchaseOrderId String?               @db.Uuid
+  // Set on a reversal: the payment it cancels, at most once (S9).
+  reversalOfId    String?               @db.Uuid
+  idempotencyKey  String
+  // sha256 of the canonical request body, like GoodsReceipt (S8).
+  requestHash     String
+  createdById     String                @db.Uuid
+  createdAt       DateTime              @default(now())
+
+  org           Organization     @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  supplier      Supplier         @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?   @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  reversalOf    SupplierPayment? @relation("PaymentReversal", fields: [orgId, reversalOfId], references: [orgId, id], onDelete: Restrict)
+  reversedBy    SupplierPayment? @relation("PaymentReversal")
+
+  @@unique([orgId, id])
+  @@unique([orgId, idempotencyKey])
+  @@unique([orgId, reversalOfId])
+  @@index([orgId, supplierId, paidOn])
 }
 
 // ──────────────────────────── Sales ────────────────────────────

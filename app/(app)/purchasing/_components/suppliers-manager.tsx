@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { SupplierRow } from "@/modules/purchasing";
@@ -131,6 +132,12 @@ export function SuppliersManager({ locale, suppliers }: { locale: Locale; suppli
                   <td dir="ltr">{row.taxNumber}</td>
                   <td>{row.isActive ? tr("purchasing.supplier.active") : tr("purchasing.supplier.archived")}</td>
                   <td className="flex justify-end gap-2 py-2">
+                    <Link
+                      href={`/purchasing/suppliers/${row.id}`}
+                      className="rounded-md border border-border px-2 py-1 text-sm"
+                    >
+                      {tr("purchasing.supplier.account")}
+                    </Link>
                     <button
                       type="button"
                       onClick={() => start(row)}

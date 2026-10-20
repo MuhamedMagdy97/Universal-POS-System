@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MAX_STORABLE_MINOR } from "@/lib/money";
 import { ItemRefInput, MAX_QTY, Qty, Uuid } from "@/modules/inventory/schemas";
+import { parseLocalDate } from "@/modules/reports/timezone";
 
 /**
  * Purchasing input schemas (T5). Pure: client components import this file. Strict objects, so
@@ -142,3 +143,40 @@ export const ReturnInput = z
   })
   .strict();
 export type ReturnInput = z.infer<typeof ReturnInput>;
+
+// ---------- supplier payments (supplier-payments-spec) ----------
+
+export const SUPPLIER_PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "CARD", "CHEQUE", "OTHER"] as const;
+export type SupplierPaymentMethod = (typeof SUPPLIER_PAYMENT_METHODS)[number];
+
+/** A real calendar day as `YYYY-MM-DD` (Arabic-Indic digits allowed). */
+const LocalDay = z
+  .string()
+  .max(20)
+  .transform((value, ctx) => {
+    const day = parseLocalDate(value);
+    if (day === null) ctx.addIssue({ code: "custom", message: "Dates must be YYYY-MM-DD" });
+    return day ?? "";
+  });
+
+/** S4, S5: amount above 0, the shop-local day it was paid, an optional PO for reference only. */
+export const PaymentInput = z
+  .object({
+    amountMinor: z.number().int().min(1).max(MAX_STORABLE_MINOR),
+    method: z.enum(SUPPLIER_PAYMENT_METHODS),
+    paidOn: LocalDay,
+    reference: OptionalText(80),
+    note: OptionalText(500),
+    purchaseOrderId: Uuid.nullish().transform((value) => value ?? null),
+  })
+  .strict();
+export type PaymentInput = z.infer<typeof PaymentInput>;
+
+/** S9: a reversal always says why. */
+export const ReversalInput = z.object({ reason: z.string().trim().min(1).max(500) }).strict();
+export type ReversalInput = z.infer<typeof ReversalInput>;
+
+export const StatementQuery = z
+  .object({ from: z.string().max(20).optional(), to: z.string().max(20).optional() })
+  .strict();
+export type StatementQuery = z.infer<typeof StatementQuery>;

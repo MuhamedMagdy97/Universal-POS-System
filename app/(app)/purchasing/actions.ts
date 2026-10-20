@@ -17,10 +17,13 @@ import {
   createSupplier,
   orderPurchaseOrder,
   receivePurchaseOrder,
+  recordSupplierPayment,
   restoreSupplier,
   returnToSupplier,
+  reverseSupplierPayment,
   updatePurchaseOrder,
   updateSupplier,
+  type PaymentInput,
   type PoInput,
   type PoPatch,
   type ReceiptInput,
@@ -99,5 +102,27 @@ export async function returnPoAction(
 ): Promise<ActionResult<{ returnId: string }>> {
   return run(async (ctx, meta) => ({
     returnId: (await returnToSupplier(ctx, poId, idempotencyKey, input, meta)).returnId,
+  }));
+}
+
+/** Supplier payments (supplier-payments-spec S8): one key per form, kept across a retry, so a retry never pays twice. */
+export async function recordPaymentAction(
+  supplierId: string,
+  idempotencyKey: string,
+  input: z.input<typeof PaymentInput>,
+): Promise<ActionResult<{ paymentId: string }>> {
+  return run(async (ctx, meta) => ({
+    paymentId: (await recordSupplierPayment(ctx, supplierId, idempotencyKey, input, meta)).paymentId,
+  }));
+}
+
+export async function reversePaymentAction(
+  supplierId: string,
+  paymentId: string,
+  idempotencyKey: string,
+  reason: string,
+): Promise<ActionResult<{ paymentId: string }>> {
+  return run(async (ctx, meta) => ({
+    paymentId: (await reverseSupplierPayment(ctx, supplierId, paymentId, idempotencyKey, { reason }, meta)).paymentId,
   }));
 }

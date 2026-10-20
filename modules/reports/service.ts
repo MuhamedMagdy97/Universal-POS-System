@@ -6,7 +6,14 @@ import { notFound } from "@/lib/errors";
 import { t, type Locale } from "@/lib/i18n";
 import { sum, toMajorString, type CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
-import { branchesInScope, orgSettings, requireAccess, resolveBranchIds } from "./access";
+import {
+  branchesInScope,
+  orgSettings,
+  ORG_WIDE_REPORTS,
+  requireAccess,
+  requireAllBranches,
+  resolveBranchIds,
+} from "./access";
 import {
   formatMarginBp,
   formatRateBp,
@@ -49,6 +56,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   "refunds-voids": q.refundsVoids,
   vat: q.vat,
   purchases: q.purchases,
+  "supplier-balances": q.supplierBalances,
   "profit-products": q.profitProducts,
   "profit-categories": q.profitCategories,
   "profit-days": q.profitDays,
@@ -72,6 +80,7 @@ type FullReport = Omit<ReportResult, "truncated">;
 async function runReport(ctx: TenantContext, name: string, rawQuery: unknown, meta?: AuditRequestMeta) {
   if (!isReportName(name)) throw notFound("Report");
   await requireAccess(ctx, "reports", `report.${name}`, meta, name);
+  if (ORG_WIDE_REPORTS.has(name)) await requireAllBranches(ctx, `report.${name}`, meta);
   const query = ReportQuery.parse(rawQuery);
   const branchIds = await resolveBranchIds(ctx, query.branchId);
   const { zone, currency } = await orgSettings(ctx.orgId);

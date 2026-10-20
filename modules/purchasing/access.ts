@@ -20,7 +20,7 @@ export async function requirePermission(
   permission: Permission | readonly Permission[],
   attempt: {
     operation: string;
-    entityType: "Supplier" | "PurchaseOrder" | "GoodsReceipt" | "PurchaseReturn";
+    entityType: EntityType;
     meta?: AuditRequestMeta;
   },
 ): Promise<void> {
@@ -29,6 +29,33 @@ export async function requirePermission(
     if (permission !== VIEW) await assertBuiltIn(ctx.orgId);
     return;
   }
+  await deny(ctx, wanted, attempt);
+}
+
+type EntityType = "Supplier" | "PurchaseOrder" | "GoodsReceipt" | "PurchaseReturn" | "SupplierPayment";
+
+/**
+ * Supplier accounts span every branch (supplier-payments-spec S2, S3): `purchases.manage` and a
+ * membership covering all branches. Writes are refused for a linked shop; reads are not (S11).
+ */
+export async function requireAccountAccess(
+  ctx: TenantContext,
+  attempt: { operation: string; write: boolean; meta?: AuditRequestMeta },
+): Promise<void> {
+  const membership = hasPermission(ctx.role, "purchases.manage")
+    ? await prismaTenantRepository(getDb()).findMembership(ctx.orgId, ctx.userId)
+    : null;
+  if (!membership?.isActive || !membership.allBranches) {
+    await deny(ctx, ["purchases.manage"], { ...attempt, entityType: "SupplierPayment" });
+  }
+  if (attempt.write) await assertBuiltIn(ctx.orgId);
+}
+
+async function deny(
+  ctx: TenantContext,
+  wanted: readonly Permission[],
+  attempt: { operation: string; entityType: EntityType; meta?: AuditRequestMeta },
+): Promise<never> {
   try {
     await record(getDb(), {
       ctx,

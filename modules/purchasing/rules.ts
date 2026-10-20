@@ -93,3 +93,41 @@ export function poTotals(lines: readonly (LineQty & { unitCostMinor: number })[]
     totalMinor: sum(lines.map((line) => multiply(line.unitCostMinor, line.qtyOrdered))),
   };
 }
+
+// ---------- supplier accounts (supplier-payments-spec S1, S13) ----------
+
+export type AccountEntryKind = "RECEIPT" | "RETURN" | "PAYMENT" | "REVERSAL";
+
+/** One movement on a supplier account. `amountMinor` is always positive; the kind gives the sign. */
+export type AccountEntry = { kind: AccountEntryKind; day: string; amountMinor: number };
+
+/** What the entry does to the balance owed (S1): receipts and reversals add, returns and payments subtract. */
+export function balanceEffect(entry: Pick<AccountEntry, "kind" | "amountMinor">): number {
+  return entry.kind === "RECEIPT" || entry.kind === "REVERSAL" ? entry.amountMinor : -entry.amountMinor;
+}
+
+export type Statement<T extends AccountEntry> = {
+  openingMinor: number;
+  entries: (T & { balanceMinor: number })[];
+  closingMinor: number;
+  /** Everything up to now, whatever the range. */
+  balanceMinor: number;
+};
+
+/**
+ * A statement for local days `from` … `to` from every entry of the account, already in order (S13):
+ * entries before `from` make the opening balance, each entry in range carries the running balance.
+ */
+export function statementOf<T extends AccountEntry>(all: readonly T[], from: string, to: string): Statement<T> {
+  let openingMinor = 0;
+  let balanceMinor = 0;
+  let closingMinor = 0;
+  const entries: (T & { balanceMinor: number })[] = [];
+  for (const entry of all) {
+    balanceMinor += balanceEffect(entry);
+    if (entry.day < from) openingMinor = balanceMinor;
+    if (entry.day <= to) closingMinor = balanceMinor;
+    if (entry.day >= from && entry.day <= to) entries.push({ ...entry, balanceMinor });
+  }
+  return { openingMinor, entries, closingMinor, balanceMinor };
+}

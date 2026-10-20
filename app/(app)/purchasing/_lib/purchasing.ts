@@ -33,6 +33,9 @@ const REASON_KEYS = {
   NOTHING_TO_RETURN: "purchasing.error.NOTHING_TO_RETURN",
   INSUFFICIENT_STOCK: "purchasing.error.INSUFFICIENT_STOCK",
   MANAGED_BY_INVENTORY: "purchasing.error.MANAGED_BY_INVENTORY",
+  PAYMENT_ALREADY_REVERSED: "purchasing.error.PAYMENT_ALREADY_REVERSED",
+  PAYMENT_NOT_REVERSIBLE: "purchasing.error.PAYMENT_NOT_REVERSIBLE",
+  PAYMENT_DATE_IN_FUTURE: "purchasing.error.PAYMENT_DATE_IN_FUTURE",
 } as const satisfies Record<string, MessageKey>;
 
 /** The message for an error envelope: the specific reason first, then the status class. */

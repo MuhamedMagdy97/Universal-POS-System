@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { divideRoundHalfUp } from "@/lib/money";
 import { marginBp } from "./columns";
-import { col, inRange, inScope, localDay, num, type ReportScope } from "./sql";
+import { col, inRange, inScope, localDay, localMidnight, num, type ReportScope } from "./sql";
 
 /**
  * The eight canned reports (P1). Each is one or two `$queryRaw` statements over stored integer
@@ -648,6 +648,81 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
       returnedUnits: num(row.returnedUnits),
       returnedValueMinor,
       netValueMinor: valueMinor - returnedValueMinor,
+    };
+  });
+}
+
+// ---------- supplier balances (supplier-payments-spec S14) ----------
+
+export type SupplierBalanceRow = {
+  supplierId: string;
+  supplierName: string;
+  openingMinor: number;
+  receivedMinor: number;
+  returnedMinor: number;
+  paidMinor: number;
+  closingMinor: number;
+};
+
+/**
+ * One row per supplier with an opening balance or movements in the range. The account is org-wide
+ * (S2): every branch counts and `scope.branchIds` is not applied. Paid is net of reversals.
+ */
+export async function supplierBalances(scope: ReportScope): Promise<SupplierBalanceRow[]> {
+  const start = localMidnight(scope.from, scope.zone);
+  const end = localMidnight(scope.to, scope.zone, 1);
+  const rows = await getDb().$queryRaw<
+    {
+      supplierId: string;
+      supplierName: string;
+      opening: Big;
+      received: Big;
+      returned: Big;
+      paid: Big;
+    }[]
+  >`
+    WITH flows AS (
+      SELECT p."supplierId", g."receivedAt" < ${start} AS early,
+             i."qtyReceived"::bigint * i."unitCostMinor" AS received, 0::bigint AS returned, 0::bigint AS paid
+      FROM "GoodsReceipt" g
+      JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
+      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
+      WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
+      UNION ALL
+      SELECT p."supplierId", r."returnedAt" < ${start}, 0, i."qty"::bigint * i."unitCostMinor", 0
+      FROM "PurchaseReturn" r
+      JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
+      JOIN "PurchaseOrder" p ON p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId"
+      WHERE r."orgId" = ${scope.orgId}::uuid AND r."returnedAt" < ${end}
+      UNION ALL
+      SELECT sp."supplierId", sp."paidOn" < ${scope.from}::date, 0, 0,
+             CASE WHEN sp."reversalOfId" IS NULL THEN sp."amountMinor" ELSE -sp."amountMinor" END
+      FROM "SupplierPayment" sp
+      WHERE sp."orgId" = ${scope.orgId}::uuid AND sp."paidOn" <= ${scope.to}::date
+    )
+    SELECT s."id"::text AS "supplierId", s."name" AS "supplierName",
+           SUM(CASE WHEN f.early THEN f.received - f.returned - f.paid ELSE 0 END) AS opening,
+           SUM(CASE WHEN f.early THEN 0 ELSE f.received END) AS received,
+           SUM(CASE WHEN f.early THEN 0 ELSE f.returned END) AS returned,
+           SUM(CASE WHEN f.early THEN 0 ELSE f.paid END) AS paid
+    FROM flows f
+    JOIN "Supplier" s ON s."orgId" = ${scope.orgId}::uuid AND s."id" = f."supplierId"
+    GROUP BY s."id", s."name"
+    HAVING bool_or(NOT f.early) OR SUM(CASE WHEN f.early THEN f.received - f.returned - f.paid ELSE 0 END) <> 0
+    ORDER BY s."name", s."id"`;
+  return rows.map((row) => {
+    const openingMinor = num(row.opening);
+    const receivedMinor = num(row.received);
+    const returnedMinor = num(row.returned);
+    const paidMinor = num(row.paid);
+    return {
+      supplierId: row.supplierId,
+      supplierName: row.supplierName,
+      openingMinor,
+      receivedMinor,
+      returnedMinor,
+      paidMinor,
+      closingMinor: openingMinor + receivedMinor - returnedMinor - paidMinor,
     };
   });
 }
