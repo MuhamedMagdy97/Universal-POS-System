@@ -106,6 +106,12 @@
   [spec](stock-counts/stock-counts-spec.md)); discounts at the till with a cashier limit, in receipts, refunds and
   reports (PR #43, [spec](discounts/discounts-spec.md)).
 
+- 2026-10-20 batch 3: printable A4 count sheets, blind by default (PR #46); supplier payments with reversals,
+  statements and a Supplier balances report (PR #47, [spec](supplier-payments/supplier-payments-spec.md)); two-step
+  transfers with incoming stock and shortfall write-off at the destination (PR #49,
+  [spec](transfers/transit-transfers-spec.md)); customer records on sales, receipts and a Sales by customer report
+  (PR #48, [spec](customers/customers-spec.md)); category kept on a synced rename clash (PR #45).
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

@@ -12,7 +12,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
   integration. No native mobile or desktop app, no e-commerce, no full accounting. [mvp-scope]
 - No tax e-invoicing: no ZATCA (Saudi) e-invoices or Egypt e-receipt certification, no tax QR codes. A receipt is a
   customer slip. [phase-11/hardening-spec §1–2]
-- No industry modules beyond the retail preset (roadmap phase 12). Walk-in customers only: no customer records.
+- No industry modules beyond the retail preset (roadmap phase 12). Customer records have no loyalty, credit accounts or marketing; a sale names at most one customer.
   [roadmap, mvp-scope]
 
 ## Accounts, shops and staff
@@ -31,7 +31,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Inventory
 
-- No count sheets or freezing sales during a stock count, no two-step (in-transit) transfers, no low-stock notifications (the list and
+- No freezing sales during a stock count; a transit transfer is received once (no several partial receipts), no low-stock notifications (the list and
   dashboard tile are on screen only), no cost valuation or COGS, no CSV import, no settings screen for `blockNegativeStock`. [phase-7/inventory-spec §5]
 - The opening-stock grid saves at most 100 items at a time. The transfer form has no scan shortcut beyond Enter in
   the search box. [phase-7/inventory-as-built, deferred minors]
@@ -59,7 +59,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Purchasing
 
-- Purchase returns only against a received PO (none without one). No supplier payments, balances or invoices, input VAT, receiving without a PO, barcode labels,
+- Purchase returns only against a received PO (none without one). Supplier payments are not allocated to invoices (no supplier invoices), no input VAT, receiving without a PO, barcode labels,
   emailing a PO, or multi-currency. [phase-10/purchasing-spec §2, phase-status]
 
 ## Printing and hardening
