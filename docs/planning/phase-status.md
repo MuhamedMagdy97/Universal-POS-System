@@ -123,6 +123,11 @@
   without a PO, in the purchases report, supplier balances and invoices (PR #58,
   [spec](purchasing-direct-receipt/direct-receipt-spec.md)).
 
+- 2026-10-22 batch 6: stock CSV import for opening stock and adjustments per branch (PR #61,
+  [spec](stock-import/stock-import-spec.md)); purchase returns against a direct receipt (PR #62,
+  [spec](purchase-returns/direct-receipt-returns-spec.md)); offline till slice 1, server only and hidden (PR #63,
+  [as built](offline-till/slice1-as-built.md)). Next: offline till slices 2–4, in order.
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.
