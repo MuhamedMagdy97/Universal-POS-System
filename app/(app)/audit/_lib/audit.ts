@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = [
   "catalog.product.price_changed",
   "catalog.product.archived",
   "catalog.product.restored",
+  "catalog.product.imported",
   "catalog.variant.created",
   "catalog.variant.price_changed",
   "catalog.category.created",

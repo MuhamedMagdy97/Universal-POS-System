@@ -21,6 +21,8 @@ import {
   CreateCategory,
   createProductAggregate,
   getProduct,
+  importProducts,
+  previewProductImport,
   restoreCategory,
   restoreProduct,
   restoreVariant,
@@ -30,6 +32,7 @@ import {
   MAX_VARIANTS_PER_SAVE,
   type CategoryDetail,
   type CreateProductAggregateInput,
+  type ImportPreview,
   type ProductDetail,
   type ProductWriteResult,
   type UpdateProductAggregateInput,
@@ -211,6 +214,26 @@ export async function restoreVariantAction(
     await restoreVariant(ctx, productId, variantId, data, meta);
     revalidatePath(PRODUCTS_PATH);
     return getProduct(ctx, productId);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CSV import
+// ---------------------------------------------------------------------------
+
+const ImportCsv = z.string();
+
+/** Validates an uploaded CSV and returns one result per row; writes nothing. */
+export async function previewImportAction(csv: unknown): Promise<ActionResult<ImportPreview>> {
+  return run(({ ctx }) => previewProductImport(ctx, parseAt(ImportCsv, csv, "")));
+}
+
+/** Creates every row of the CSV in one transaction (refused when any row has an error). */
+export async function importProductsAction(csv: unknown): Promise<ActionResult<{ created: number }>> {
+  return run(async ({ ctx, meta }) => {
+    const result = await importProducts(ctx, parseAt(ImportCsv, csv, ""), meta);
+    revalidatePath(PRODUCTS_PATH);
+    return result;
   });
 }
 
