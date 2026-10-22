@@ -68,6 +68,7 @@ async function supplierReturn(po: PoDetail, returnedAt: string, qty: number, uni
       id,
       orgId: tenant.org.id,
       branchId: po.branch.id,
+      supplierId: po.supplier.id,
       purchaseOrderId: po.id,
       seq: 1,
       reason: "DAMAGED",

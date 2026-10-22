@@ -99,7 +99,7 @@ The owner or admin raises purchase orders; you receive them at your branches.
 
 Refusals: "Enter a quantity for at least one line.", "A quantity is more than is still outstanding. Reload to see the
 latest.", "This order cannot be received now." (draft, cancelled or fully received). Returning goods to a supplier is
-not built.
+done by the owner or an admin ([owner guide § Purchasing](owner.md#7-purchasing)).
 
 ## Customers
 

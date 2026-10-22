@@ -174,15 +174,15 @@ export function receiptLines(
   return out;
 }
 
-export type ReturnRow = { poItemId: string; returnable: number; qty: string };
+export type ReturnRow = { lineId: string; returnable: number; qty: string };
 
 /** Return form rows → return lines (0 skipped). null when a quantity is invalid or above what is returnable. */
-export function returnLines(rows: readonly ReturnRow[]): { poItemId: string; qty: number }[] | null {
-  const out: { poItemId: string; qty: number }[] = [];
+export function returnLines(rows: readonly ReturnRow[]): { lineId: string; qty: number }[] | null {
+  const out: { lineId: string; qty: number }[] = [];
   for (const row of rows) {
     const qty = parseQty(row.qty);
     if (qty === null || qty > row.returnable) return null;
-    if (qty > 0) out.push({ poItemId: row.poItemId, qty });
+    if (qty > 0) out.push({ lineId: row.lineId, qty });
   }
   return out;
 }

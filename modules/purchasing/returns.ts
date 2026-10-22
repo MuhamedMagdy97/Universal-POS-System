@@ -9,21 +9,36 @@ import { recordMovements } from "@/modules/inventory";
 import { requestHashOf } from "@/modules/sales";
 import { branchIdsInScope, requirePermission, VIEW, type Tx } from "./access";
 import { lockPo, loadPurchaseOrder, type PoDetail, type PoReturn } from "./orders";
+import { loadDirectReceipt, requireScopedDirectReceipt, type DirectReceiptDetail } from "./receipts";
 import { purchasingConflict, purchasingInvalid } from "./errors";
-import { formatReturnNumber, returnable } from "./rules";
-import { IdempotencyKey, ReturnInput, Uuid } from "./schemas";
+import { formatDirectReceiptNumber, formatReturnNumber, returnable } from "./rules";
+import { DirectReturnInput, IdempotencyKey, ReturnInput, Uuid, type PurchaseReturnReason } from "./schemas";
 
 /**
  * Returning received goods to the supplier (purchase-returns-spec.md). One transaction: lock the PO,
  * re-check what is returnable, write the return, bump the PO lines, take the stock out through the
  * inventory seam, audit. Valued at the PO line cost; last cost is left alone (R4). The
  * Idempotency-Key makes a retry return the first return instead of sending goods back twice (R7).
+ *
+ * A direct receipt's goods go back the same way (direct-receipt-returns-spec): the receipt row is
+ * locked instead of the PO, and what went back already is summed from the return lines (DR4).
  */
 
 export type ReturnResult = { po: PoDetail; returnId: string; created: boolean };
+export type DirectReturnResult = { returnId: string; created: boolean };
 
 export type ReturnLine = { poItemId: string; qty: number; unitCostMinor: number; lineTotalMinor: number };
 export type PurchaseReturnDetail = { po: PoDetail; ret: PoReturn; lines: ReturnLine[] };
+
+export type DirectReturnLine = {
+  goodsReceiptItemId: string;
+  qty: number;
+  unitCostMinor: number;
+  lineTotalMinor: number;
+};
+export type DirectReturnDetail = { receipt: DirectReceiptDetail; ret: PoReturn; lines: DirectReturnLine[] };
+
+type Stored = { returnId: string; purchaseOrderId: string | null; created: boolean };
 
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
@@ -38,6 +53,45 @@ async function requireScopedPo(ctx: TenantContext, poId: string): Promise<string
   });
   if (!po || !(await branchIdsInScope(ctx)).includes(po.branchId)) throw notFound("Purchase order");
   return parsed.data;
+}
+
+/** Replay first; on a lost race for the key, return the winner (R7). */
+async function idempotent(
+  db: Db,
+  ctx: TenantContext,
+  idempotencyKey: string,
+  requestHash: string,
+  write: (tx: Tx) => Promise<string>,
+): Promise<Stored> {
+  const replayed = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
+  if (replayed) return replayed;
+  try {
+    const returnId = await db.$transaction(write);
+    return { returnId, purchaseOrderId: null, created: true };
+  } catch (err) {
+    // A concurrent request with the same key won the unique index; our transaction rolled back.
+    if (!isUniqueViolation(err)) throw err;
+    const winner = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
+    if (winner) return winner;
+    throw err;
+  }
+}
+
+async function replayIfKnown(
+  db: Db,
+  ctx: TenantContext,
+  idempotencyKey: string,
+  requestHash: string,
+): Promise<Stored | null> {
+  const existing = await db.purchaseReturn.findUnique({
+    where: { orgId_idempotencyKey: { orgId: ctx.orgId, idempotencyKey } },
+    select: { id: true, requestHash: true, purchaseOrderId: true },
+  });
+  if (!existing) return null;
+  if (existing.requestHash !== requestHash) {
+    throw purchasingConflict("IDEMPOTENCY_CONFLICT", "This Idempotency-Key was used for a different return");
+  }
+  return { returnId: existing.id, purchaseOrderId: existing.purchaseOrderId, created: false };
 }
 
 export async function returnToSupplier(
@@ -57,41 +111,158 @@ export async function returnToSupplier(
   const db = getDb();
   // Scope before replay: a stored return is never shown outside the caller's branches.
   const id = await requireScopedPo(ctx, parsedId.data);
-  const replayed = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
-  if (replayed) return replayed;
-
-  try {
-    const returnId = await db.$transaction((tx) => writeReturn(tx, ctx, id, parsed, idempotencyKey, requestHash, meta));
-    // Read after commit: nested includes inside a transaction run concurrently on its one connection.
-    return { po: await loadPurchaseOrder(db, ctx.orgId, id), returnId, created: true };
-  } catch (err) {
-    // A concurrent request with the same key won the unique index; our transaction rolled back.
-    if (!isUniqueViolation(err)) throw err;
-    const winner = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
-    if (winner) return winner;
-    throw err;
-  }
+  const stored = await idempotent(db, ctx, idempotencyKey, requestHash, (tx) =>
+    writeReturn(tx, ctx, id, parsed, idempotencyKey, requestHash, meta),
+  );
+  // Read after commit: nested includes inside a transaction run concurrently on its one connection.
+  // A key first used for a direct return carries a different hash, so it never lands here.
+  return {
+    po: await loadPurchaseOrder(db, ctx.orgId, stored.purchaseOrderId ?? id),
+    returnId: stored.returnId,
+    created: stored.created,
+  };
 }
 
-async function replayIfKnown(
-  db: Db,
+/** Returning goods from a direct receipt (direct-receipt-returns-spec DR1–DR9): the same rules as a PO return. */
+export async function returnDirectReceipt(
   ctx: TenantContext,
-  idempotencyKey: string,
-  requestHash: string,
-): Promise<ReturnResult | null> {
-  const existing = await db.purchaseReturn.findUnique({
-    where: { orgId_idempotencyKey: { orgId: ctx.orgId, idempotencyKey } },
-    select: { id: true, requestHash: true, purchaseOrderId: true },
+  receiptId: string,
+  idempotencyKeyInput: unknown,
+  input: unknown,
+  meta?: AuditRequestMeta,
+): Promise<DirectReturnResult> {
+  await requirePermission(ctx, "purchases.manage", {
+    operation: "receipt.return",
+    entityType: "PurchaseReturn",
+    meta,
   });
-  if (!existing) return null;
-  if (existing.requestHash !== requestHash) {
-    throw purchasingConflict("IDEMPOTENCY_CONFLICT", "This Idempotency-Key was used for a different return");
+  const parsed = DirectReturnInput.parse(input);
+  const idempotencyKey = IdempotencyKey.parse(idempotencyKeyInput);
+  // Scope before replay: a stored return is never shown outside the caller's branches.
+  const id = await requireScopedDirectReceipt(ctx, receiptId);
+  const requestHash = requestHashOf({ goodsReceiptId: id, ...parsed });
+  const stored = await idempotent(getDb(), ctx, idempotencyKey, requestHash, (tx) =>
+    writeDirectReturn(tx, ctx, id, parsed, idempotencyKey, requestHash, meta),
+  );
+  return { returnId: stored.returnId, created: stored.created };
+}
+
+type ReturnRowLine = {
+  poItemId: string | null;
+  goodsReceiptItemId: string | null;
+  productId: string;
+  variantId: string | null;
+  qty: number;
+  unitCostMinor: number;
+};
+
+/** The return rows, the stock out (inventory seam) and the audit row: shared by PO and direct returns. */
+async function postReturn(
+  tx: Tx,
+  ctx: TenantContext,
+  ret: {
+    branchId: string;
+    supplierId: string;
+    purchaseOrderId: string | null;
+    goodsReceiptId: string | null;
+    number: (seq: number) => string;
+    reason: PurchaseReturnReason;
+    note: string | null;
+    idempotencyKey: string;
+    requestHash: string;
+    lines: readonly ReturnRowLine[];
+  },
+  meta: AuditRequestMeta | undefined,
+): Promise<string> {
+  // Under the PO (or receipt) lock, so two returns of one source cannot take the same number.
+  const seq =
+    (await tx.purchaseReturn.count({
+      where: ret.purchaseOrderId
+        ? { orgId: ctx.orgId, purchaseOrderId: ret.purchaseOrderId }
+        : { orgId: ctx.orgId, goodsReceiptId: ret.goodsReceiptId },
+    })) + 1;
+  const returnId = randomUUID();
+  await tx.purchaseReturn.create({
+    data: {
+      id: returnId,
+      orgId: ctx.orgId,
+      branchId: ret.branchId,
+      supplierId: ret.supplierId,
+      purchaseOrderId: ret.purchaseOrderId,
+      goodsReceiptId: ret.goodsReceiptId,
+      seq,
+      reason: ret.reason,
+      note: ret.note,
+      idempotencyKey: ret.idempotencyKey,
+      requestHash: ret.requestHash,
+      returnedById: ctx.userId,
+    },
+  });
+  await tx.purchaseReturnItem.createMany({
+    data: ret.lines.map((line) => ({ orgId: ctx.orgId, purchaseReturnId: returnId, ...line })),
+  });
+
+  const org = await tx.organization.findUniqueOrThrow({
+    where: { id: ctx.orgId },
+    select: { blockNegativeStock: true },
+  });
+  await recordMovements(tx, ctx, {
+    branchId: ret.branchId,
+    reason: "PURCHASE_RETURN",
+    refType: "PurchaseReturn",
+    refId: returnId,
+    // The shop's negative-stock rule, as for a sale (R3).
+    policy: org.blockNegativeStock ? "block" : "allow",
+    lines: ret.lines.map((line) => ({ ref: { productId: line.productId, variantId: line.variantId }, qty: line.qty })),
+  });
+
+  await record(tx, {
+    ctx,
+    meta,
+    action: "purchasing.return.created",
+    entityType: "PurchaseReturn",
+    entityId: returnId,
+    metadata: {
+      ...(ret.purchaseOrderId
+        ? { purchaseOrderId: ret.purchaseOrderId }
+        : { direct: true, goodsReceiptId: ret.goodsReceiptId }),
+      number: ret.number(seq),
+      reason: ret.reason,
+      lineCount: ret.lines.length,
+      units: ret.lines.reduce((total, line) => total + line.qty, 0),
+      valueMinor: ret.lines.reduce((total, line) => total + multiply(line.unitCostMinor, line.qty), 0),
+    },
+  });
+  return returnId;
+}
+
+/** Checks each requested line against what is still returnable (R1, DR1); at least one line above 0. */
+function pickLines<T extends { id: string }>(
+  requested: readonly { id: string; qty: number }[],
+  items: readonly T[],
+  returnableOf: (item: T) => number,
+  missing: string,
+): { item: T; qty: number }[] {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  const lines: { item: T; qty: number }[] = [];
+  for (const [index, line] of requested.entries()) {
+    const item = itemById.get(line.id);
+    if (!item || seen.has(line.id)) throw notFound(missing);
+    seen.add(line.id);
+    const left = returnableOf(item);
+    if (line.qty > left) {
+      throw purchasingConflict("QTY_EXCEEDS_RETURNABLE", "More than can still be returned on this line", {
+        index,
+        lineId: item.id,
+        returnable: left,
+        requested: line.qty,
+      });
+    }
+    if (line.qty > 0) lines.push({ item, qty: line.qty });
   }
-  return {
-    po: await loadPurchaseOrder(db, ctx.orgId, existing.purchaseOrderId),
-    returnId: existing.id,
-    created: false,
-  };
+  if (lines.length === 0) throw purchasingInvalid("NOTHING_TO_RETURN", "Enter a quantity for at least one line");
+  return lines;
 }
 
 async function writeReturn(
@@ -104,92 +275,97 @@ async function writeReturn(
   meta: AuditRequestMeta | undefined,
 ): Promise<string> {
   const po = await lockPo(tx, ctx, poId);
-
-  const itemById = new Map(po.items.map((item) => [item.id, item]));
-  const seen = new Set<string>();
-  const lines: { item: (typeof po.items)[number]; qty: number }[] = [];
-  for (const [index, line] of input.lines.entries()) {
-    const item = itemById.get(line.poItemId);
-    if (!item || seen.has(line.poItemId)) throw notFound("Purchase order line");
-    seen.add(line.poItemId);
-    if (line.qty > returnable(item)) {
-      throw purchasingConflict("QTY_EXCEEDS_RETURNABLE", "More than can still be returned on this line", {
-        index,
-        poItemId: item.id,
-        returnable: returnable(item),
-        requested: line.qty,
-      });
-    }
-    if (line.qty > 0) lines.push({ item, qty: line.qty });
-  }
-  if (lines.length === 0) throw purchasingInvalid("NOTHING_TO_RETURN", "Enter a quantity for at least one line");
-
-  // Under the PO lock, so two returns of one PO cannot take the same number.
-  const seq = (await tx.purchaseReturn.count({ where: { orgId: ctx.orgId, purchaseOrderId: po.id } })) + 1;
-  const returnId = randomUUID();
-  await tx.purchaseReturn.create({
-    data: {
-      id: returnId,
-      orgId: ctx.orgId,
+  const lines = pickLines(
+    input.lines.map((line) => ({ id: line.poItemId, qty: line.qty })),
+    po.items,
+    returnable,
+    "Purchase order line",
+  );
+  const returnId = await postReturn(
+    tx,
+    ctx,
+    {
       branchId: po.branchId,
+      supplierId: po.supplierId,
       purchaseOrderId: po.id,
-      seq,
+      goodsReceiptId: null,
+      number: (seq) => formatReturnNumber(po.number, seq),
       reason: input.reason,
       note: input.note,
       idempotencyKey,
       requestHash,
-      returnedById: ctx.userId,
+      lines: lines.map(({ item, qty }) => ({
+        poItemId: item.id,
+        goodsReceiptItemId: null,
+        productId: item.productId,
+        variantId: item.variantId,
+        qty,
+        unitCostMinor: item.unitCostMinor,
+      })),
     },
-  });
-  await tx.purchaseReturnItem.createMany({
-    data: lines.map((line) => ({
-      orgId: ctx.orgId,
-      purchaseReturnId: returnId,
-      poItemId: line.item.id,
-      productId: line.item.productId,
-      variantId: line.item.variantId,
-      qty: line.qty,
-      unitCostMinor: line.item.unitCostMinor,
-    })),
-  });
+    meta,
+  );
   for (const line of lines) {
     await tx.pOItem.update({ where: { id: line.item.id }, data: { qtyReturned: { increment: line.qty } } });
   }
-
-  const org = await tx.organization.findUniqueOrThrow({
-    where: { id: ctx.orgId },
-    select: { blockNegativeStock: true },
-  });
-  await recordMovements(tx, ctx, {
-    branchId: po.branchId,
-    reason: "PURCHASE_RETURN",
-    refType: "PurchaseReturn",
-    refId: returnId,
-    // The shop's negative-stock rule, as for a sale (R3).
-    policy: org.blockNegativeStock ? "block" : "allow",
-    lines: lines.map((line) => ({
-      ref: { productId: line.item.productId, variantId: line.item.variantId },
-      qty: line.qty,
-    })),
-  });
-
-  await record(tx, {
-    ctx,
-    meta,
-    action: "purchasing.return.created",
-    entityType: "PurchaseReturn",
-    entityId: returnId,
-    metadata: {
-      purchaseOrderId: po.id,
-      number: formatReturnNumber(po.number, seq),
-      reason: input.reason,
-      lineCount: lines.length,
-      units: lines.reduce((total, line) => total + line.qty, 0),
-      valueMinor: lines.reduce((total, line) => total + multiply(line.item.unitCostMinor, line.qty), 0),
-    },
-  });
-
   return returnId;
+}
+
+async function writeDirectReturn(
+  tx: Tx,
+  ctx: TenantContext,
+  receiptId: string,
+  input: DirectReturnInput,
+  idempotencyKey: string,
+  requestHash: string,
+  meta: AuditRequestMeta | undefined,
+): Promise<string> {
+  // The receipt row is the lock (DR4): returned quantities are re-summed under it.
+  await tx.$queryRaw`SELECT "id" FROM "GoodsReceipt" WHERE "orgId" = ${ctx.orgId}::uuid AND "id" = ${receiptId}::uuid FOR UPDATE`;
+  const receipt = await tx.goodsReceipt.findFirstOrThrow({
+    where: { id: receiptId, orgId: ctx.orgId, purchaseOrderId: null },
+    select: { id: true, branchId: true, supplierId: true },
+  });
+  const items = await tx.goodsReceiptItem.findMany({
+    where: { orgId: ctx.orgId, goodsReceiptId: receipt.id },
+    select: { id: true, productId: true, variantId: true, qtyReceived: true, unitCostMinor: true },
+  });
+  const sums = await tx.purchaseReturnItem.groupBy({
+    by: ["goodsReceiptItemId"],
+    where: { orgId: ctx.orgId, goodsReceiptItemId: { in: items.map((item) => item.id) } },
+    _sum: { qty: true },
+  });
+  const returned = new Map(sums.map((row) => [row.goodsReceiptItemId, row._sum.qty ?? 0]));
+  const lines = pickLines(
+    input.lines.map((line) => ({ id: line.goodsReceiptItemId, qty: line.qty })),
+    items,
+    (item) => returnable({ qtyReceived: item.qtyReceived, qtyReturned: returned.get(item.id) ?? 0 }),
+    "Goods receipt line",
+  );
+  return postReturn(
+    tx,
+    ctx,
+    {
+      branchId: receipt.branchId,
+      supplierId: receipt.supplierId,
+      purchaseOrderId: null,
+      goodsReceiptId: receipt.id,
+      number: (seq) => formatReturnNumber(formatDirectReceiptNumber(receipt.id), seq),
+      reason: input.reason,
+      note: input.note,
+      idempotencyKey,
+      requestHash,
+      lines: lines.map(({ item, qty }) => ({
+        poItemId: null,
+        goodsReceiptItemId: item.id,
+        productId: item.productId,
+        variantId: item.variantId,
+        qty,
+        unitCostMinor: item.unitCostMinor,
+      })),
+    },
+    meta,
+  );
 }
 
 /** One return with its lines, for the return page and its print. */
@@ -213,6 +389,48 @@ export async function getPurchaseReturn(
   return {
     po,
     ret,
-    lines: row.items.map((item) => ({ ...item, lineTotalMinor: multiply(item.unitCostMinor, item.qty) })),
+    lines: row.items.flatMap((item) =>
+      item.poItemId
+        ? [{ ...item, poItemId: item.poItemId, lineTotalMinor: multiply(item.unitCostMinor, item.qty) }]
+        : [],
+    ),
+  };
+}
+
+/** One return against a direct receipt, for its page and print (DR11). */
+export async function getDirectReturn(
+  ctx: TenantContext,
+  receiptId: string,
+  returnId: string,
+): Promise<DirectReturnDetail> {
+  await requirePermission(ctx, VIEW, { operation: "receipt.return.read", entityType: "PurchaseReturn" });
+  const id = await requireScopedDirectReceipt(ctx, receiptId);
+  if (!Uuid.safeParse(returnId).success) throw notFound("Purchase return");
+  const db = getDb();
+  const row = await db.purchaseReturn.findFirst({
+    where: { id: returnId, orgId: ctx.orgId, goodsReceiptId: id },
+    select: {
+      items: { select: { goodsReceiptItemId: true, qty: true, unitCostMinor: true }, orderBy: { id: "asc" } },
+    },
+  });
+  if (!row) throw notFound("Purchase return");
+  const receipt = await loadDirectReceipt(db, ctx.orgId, id);
+  const ret = receipt.returns.find((r) => r.id === returnId);
+  if (!ret) throw notFound("Purchase return");
+  return {
+    receipt,
+    ret,
+    lines: row.items.flatMap((item) =>
+      item.goodsReceiptItemId
+        ? [
+            {
+              goodsReceiptItemId: item.goodsReceiptItemId,
+              qty: item.qty,
+              unitCostMinor: item.unitCostMinor,
+              lineTotalMinor: multiply(item.unitCostMinor, item.qty),
+            },
+          ]
+        : [],
+    ),
   };
 }

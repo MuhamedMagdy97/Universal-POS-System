@@ -40,7 +40,8 @@ export type AccountReceipt = {
   number: string;
   valueMinor: number;
 };
-export type AccountReturn = AccountReceipt & { purchaseOrderId: string };
+/** `purchaseOrderId` is null on a return against a direct receipt (direct-receipt-returns-spec DR3). */
+export type AccountReturn = AccountReceipt;
 
 export type AccountPayment = {
   id: string;
@@ -153,7 +154,6 @@ export async function loadAccount(
 ): Promise<SupplierAccount> {
   const pos = await db.purchaseOrder.findMany({ where: { orgId, supplierId }, select: { id: true, number: true } });
   const poNumber = new Map(pos.map((po) => [po.id, po.number]));
-  const poIds = pos.map((po) => po.id);
 
   // By supplier, not by PO: direct receipts count on the account too (direct-receipt-spec D6).
   const receiptRows = await db.goodsReceipt.findMany({
@@ -169,8 +169,9 @@ export async function loadAccount(
     ).map((i) => ({ parentId: i.goodsReceiptId, qty: i.qtyReceived, unitCostMinor: i.unitCostMinor })),
   );
   const returnRows = await db.purchaseReturn.findMany({
-    where: { orgId, purchaseOrderId: { in: poIds } },
-    select: { id: true, seq: true, returnedAt: true, purchaseOrderId: true },
+    // By supplier, like receipts: returns against a direct receipt count too (direct-receipt-returns-spec DR10).
+    where: { orgId, supplierId },
+    select: { id: true, seq: true, returnedAt: true, purchaseOrderId: true, goodsReceiptId: true },
   });
   const returnValue = valueBy(
     (
@@ -267,7 +268,10 @@ export async function loadAccount(
       id: r.id,
       at: r.returnedAt,
       purchaseOrderId: r.purchaseOrderId,
-      number: formatReturnNumber(poNumber.get(r.purchaseOrderId) ?? "", r.seq),
+      number: formatReturnNumber(
+        r.purchaseOrderId ? (poNumber.get(r.purchaseOrderId) ?? "") : formatDirectReceiptNumber(r.goodsReceiptId ?? ""),
+        r.seq,
+      ),
       valueMinor: returnValue.get(r.id) ?? 0,
     })),
     payments: paymentRows.map((p) => {

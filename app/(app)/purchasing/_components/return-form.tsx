@@ -5,23 +5,28 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
 import { PURCHASE_RETURN_REASONS, type PurchaseReturnReason } from "@/modules/purchasing/schemas";
-import { returnPoAction } from "../actions";
+import { returnDirectAction, returnPoAction } from "../actions";
 import { errorKey, parseQty, plain, returnLines, safeAction, type ReturnRow } from "../_lib/purchasing";
 
-type Line = { poItemId: string; name: string; sku: string; returnable: number; unitCostMinor: number };
+/** `lineId` is the PO line, or the receipt line for a direct receipt. */
+type Line = { lineId: string; name: string; sku: string; returnable: number; unitCostMinor: number };
 
-type Props = { locale: Locale; currency: CurrencyCode; poId: string; lines: Line[] };
+/** What the goods go back against: a PO, or a direct receipt (direct-receipt-returns-spec DR11). */
+type Source = { kind: "po"; id: string } | { kind: "receipt"; id: string };
+
+type Props = { locale: Locale; currency: CurrencyCode; source: Source; lines: Line[] };
 
 /**
- * Return to supplier (purchase-returns-spec R13). Quantities start at 0; cost is the PO's and not
- * editable (R4). One Idempotency-Key per form, kept across retries, so a double submit never returns twice.
+ * Return to supplier (purchase-returns-spec R13). Quantities start at 0; cost is the PO's (or the
+ * receipt's) and not editable (R4). One Idempotency-Key per form, kept across retries, so a double
+ * submit never returns twice.
  */
-export function ReturnForm({ locale, currency, poId, lines }: Props) {
+export function ReturnForm({ locale, currency, source, lines }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const [key] = useState(() => crypto.randomUUID());
   const [rows, setRows] = useState<ReturnRow[]>(() =>
-    lines.map((line) => ({ poItemId: line.poItemId, returnable: line.returnable, qty: "0" })),
+    lines.map((line) => ({ lineId: line.lineId, returnable: line.returnable, qty: "0" })),
   );
   const [reason, setReason] = useState<PurchaseReturnReason>("DAMAGED");
   const [note, setNote] = useState("");
@@ -38,8 +43,17 @@ export function ReturnForm({ locale, currency, poId, lines }: Props) {
       return;
     }
     setPending(true);
+    const base = { reason, note: note.trim() || undefined };
     const result = await safeAction(() =>
-      returnPoAction(poId, key, { reason, lines: parsed, note: note.trim() || undefined }),
+      source.kind === "po"
+        ? returnPoAction(source.id, key, {
+            ...base,
+            lines: parsed.map((line) => ({ poItemId: line.lineId, qty: line.qty })),
+          })
+        : returnDirectAction(source.id, key, {
+            ...base,
+            lines: parsed.map((line) => ({ goodsReceiptItemId: line.lineId, qty: line.qty })),
+          }),
     );
     setPending(false);
     if (!result.ok) {
@@ -47,12 +61,15 @@ export function ReturnForm({ locale, currency, poId, lines }: Props) {
       router.refresh();
       return;
     }
-    router.push(`/purchasing/${poId}/returns/${result.data.returnId}?returned=1`);
+    const at = source.kind === "po" ? `/purchasing/${source.id}` : `/purchasing/receipts/${source.id}`;
+    router.push(`${at}/returns/${result.data.returnId}?returned=1`);
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <p className="text-muted">{tr("purchasing.return.hint")}</p>
+      <p className="text-muted">
+        {tr(source.kind === "po" ? "purchasing.return.hint" : "purchasing.receiptReturn.hint")}
+      </p>
       <table className="w-full text-start">
         <thead>
           <tr className="text-sm text-muted">
@@ -67,7 +84,7 @@ export function ReturnForm({ locale, currency, poId, lines }: Props) {
             const row = rows[index];
             const qty = parseQty(row.qty);
             return (
-              <tr key={line.poItemId} className="border-t border-border">
+              <tr key={line.lineId} className="border-t border-border">
                 <td className="py-2">
                   {line.name}{" "}
                   <span dir="ltr" className="text-muted">

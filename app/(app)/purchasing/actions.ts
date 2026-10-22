@@ -22,6 +22,7 @@ import {
   recordSupplierInvoice,
   recordSupplierPayment,
   restoreSupplier,
+  returnDirectReceipt,
   returnToSupplier,
   reverseSupplierPayment,
   updatePurchaseOrder,
@@ -29,6 +30,7 @@ import {
   voidSupplierInvoice,
   type AllocationInput,
   type DirectReceiptInput,
+  type DirectReturnInput,
   type InvoiceInput,
   type PaymentInput,
   type PoInput,
@@ -119,6 +121,17 @@ export async function returnPoAction(
 ): Promise<ActionResult<{ returnId: string }>> {
   return run(async (ctx, meta) => ({
     returnId: (await returnToSupplier(ctx, poId, idempotencyKey, input, meta)).returnId,
+  }));
+}
+
+/** A return against a direct receipt (direct-receipt-returns-spec DR7): one key per form, kept across a retry. */
+export async function returnDirectAction(
+  receiptId: string,
+  idempotencyKey: string,
+  input: z.input<typeof DirectReturnInput>,
+): Promise<ActionResult<{ returnId: string }>> {
+  return run(async (ctx, meta) => ({
+    returnId: (await returnDirectReceipt(ctx, receiptId, idempotencyKey, input, meta)).returnId,
   }));
 }
 
