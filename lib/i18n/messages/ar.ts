@@ -1053,6 +1053,9 @@ export const ar: Messages = {
   "settings.discount.limit": "حد خصم الكاشير (٪)",
   "settings.discount.limitHint":
     "أقصى خصم يمنحه الكاشير على سطر أو على البيع. لا حد للمدير والمالك. 0 يعني أن الكاشير لا يمنح خصمًا.",
+  "settings.stock.blockNegative": "منع البيع عند نفاد المخزون",
+  "settings.stock.blockNegativeHint":
+    "عند التفعيل يُرفض البيع أو مرتجع الشراء الذي يجعل مخزون الفرع أقل من صفر. عند الإيقاف يتم ويظهر المخزون بالسالب حتى الجرد أو الاستلام. لا يُستخدم عندما يأتي المخزون من نظام المخزون.",
   "settings.state.forbidden": "لا يمكنك تعديل الإعدادات",
   "settings.state.forbiddenBody": "اطلب ذلك من المالك أو المسؤول.",
   "audit.action.settings.permission.denied": "رفض الوصول إلى الإعدادات",
