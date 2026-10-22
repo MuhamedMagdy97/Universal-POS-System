@@ -5,8 +5,11 @@
 ALTER TABLE "GoodsReceipt" ADD COLUMN "supplierId" UUID,
 ALTER COLUMN "purchaseOrderId" DROP NOT NULL;
 
+-- GoodsReceipt is append-only: lift the trigger for this one-off backfill only (same transaction).
+ALTER TABLE "GoodsReceipt" DISABLE TRIGGER "GoodsReceipt_append_only";
 UPDATE "GoodsReceipt" g SET "supplierId" = p."supplierId"
 FROM "PurchaseOrder" p WHERE p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId";
+ALTER TABLE "GoodsReceipt" ENABLE TRIGGER "GoodsReceipt_append_only";
 
 ALTER TABLE "GoodsReceipt" ALTER COLUMN "supplierId" SET NOT NULL;
 
