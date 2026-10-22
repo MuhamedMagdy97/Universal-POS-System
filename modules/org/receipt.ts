@@ -8,7 +8,8 @@ import { isSaudiVatNumber } from "@/modules/sales/zatca";
 import { requirePermission } from "./access";
 
 /**
- * The six receipt fields on `Organization` (T10 H3) and the cashier discount limit (discounts-spec DC8).
+ * The six receipt fields on `Organization` (T10 H3), the cashier discount limit (discounts-spec DC8) and whether a
+ * sale or purchase return may take built-in stock below zero (`blockNegativeStock`).
  * `settings.manage` reads and writes them. A Saudi shop's VAT number must be a valid one: it goes in the ZATCA QR
  * (zatca-phase1-spec Z2).
  */
@@ -30,6 +31,7 @@ export const ReceiptSettingsInput = z
     receiptHeader: Text(200),
     receiptFooter: Text(200),
     maxCashierDiscountBp: z.number().int().min(0).max(10_000),
+    blockNegativeStock: z.boolean(),
   })
   .partial()
   .strict();
@@ -43,6 +45,7 @@ export type ReceiptSettings = {
   receiptHeader: string | null;
   receiptFooter: string | null;
   maxCashierDiscountBp: number;
+  blockNegativeStock: boolean;
   countryCode: string;
 };
 
@@ -55,6 +58,7 @@ const SELECT = {
   receiptHeader: true,
   receiptFooter: true,
   maxCashierDiscountBp: true,
+  blockNegativeStock: true,
   countryCode: true,
 } as const;
 

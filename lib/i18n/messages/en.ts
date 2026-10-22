@@ -1063,6 +1063,9 @@ export const en = {
   "settings.discount.limit": "Cashier discount limit (%)",
   "settings.discount.limitHint":
     "The most a cashier may take off a line or a sale. Managers and the owner have no limit. 0 means cashiers can't discount.",
+  "settings.stock.blockNegative": "Block sales below zero stock",
+  "settings.stock.blockNegativeHint":
+    "When on, a sale or purchase return that would take a branch's stock below zero is refused. When off, it goes through and the stock shows as negative until counted or received. Not used while stock comes from the inventory system.",
   "settings.state.forbidden": "You cannot change settings",
   "settings.state.forbiddenBody": "Ask the owner or an admin.",
   "audit.action.settings.permission.denied": "Settings access refused",

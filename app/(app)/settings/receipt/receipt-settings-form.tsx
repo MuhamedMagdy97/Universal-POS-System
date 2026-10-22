@@ -7,7 +7,7 @@ import type { ReceiptSettings } from "@/modules/org";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { saveReceiptSettingsAction } from "../actions";
 
-type Field = Exclude<keyof ReceiptSettings, "name" | "maxCashierDiscountBp" | "countryCode">;
+type Field = Exclude<keyof ReceiptSettings, "name" | "maxCashierDiscountBp" | "blockNegativeStock" | "countryCode">;
 
 const FIELDS: { key: Field; label: MessageKey; max: number; ltr?: boolean }[] = [
   { key: "legalName", label: "settings.receipt.legalName", max: 120 },
@@ -18,7 +18,7 @@ const FIELDS: { key: Field; label: MessageKey; max: number; ltr?: boolean }[] = 
   { key: "receiptFooter", label: "settings.receipt.footer", max: 200 },
 ];
 
-/** The six receipt fields (T10 H3), and the cashier discount limit (discounts-spec DC8). An empty field is saved as "not printed". */
+/** The six receipt fields (T10 H3), the cashier discount limit (discounts-spec DC8) and the negative-stock rule. An empty field is saved as "not printed". */
 export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initial: ReceiptSettings }) {
   const tr = translator(locale);
   const [values, setValues] = useState<Record<Field, string>>(
@@ -26,6 +26,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
   );
   const [limitRaw, setLimitRaw] = useState(String(initial.maxCashierDiscountBp / 100));
   const limitBp = parsePercentBp(limitRaw);
+  const [blockNegative, setBlockNegative] = useState(initial.blockNegativeStock);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<"saved" | "error" | "vat" | null>(null);
   const saudi = initial.countryCode === "SA";
@@ -35,7 +36,13 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
     if (limitBp === null) return;
     setPending(true);
     setStatus(null);
-    const result = await safeAction(() => saveReceiptSettingsAction({ ...values, maxCashierDiscountBp: limitBp }));
+    const result = await safeAction(() =>
+      saveReceiptSettingsAction({
+        ...values,
+        maxCashierDiscountBp: limitBp,
+        blockNegativeStock: blockNegative,
+      }),
+    );
     setPending(false);
     const reason = result.ok ? null : (result.error.details as { reason?: string } | null)?.reason;
     setStatus(result.ok ? "saved" : reason === "INVALID_VAT_NUMBER" ? "vat" : "error");
@@ -77,6 +84,22 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
         />
         <span id="discount-limit-hint" className="text-sm text-muted">
           {tr("settings.discount.limitHint")}
+        </span>
+      </label>
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          name="blockNegativeStock"
+          checked={blockNegative}
+          aria-describedby="block-negative-hint"
+          onChange={(e) => setBlockNegative(e.target.checked)}
+          className="mt-1"
+        />
+        <span className="flex flex-col gap-1">
+          <span>{tr("settings.stock.blockNegative")}</span>
+          <span id="block-negative-hint" className="text-sm text-muted">
+            {tr("settings.stock.blockNegativeHint")}
+          </span>
         </span>
       </label>
       {status === "saved" ? (

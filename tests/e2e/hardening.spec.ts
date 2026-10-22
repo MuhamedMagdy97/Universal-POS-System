@@ -72,6 +72,7 @@ test.describe("receipts", () => {
     const admin = await contextAs(browser, "adminA");
     const settings = await admin.newPage();
     await settings.goto("/settings/receipt");
+    await expect(settings.getByLabel("Block sales below zero stock")).toBeChecked();
     await settings.getByLabel("VAT number").fill("300-123-456");
     await settings.getByLabel("Footer line").fill(footer);
     await settings.getByRole("button", { name: "Save" }).click();
