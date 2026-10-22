@@ -72,6 +72,10 @@ export const PoInput = z
   .strict();
 export type PoInput = z.infer<typeof PoInput>;
 
+/** Receiving without a PO (direct-receipt-spec D2): the same shape as a new PO, received at once. */
+export const DirectReceiptInput = PoInput;
+export type DirectReceiptInput = PoInput;
+
 /** Lines, when given, replace every line (allowed only before the first receipt, P4). */
 export const PoPatch = z
   .object({

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
 import type { SellableSummary } from "@/modules/catalog/schemas";
-import { createPoAction, updatePoAction } from "../actions";
+import { createPoAction, receiveDirectAction, updatePoAction } from "../actions";
 import {
   editorTotal,
   errorKey,
@@ -26,6 +26,8 @@ type Props = {
   /** New PO: the branches to choose from. Existing PO: null (the branch never changes). */
   branches: Option[] | null;
   existing?: { id: string; supplierId: string; note: string | null; lines: EditorLine[] };
+  /** Receive the lines now, with no PO (direct-receipt-spec D2), instead of saving a draft. */
+  direct?: boolean;
 };
 
 const keyOf = (line: { productId: string; variantId: string | null }) => `${line.productId}|${line.variantId ?? ""}`;
@@ -34,9 +36,11 @@ const keyOf = (line: { productId: string; variantId: string | null }) => `${line
  * Create or edit a PO while it is still editable (P4): supplier, branch (new only), note and lines
  * found by name, SKU or barcode. Costs are typed in major units; the server re-validates everything.
  */
-export function PoEditor({ locale, currency, suppliers, branches, existing }: Props) {
+export function PoEditor({ locale, currency, suppliers, branches, existing, direct = false }: Props) {
   const tr = translator(locale);
   const router = useRouter();
+  // Direct receipt: one Idempotency-Key per form, kept across retries, so a double submit never receives twice.
+  const [key] = useState(() => crypto.randomUUID());
   const [supplierId, setSupplierId] = useState(existing?.supplierId ?? "");
   const [branchId, setBranchId] = useState(branches?.[0]?.id ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
@@ -79,6 +83,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing }: Pr
   }
 
   const total = editorTotal(lines, currency);
+  const qtyLabel = direct ? "purchasing.direct.qty" : "purchasing.line.ordered";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -92,6 +97,15 @@ export function PoEditor({ locale, currency, suppliers, branches, existing }: Pr
       return;
     }
     setPending(true);
+    if (direct) {
+      const received = await safeAction(() =>
+        receiveDirectAction(key, { branchId, supplierId, note: note.trim() || null, lines: parsed }),
+      );
+      setPending(false);
+      if (received.ok) router.push("/purchasing?received=1");
+      else setMessage({ kind: "error", text: plain(locale, errorKey(received.error)) });
+      return;
+    }
     const result = await safeAction(() =>
       existing
         ? updatePoAction(existing.id, { supplierId, note: note.trim() || null, lines: parsed })
@@ -202,7 +216,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing }: Pr
         <thead>
           <tr className="text-sm text-muted">
             <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-start">{tr("purchasing.line.ordered")}</th>
+            <th className="text-start">{tr(qtyLabel)}</th>
             <th className="text-start">{tr("purchasing.line.cost")}</th>
             <th className="text-end">{tr("purchasing.line.total")}</th>
             <th />
@@ -224,7 +238,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing }: Pr
                   <input
                     dir="ltr"
                     inputMode="numeric"
-                    aria-label={`${tr("purchasing.line.ordered")} ${line.sku}`}
+                    aria-label={`${tr(qtyLabel)} ${line.sku}`}
                     aria-invalid={qty === null || qty < 1}
                     value={line.qty}
                     onChange={(e) => update(index, { qty: e.target.value })}
@@ -281,7 +295,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing }: Pr
         disabled={pending || supplierId === ""}
         className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
       >
-        {existing ? tr("purchasing.po.save") : tr("purchasing.po.create")}
+        {direct ? tr("purchasing.direct.submit") : existing ? tr("purchasing.po.save") : tr("purchasing.po.create")}
       </button>
     </form>
   );

@@ -18,6 +18,7 @@ import {
   createSupplier,
   orderPurchaseOrder,
   receivePurchaseOrder,
+  receiveWithoutPo,
   recordSupplierInvoice,
   recordSupplierPayment,
   restoreSupplier,
@@ -27,6 +28,7 @@ import {
   updateSupplier,
   voidSupplierInvoice,
   type AllocationInput,
+  type DirectReceiptInput,
   type InvoiceInput,
   type PaymentInput,
   type PoInput,
@@ -81,6 +83,16 @@ export async function receivePoAction(
 ): Promise<ActionResult<{ receiptId: string }>> {
   return run(async (ctx, meta) => ({
     receiptId: (await receivePurchaseOrder(ctx, poId, idempotencyKey, input, meta)).receiptId,
+  }));
+}
+
+/** Receiving without a PO (direct-receipt-spec): like receiving, one key per form, kept across a retry. */
+export async function receiveDirectAction(
+  idempotencyKey: string,
+  input: z.input<typeof DirectReceiptInput>,
+): Promise<ActionResult<{ receiptId: string }>> {
+  return run(async (ctx, meta) => ({
+    receiptId: (await receiveWithoutPo(ctx, idempotencyKey, input, meta)).receiptId,
   }));
 }
 

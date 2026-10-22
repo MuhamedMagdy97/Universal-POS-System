@@ -765,6 +765,7 @@ model Supplier {
 
   org            Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
   purchaseOrders PurchaseOrder[]
+  receipts       GoodsReceipt[]
   payments       SupplierPayment[]
   invoices       SupplierInvoice[]
 
@@ -824,11 +825,14 @@ model POItem {
   @@unique([orgId, id])
 }
 
+// A receipt against a PO, or a direct receipt with no PO (direct-receipt-spec D1): purchaseOrderId null.
 model GoodsReceipt {
   id              String   @id @default(uuid()) @db.Uuid
   orgId           String   @db.Uuid
   branchId        String   @db.Uuid
-  purchaseOrderId String   @db.Uuid
+  // The PO's supplier on a PO receipt; chosen on the form for a direct receipt (D2).
+  supplierId      String   @db.Uuid
+  purchaseOrderId String?  @db.Uuid
   idempotencyKey  String
   // sha256 of the canonical request body: a replayed key must carry the same receipt (P10).
   requestHash     String
@@ -838,7 +842,8 @@ model GoodsReceipt {
 
   org           Organization             @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch        Branch                   @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder            @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  supplier      Supplier                 @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?           @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
   items         GoodsReceiptItem[]
   invoiceLinks  SupplierInvoiceReceipt[]
 
@@ -846,13 +851,15 @@ model GoodsReceipt {
   @@unique([orgId, idempotencyKey])
   @@index([orgId, branchId, receivedAt])
   @@index([orgId, purchaseOrderId])
+  @@index([orgId, supplierId])
 }
 
 model GoodsReceiptItem {
   id             String  @id @default(uuid()) @db.Uuid
   orgId          String  @db.Uuid
   goodsReceiptId String  @db.Uuid
-  poItemId       String  @db.Uuid
+  // Null on a direct receipt (D1).
+  poItemId       String? @db.Uuid
   productId      String  @db.Uuid
   variantId      String? @db.Uuid
   qtyReceived    Int
@@ -860,7 +867,7 @@ model GoodsReceiptItem {
 
   org          Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
   goodsReceipt GoodsReceipt    @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
-  poItem       POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
+  poItem       POItem?         @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
   product      Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
   variant      ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
 }
