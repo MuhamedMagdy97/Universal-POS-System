@@ -796,6 +796,7 @@ model Supplier {
   receipts       GoodsReceipt[]
   payments       SupplierPayment[]
   invoices       SupplierInvoice[]
+  returns        PurchaseReturn[]
 
   @@unique([orgId, id])
 }
@@ -874,6 +875,7 @@ model GoodsReceipt {
   purchaseOrder PurchaseOrder?           @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
   items         GoodsReceiptItem[]
   invoiceLinks  SupplierInvoiceReceipt[]
+  returns       PurchaseReturn[]
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
@@ -893,11 +895,14 @@ model GoodsReceiptItem {
   qtyReceived    Int
   unitCostMinor  Int
 
-  org          Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  goodsReceipt GoodsReceipt    @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
-  poItem       POItem?         @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
-  product      Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  variant      ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  org          Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  goodsReceipt GoodsReceipt         @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
+  poItem       POItem?              @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
+  product      Product              @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant      ProductVariant?      @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  returnItems  PurchaseReturnItem[]
+
+  @@unique([orgId, id])
 }
 
 // Goods sent back to the supplier against a PO (purchase-returns-spec). Append-only, like receipts.
@@ -905,8 +910,12 @@ model PurchaseReturn {
   id              String               @id @default(uuid()) @db.Uuid
   orgId           String               @db.Uuid
   branchId        String               @db.Uuid
-  purchaseOrderId String               @db.Uuid
-  // 1, 2, … per PO, taken under the PO lock; shown as PO-000123-R1 (R9).
+  // The PO's supplier, or the direct receipt's (direct-receipt-returns-spec DR3).
+  supplierId      String               @db.Uuid
+  // Exactly one of the two is set (DR2): a PO return or a direct-receipt return.
+  purchaseOrderId String?              @db.Uuid
+  goodsReceiptId  String?              @db.Uuid
+  // 1, 2, … per PO (or direct receipt), taken under its lock; shown as PO-000123-R1 / GR-1A2B3C4D-R1 (R9, DR8).
   seq             Int
   reason          PurchaseReturnReason
   note            String?
@@ -918,32 +927,41 @@ model PurchaseReturn {
 
   org           Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch        Branch               @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  purchaseOrder PurchaseOrder        @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  supplier      Supplier             @relation(fields: [orgId, supplierId], references: [orgId, id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?       @relation(fields: [orgId, purchaseOrderId], references: [orgId, id], onDelete: Restrict)
+  goodsReceipt  GoodsReceipt?        @relation(fields: [orgId, goodsReceiptId], references: [orgId, id], onDelete: Restrict)
   items         PurchaseReturnItem[]
   creditNotes   SupplierInvoice[]
 
   @@unique([orgId, id])
   @@unique([orgId, idempotencyKey])
   @@unique([orgId, purchaseOrderId, seq])
+  @@unique([orgId, goodsReceiptId, seq])
+  @@index([orgId, supplierId])
   @@index([orgId, branchId, returnedAt])
 }
 
 model PurchaseReturnItem {
-  id               String  @id @default(uuid()) @db.Uuid
-  orgId            String  @db.Uuid
-  purchaseReturnId String  @db.Uuid
-  poItemId         String  @db.Uuid
-  productId        String  @db.Uuid
-  variantId        String? @db.Uuid
-  qty              Int
-  // The PO line's unit cost (R4).
-  unitCostMinor    Int
+  id                 String  @id @default(uuid()) @db.Uuid
+  orgId              String  @db.Uuid
+  purchaseReturnId   String  @db.Uuid
+  // Exactly one of the two is set, matching the return (DR2).
+  poItemId           String? @db.Uuid
+  goodsReceiptItemId String? @db.Uuid
+  productId          String  @db.Uuid
+  variantId          String? @db.Uuid
+  qty                Int
+  // The PO line's (or receipt line's) unit cost (R4, DR5).
+  unitCostMinor      Int
 
-  org            Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  purchaseReturn PurchaseReturn  @relation(fields: [orgId, purchaseReturnId], references: [orgId, id], onDelete: Restrict)
-  poItem         POItem          @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
-  product        Product         @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
-  variant        ProductVariant? @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  purchaseReturn   PurchaseReturn    @relation(fields: [orgId, purchaseReturnId], references: [orgId, id], onDelete: Restrict)
+  poItem           POItem?           @relation(fields: [orgId, poItemId], references: [orgId, id], onDelete: Restrict)
+  goodsReceiptItem GoodsReceiptItem? @relation(fields: [orgId, goodsReceiptItemId], references: [orgId, id], onDelete: Restrict)
+  product          Product           @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  variant          ProductVariant?   @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, goodsReceiptItemId])
 }
 
 // A payment to a supplier, or the reversal of one (supplier-payments-spec S9). Append-only.

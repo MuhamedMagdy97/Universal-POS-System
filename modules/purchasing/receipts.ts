@@ -5,13 +5,20 @@ import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import { multiply, type CurrencyCode } from "@/lib/money";
 import { record, type AuditRequestMeta } from "@/modules/audit";
-import { applyReceivedCosts } from "@/modules/catalog";
+import { applyReceivedCosts, itemNames } from "@/modules/catalog";
 import { recordMovements } from "@/modules/inventory";
 import { requestHashOf } from "@/modules/sales";
 import { branchIdsInScope, requirePermission, VIEW, type Tx } from "./access";
-import { lockPo, loadPurchaseOrder, prepareLines, requireActiveSupplier, type PoDetail } from "./orders";
+import { lockPo, loadPurchaseOrder, prepareLines, requireActiveSupplier, type PoDetail, type PoReturn } from "./orders";
 import { purchasingConflict, purchasingInvalid } from "./errors";
-import { canReceive, formatDirectReceiptNumber, outstanding, statusAfterReceipt } from "./rules";
+import {
+  canReceive,
+  formatDirectReceiptNumber,
+  formatReturnNumber,
+  outstanding,
+  returnable,
+  statusAfterReceipt,
+} from "./rules";
 import { DirectReceiptInput, IdempotencyKey, ReceiptInput, Uuid } from "./schemas";
 
 /**
@@ -364,5 +371,128 @@ export async function listDirectReceipts(
       units: row.items.reduce((total, item) => total + item.qtyReceived, 0),
       valueMinor: row.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qtyReceived), 0),
     })),
+  };
+}
+
+// ---------- one direct receipt (direct-receipt-returns-spec DR11) ----------
+
+export type DirectReceiptLine = {
+  id: string;
+  productId: string;
+  variantId: string | null;
+  sku: string;
+  name: string;
+  nameAr: string | null;
+  qtyReceived: number;
+  qtyReturned: number;
+  returnable: number;
+  unitCostMinor: number;
+  lineTotalMinor: number;
+};
+
+export type DirectReceiptDetail = {
+  id: string;
+  number: string;
+  currency: CurrencyCode;
+  branch: { id: string; name: string };
+  supplier: { id: string; name: string; isActive: boolean; phone: string | null; taxNumber: string | null };
+  receivedAt: string;
+  receivedByName: string;
+  note: string | null;
+  lines: DirectReceiptLine[];
+  returns: PoReturn[];
+  units: number;
+  valueMinor: number;
+};
+
+/** 404 unless `receiptId` is a direct receipt of this org in the caller's branches. */
+export async function requireScopedDirectReceipt(ctx: TenantContext, receiptId: string): Promise<string> {
+  const parsed = Uuid.safeParse(receiptId);
+  const receipt = parsed.success
+    ? await getDb().goodsReceipt.findFirst({
+        where: { id: parsed.data, orgId: ctx.orgId, purchaseOrderId: null },
+        select: { branchId: true },
+      })
+    : null;
+  if (!parsed.success || !receipt || !(await branchIdsInScope(ctx)).includes(receipt.branchId)) {
+    throw notFound("Goods receipt");
+  }
+  return parsed.data;
+}
+
+export async function getDirectReceipt(ctx: TenantContext, receiptId: string): Promise<DirectReceiptDetail> {
+  await requirePermission(ctx, VIEW, { operation: "receipt.read", entityType: "GoodsReceipt" });
+  return loadDirectReceipt(getDb(), ctx.orgId, await requireScopedDirectReceipt(ctx, receiptId));
+}
+
+/** A direct receipt with what has gone back on each line. Callers have checked access already. */
+export async function loadDirectReceipt(db: Db, orgId: string, id: string): Promise<DirectReceiptDetail> {
+  const receipt = await db.goodsReceipt.findFirstOrThrow({
+    where: { id, orgId, purchaseOrderId: null },
+    include: {
+      org: { select: { currency: true } },
+      branch: { select: { id: true, name: true } },
+      supplier: { select: { id: true, name: true, isActive: true, phone: true, taxNumber: true } },
+      items: {
+        orderBy: { id: "asc" },
+        include: {
+          product: { select: { sku: true, name: true, nameAr: true } },
+          variant: { select: { sku: true, name: true, nameAr: true } },
+        },
+      },
+      returns: { orderBy: { seq: "asc" }, include: { items: true } },
+    },
+  });
+  const users = await db.user.findMany({
+    where: { id: { in: [...new Set([receipt.receivedById, ...receipt.returns.map((r) => r.returnedById)])] } },
+    select: { id: true, name: true },
+  });
+  const nameOf = new Map(users.map((user) => [user.id, user.name]));
+  const returned = new Map<string, number>();
+  for (const item of receipt.returns.flatMap((r) => r.items)) {
+    if (item.goodsReceiptItemId) {
+      returned.set(item.goodsReceiptItemId, (returned.get(item.goodsReceiptItemId) ?? 0) + item.qty);
+    }
+  }
+  const number = formatDirectReceiptNumber(receipt.id);
+  const lines: DirectReceiptLine[] = receipt.items
+    .map((item) => {
+      const qtyReturned = returned.get(item.id) ?? 0;
+      return {
+        id: item.id,
+        productId: item.productId,
+        variantId: item.variantId,
+        sku: item.variant?.sku ?? item.product.sku,
+        ...itemNames(item.product, item.variant),
+        qtyReceived: item.qtyReceived,
+        qtyReturned,
+        returnable: returnable({ qtyReceived: item.qtyReceived, qtyReturned }),
+        unitCostMinor: item.unitCostMinor,
+        lineTotalMinor: multiply(item.unitCostMinor, item.qtyReceived),
+      };
+    })
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
+  return {
+    id: receipt.id,
+    number,
+    currency: receipt.org.currency,
+    branch: receipt.branch,
+    supplier: receipt.supplier,
+    receivedAt: receipt.receivedAt.toISOString(),
+    receivedByName: nameOf.get(receipt.receivedById) ?? "",
+    note: receipt.note,
+    lines,
+    returns: receipt.returns.map((ret) => ({
+      id: ret.id,
+      number: formatReturnNumber(number, ret.seq),
+      returnedAt: ret.returnedAt.toISOString(),
+      returnedByName: nameOf.get(ret.returnedById) ?? "",
+      reason: ret.reason,
+      note: ret.note,
+      units: ret.items.reduce((total, item) => total + item.qty, 0),
+      valueMinor: ret.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qty), 0),
+    })),
+    units: lines.reduce((total, line) => total + line.qtyReceived, 0),
+    valueMinor: lines.reduce((total, line) => total + line.lineTotalMinor, 0),
   };
 }

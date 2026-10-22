@@ -82,6 +82,13 @@ Negative / No opening stock. Each row has:
 **Opening stock** [الرصيد الافتتاحي] records the first quantity of items that never had stock at this branch, once
 per item, up to 100 items per save. Press **Save opening stock** [حفظ الرصيد الافتتاحي].
 
+**Import CSV** [استيراد CSV] loads stock for the chosen branch from a spreadsheet saved as CSV (up to 1000 rows). Pick
+what the file holds: **Opening stock** [رصيد افتتاحي] (columns `sku` or `barcode`, and `qty`; only items with no stock
+history here) or **Adjustments** [تسويات] (`sku` or `barcode`, `qty` as a change such as `-3` or `5`, `reason` one of
+DAMAGED, EXPIRED, LOST_OR_STOLEN, COUNT_CORRECTION, FOUND, OTHER, and `note`, needed for OTHER). The screen checks every
+row and shows the stock after the change. Nothing changes until you press **Apply N rows** [تطبيق N صفوف], and then
+all rows apply together or none do. Fix rows marked with problems and upload the file again.
+
 Refusals: "Not enough stock. The change would take the balance below zero.", "This reason cannot move stock in that
 direction." (e.g. Damaged can only remove), "The counted quantity matches the current stock.", "Add a note for
 Other.", "Stock changed to {onHand} while you were editing. Check it and confirm again.", "Choose a different branch
@@ -99,7 +106,7 @@ The owner or admin raises purchase orders; you receive them at your branches.
 
 Refusals: "Enter a quantity for at least one line.", "A quantity is more than is still outstanding. Reload to see the
 latest.", "This order cannot be received now." (draft, cancelled or fully received). Returning goods to a supplier is
-not built.
+done by the owner or an admin ([owner guide § Purchasing](owner.md#7-purchasing)).
 
 ## Customers
 

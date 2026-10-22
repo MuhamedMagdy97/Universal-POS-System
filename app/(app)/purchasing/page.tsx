@@ -227,7 +227,9 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
               {direct.rows.map((row) => (
                 <tr key={row.id} className="border-t border-border">
                   <td className="py-2" dir="ltr">
-                    {row.number}
+                    <Link href={`/purchasing/receipts/${row.id}`} className="underline-offset-4 hover:underline">
+                      {row.number}
+                    </Link>
                   </td>
                   <td>{row.supplier.name}</td>
                   {branches.length > 1 ? <td>{row.branch.name}</td> : null}

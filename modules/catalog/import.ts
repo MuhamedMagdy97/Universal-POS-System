@@ -7,19 +7,16 @@ import "server-only";
  * own beyond CSV shape, category-by-name, and duplicates within the file / org.
  * Confirm is all-or-nothing: one transaction, and any row error refuses the file.
  */
-import { AppError } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { assertBuiltIn } from "@/modules/integrations/inventory-sys/source";
-import { parseCsv } from "./csv";
+import { csvFileError as fileError, readCsvTable } from "./csv";
 import { record } from "@/modules/audit";
 import { db, requirePermission, withUniqueMapping, type CatalogMeta } from "./internal";
 import { insertProduct } from "./products";
 import { BarcodeCode, CreateProduct, majorPrice, Sku, type CreateProduct as CreateProductData } from "./schemas";
 import type { z } from "zod";
 
-export const MAX_IMPORT_ROWS = 1000;
-/** Rough cap on the CSV text (Server Action bodies are limited to 1 MB). */
-export const MAX_IMPORT_CHARS = 900_000;
+export { MAX_IMPORT_ROWS, MAX_IMPORT_CHARS } from "./csv";
 export const IMPORT_COLUMNS = ["name", "nameAr", "sku", "barcode", "price", "category", "vatCategory"] as const;
 export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "price"] as const;
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
@@ -44,11 +41,6 @@ export type ImportPreviewRow = { line: number; name: string; sku: string; errors
 export type ImportPreview = { rows: ImportPreviewRow[]; validCount: number; errorCount: number };
 
 type CheckedRow = ImportPreviewRow & { data: CreateProductData | null; skuKey?: string; codeKey?: string };
-
-/** File-level refusal: 422 with `details.reason` (and `column` / `max` where relevant). */
-function fileError(reason: string, details: Record<string, unknown> = {}): AppError {
-  return new AppError("VALIDATION_FAILED", "The file cannot be imported", { reason, ...details });
-}
 
 const FIELD_COLUMN: Record<string, ImportColumn> = {
   name: "name",
@@ -78,31 +70,7 @@ function issueError(issue: z.core.$ZodIssue): ImportRowError {
 }
 
 async function checkFile(ctx: TenantContext, csv: string): Promise<CheckedRow[]> {
-  if (csv.length > MAX_IMPORT_CHARS) throw fileError("CSV_TOO_LARGE");
-  const records = parseCsv(csv);
-  if (!records) throw fileError("CSV_MALFORMED");
-  // Blank lines are skipped; `lines` keeps each kept record's number in the file (header = 1).
-  const kept: string[][] = [];
-  const lines: number[] = [];
-  records.forEach((r, i) => {
-    if (!r.some((cell) => cell.trim() !== "")) return;
-    kept.push(r);
-    lines.push(i + 1);
-  });
-  const [header, ...body] = kept;
-  if (!header) throw fileError("CSV_EMPTY");
-
-  const index = new Map<ImportColumn, number>();
-  header.forEach((raw, i) => {
-    const column = IMPORT_COLUMNS.find((c) => c.toLowerCase() === raw.trim().toLowerCase());
-    if (!column || index.has(column)) throw fileError("CSV_UNKNOWN_COLUMN", { column: raw.trim() });
-    index.set(column, i);
-  });
-  for (const column of REQUIRED_IMPORT_COLUMNS) {
-    if (!index.has(column)) throw fileError("CSV_MISSING_COLUMN", { column });
-  }
-  if (body.length === 0) throw fileError("CSV_EMPTY");
-  if (body.length > MAX_IMPORT_ROWS) throw fileError("CSV_TOO_MANY_ROWS", { max: MAX_IMPORT_ROWS });
+  const table = readCsvTable(csv, IMPORT_COLUMNS, REQUIRED_IMPORT_COLUMNS);
 
   const org = await db().organization.findUniqueOrThrow({ where: { id: ctx.orgId }, select: { currency: true } });
   const price = majorPrice(org.currency);
@@ -111,13 +79,9 @@ async function checkFile(ctx: TenantContext, csv: string): Promise<CheckedRow[]>
     select: { id: true, name: true, nameAr: true },
   });
 
-  const rows: CheckedRow[] = body.map((record, r) => {
-    const cell = (column: ImportColumn) => {
-      const i = index.get(column);
-      return i === undefined ? "" : (record[i] ?? "").trim();
-    };
+  const rows: CheckedRow[] = table.rows.map(({ line, cell, extraFields }) => {
     const errors: ImportRowError[] = [];
-    if (record.length > header.length) errors.push({ column: null, code: "extraFields" });
+    if (extraFields) errors.push({ column: null, code: "extraFields" });
 
     const input: Record<string, unknown> = { sku: cell("sku"), name: cell("name"), priceMinor: 0 };
     if (cell("nameAr")) input.nameAr = cell("nameAr");
@@ -144,7 +108,7 @@ async function checkFile(ctx: TenantContext, csv: string): Promise<CheckedRow[]>
     const skuKey = Sku.safeParse(cell("sku")).data;
     const codeKey = cell("barcode") ? BarcodeCode.safeParse(cell("barcode")).data : undefined;
     return {
-      line: lines[r + 1] ?? 0,
+      line,
       name: cell("name"),
       sku: skuKey ?? cell("sku"),
       errors,

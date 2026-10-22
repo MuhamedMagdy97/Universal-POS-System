@@ -25,9 +25,10 @@ is set through the catalog seam, in one transaction, exactly like receiving agai
 
 ## 3. Not built
 
-- Purchase returns stay PO-only (purchase-returns-spec R1): goods from a direct receipt are corrected with a stock
-  adjustment.
-- No REST route and no detail page for a direct receipt: the server action and the list are the only surfaces.
+- ~~Purchase returns stay PO-only~~: built 2026-10-22, see
+  [direct-receipt-returns-spec.md](../purchase-returns/direct-receipt-returns-spec.md), which also added the detail page
+  `/purchasing/receipts/{receiptId}`.
+- No REST route for a direct receipt: the server actions, the list and the detail page are the only surfaces.
 - No gap-free direct-receipt numbers (D5).
 
 ## 4. As built

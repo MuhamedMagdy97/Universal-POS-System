@@ -80,13 +80,13 @@ describe("errorKey", () => {
 describe("returnLines", () => {
   it("skips zeros and refuses a bad or too-large quantity", () => {
     const rows = [
-      { poItemId: "a", returnable: 3, qty: "2" },
-      { poItemId: "b", returnable: 1, qty: "0" },
+      { lineId: "a", returnable: 3, qty: "2" },
+      { lineId: "b", returnable: 1, qty: "0" },
     ];
-    expect(returnLines(rows)).toEqual([{ poItemId: "a", qty: 2 }]);
-    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "4" }])).toBeNull();
-    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "x" }])).toBeNull();
-    expect(returnLines([{ poItemId: "a", returnable: 3, qty: "٢" }])).toEqual([{ poItemId: "a", qty: 2 }]);
+    expect(returnLines(rows)).toEqual([{ lineId: "a", qty: 2 }]);
+    expect(returnLines([{ lineId: "a", returnable: 3, qty: "4" }])).toBeNull();
+    expect(returnLines([{ lineId: "a", returnable: 3, qty: "x" }])).toBeNull();
+    expect(returnLines([{ lineId: "a", returnable: 3, qty: "٢" }])).toEqual([{ lineId: "a", qty: 2 }]);
   });
 
   it("maps return errors to their messages", () => {

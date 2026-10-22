@@ -645,8 +645,9 @@ export type PurchasesRow = {
 /**
  * Goods received per local day and supplier: receipts (PO and direct, direct-receipt-spec D6), units
  * and value at the received unit cost.
- * Returns to the supplier go in their own columns on their own day, valued at the PO cost
- * (purchase-returns-spec R12); a day with only returns has a row with nothing received.
+ * Returns to the supplier (PO and direct, direct-receipt-returns-spec DR10) go in their own columns on
+ * their own day, valued at the PO or receipt cost (purchase-returns-spec R12); a day with only returns
+ * has a row with nothing received.
  */
 export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
   const rows = await getDb().$queryRaw<
@@ -670,11 +671,10 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
       WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
       GROUP BY 1, 2
     ), returned AS (
-      SELECT ${localDay(col("r", "returnedAt"), scope.zone)} AS day, p."supplierId",
+      SELECT ${localDay(col("r", "returnedAt"), scope.zone)} AS day, r."supplierId",
              SUM(i."qty") AS units, SUM(i."qty"::bigint * i."unitCostMinor") AS value
       FROM "PurchaseReturn" r
       JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
-      JOIN "PurchaseOrder" p ON p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId"
       WHERE ${inScope("r", scope)} AND ${inRange(col("r", "returnedAt"), scope)}
       GROUP BY 1, 2
     )
@@ -759,10 +759,9 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
       JOIN rvalue rv ON rv.id = g."id"
       WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
       UNION ALL
-      SELECT p."supplierId", r."returnedAt" < ${start}, 0, tv.v, 0, 0
+      SELECT r."supplierId", r."returnedAt" < ${start}, 0, tv.v, 0, 0
       FROM "PurchaseReturn" r
       JOIN tvalue tv ON tv.id = r."id"
-      JOIN "PurchaseOrder" p ON p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId"
       WHERE r."orgId" = ${scope.orgId}::uuid AND r."returnedAt" < ${end}
       UNION ALL
       SELECT d."supplierId", d."issuedOn" < ${scope.from}::date, 0, 0, d.effect, 0
