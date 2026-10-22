@@ -10,6 +10,7 @@ const TABS = [
   { href: "/settings/staff", label: "settings.tab.staff" },
   { href: "/settings/branches", label: "settings.tab.branches" },
   { href: "/settings/inventory", label: "settings.tab.inventory" },
+  { href: "/settings/offline", label: "settings.tab.offline" },
 ] as const;
 
 export function SettingsTabs() {

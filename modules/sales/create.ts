@@ -6,7 +6,8 @@ import { getDb, type Db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { record, type AuditRequestMeta } from "@/modules/audit";
-import { getSellableItems } from "@/modules/catalog";
+import { getItemsForHistory, getSellableItems } from "@/modules/catalog";
+import type { SellableItem } from "@/modules/catalog/schemas";
 import { customerForSale, type CustomerSnapshot } from "@/modules/customers";
 import { recordMovements } from "@/modules/inventory";
 import {
@@ -20,6 +21,17 @@ import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
 import { lockShift } from "@/modules/registers";
 import { requireBranch, requirePermission, requireRegister, isUniqueViolation } from "./access";
 import { discountLimit, salesConflict } from "./errors";
+import {
+  archivedFlags,
+  claimOfflineNumber,
+  flagTimes,
+  hashedBody,
+  offlineCashierRole,
+  offlineShift,
+  priceOfflineSale,
+  requireOfflineDevice,
+  type OfflineFlags,
+} from "./offline";
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale } from "./totals";
 
@@ -29,6 +41,8 @@ import { overDiscountLimit, priceSale, settlePayments, type PricedSale } from ".
  * movements through the inventory seam, then write the sale, its snapshots and the audit row.
  * A shop linked to the inventory system reserves in it before the transaction and fulfils after
  * commit instead of writing POS stock (integration spec I12; modules/integrations/inventory-sys/postings.ts).
+ * A body with an `offline` block is a sale its device already made: recorded as sold, with review flags
+ * (offline-till-spec OF11–OF13; ./offline.ts).
  */
 
 type Tx = Prisma.TransactionClient;
@@ -181,7 +195,7 @@ async function sell(
   const idempotencyKey = IdempotencyKey.parse(idempotencyKeyInput);
   await requireBranch(ctx, parsed.branchId);
 
-  const requestHash = requestHashOf(parsed);
+  const requestHash = requestHashOf(hashedBody(parsed));
   const db = getDb();
   const linked = (await inventorySourceOf(ctx.orgId)) === "EXTERNAL";
   const replayed = await replayIfKnown(db, ctx, idempotencyKey, requestHash);
@@ -189,6 +203,12 @@ async function sell(
     // A crash after commit may have left the fulfils unsent.
     if (linked) await postAfterCommit(ctx.orgId, [replayed.sale.id]);
     return replayed;
+  }
+  // A linked shop reserves every line in the inventory system first; it never sells offline (OF15).
+  if (parsed.offline && linked) {
+    throw new AppError("CONFLICT", "This shop cannot sell offline while linked to the inventory system", {
+      reason: "OFFLINE_NOT_ALLOWED",
+    });
   }
 
   // Checked before anything is held in the inventory system (customers-spec CU17).
@@ -274,22 +294,36 @@ async function writeSale(
   meta: AuditRequestMeta | undefined,
 ): Promise<CreateSaleResult> {
   await requireRegister(tx, ctx.orgId, input.branchId, input.registerId);
-  // Lock the shift, then re-read its status: a close that committed while we waited must refuse
-  // this sale (T7 spec S4).
-  const open = await tx.registerShift.findFirst({
-    where: { orgId: ctx.orgId, branchId: input.branchId, registerId: input.registerId, status: "OPEN" },
-    select: { id: true },
-  });
-  if (!open) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
-  await lockShift(tx, ctx.orgId, open.id);
-  const shift = await tx.registerShift.findFirst({
-    where: { id: open.id, orgId: ctx.orgId, status: "OPEN" },
-    select: { id: true },
-  });
-  if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
+  const offline = input.offline ?? null;
+  const receivedAt = new Date();
+  const flags: OfflineFlags = new Map();
+  let shiftId: string;
+  if (offline) {
+    // Device, series and the shift it was rung in (open or closed): offline-till-spec OF8, OF13, OF16.
+    await requireOfflineDevice(tx, ctx.orgId, input.registerId, offline);
+    await claimOfflineNumber(tx, ctx.orgId, input.registerId, offline.number);
+    const shift = await offlineShift(tx, ctx.orgId, input.branchId, input.registerId, offline.shiftId);
+    flagTimes(offline, shift, receivedAt, flags);
+    shiftId = shift.id;
+  } else {
+    // Lock the shift, then re-read its status: a close that committed while we waited must refuse
+    // this sale (T7 spec S4).
+    const open = await tx.registerShift.findFirst({
+      where: { orgId: ctx.orgId, branchId: input.branchId, registerId: input.registerId, status: "OPEN" },
+      select: { id: true },
+    });
+    if (!open) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
+    await lockShift(tx, ctx.orgId, open.id);
+    const shift = await tx.registerShift.findFirst({
+      where: { id: open.id, orgId: ctx.orgId, status: "OPEN" },
+      select: { id: true },
+    });
+    if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register before selling");
+    shiftId = shift.id;
+  }
 
   // Takes the org row lock, bumps the sale counter and reads the org's sale settings. A rollback
-  // gives the number back, so numbers have no gaps.
+  // gives the number back, so numbers have no gaps. An offline sale keeps its series number (OF8).
   const [org] = await tx.$queryRaw<
     {
       lastSaleNo: number;
@@ -301,7 +335,7 @@ async function writeSale(
       linked: boolean;
     }[]
   >`
-    UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + 1
+    UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + ${offline ? 0 : 1}
     WHERE "id" = ${ctx.orgId}::uuid
     RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat",
       "blockNegativeStock", "maxCashierDiscountBp", "inventorySource" = 'EXTERNAL' AS "linked"`;
@@ -313,38 +347,53 @@ async function writeSale(
   }
 
   const lines = mergeLines(input.lines);
-  const items = await getSellableItems(
-    tx,
-    ctx.orgId,
-    lines.map((line) => line.ref),
-  );
-  const totals = priceCart(items, lines, input.discount, org);
+  const refs = lines.map((line) => line.ref);
+  let items: SellableItem[];
+  let totals: PricedSale;
+  if (offline) {
+    // Archived items resolve too: they were sold before (or without knowing) the archive (OF13).
+    const archived = await archivedFlags(tx, ctx.orgId, refs);
+    const current = await getItemsForHistory(tx, ctx.orgId, refs);
+    if (archived.some(Boolean)) {
+      flags.set("ITEM_ARCHIVED", { skus: current.filter((_, index) => archived[index]).map((item) => item.sku) });
+    }
+    const role = await offlineCashierRole(tx, ctx.orgId, offline.cashierId);
+    ({ items, totals } = priceOfflineSale(current, lines, input, offline, org, role, flags));
+  } else {
+    items = await getSellableItems(tx, ctx.orgId, refs);
+    totals = priceCart(items, lines, input.discount, org);
+    requireDiscountAllowed(ctx, totals, org);
+  }
   const priced = totals.lines;
-  requireDiscountAllowed(ctx, totals, org);
   const settlement = settlePayments(totals.totalMinor, input.payments);
 
   const saleId = randomUUID();
   const saleItemIds = items.map(() => randomUUID());
   if (!held) {
-    await recordMovements(tx, ctx, {
+    const after = await recordMovements(tx, ctx, {
       branchId: input.branchId,
       reason: "SALE",
       refType: "Sale",
       refId: saleId,
-      policy: org.blockNegativeStock ? "block" : "allow",
+      // An offline sale already left the shop: it may take stock below zero (OF13).
+      policy: org.blockNegativeStock && !offline ? "block" : "allow",
+      allowArchived: offline !== null,
       lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
     });
+    const negative = after.flatMap((line, index) => (line.qty < 0 ? [{ sku: items[index].sku, qty: line.qty }] : []));
+    if (offline && negative.length > 0) flags.set("STOCK_NEGATIVE", { lines: negative });
   }
 
-  const number = String(org.lastSaleNo).padStart(6, "0");
+  const number = offline ? offline.number : String(org.lastSaleNo).padStart(6, "0");
   await tx.sale.create({
     data: {
       id: saleId,
       orgId: ctx.orgId,
       branchId: input.branchId,
       registerId: input.registerId,
-      shiftId: shift.id,
-      cashierId: ctx.userId,
+      shiftId,
+      cashierId: offline ? offline.cashierId : ctx.userId,
+      ...(offline && { createdAt: new Date(offline.soldAt), receivedAt, offlineFlags: [...flags.keys()] }),
       number,
       idempotencyKey,
       requestHash,
@@ -420,8 +469,29 @@ async function writeSale(
         },
       }),
       ...(held && { inventoryReservationIds: held.lines.map((line) => line.reservationId) }),
+      // The actor is whoever replayed it; the cashier is who rang it up (OF11).
+      ...(offline && {
+        offline: {
+          deviceId: offline.deviceId,
+          cashierId: offline.cashierId,
+          soldAt: offline.soldAt,
+          snapshotVersion: offline.snapshotVersion,
+          flags: [...flags.keys()],
+        },
+      }),
     },
   });
+  // One row per drift for the review list (OF12, OF13).
+  for (const [flag, details] of flags) {
+    await record(tx, {
+      ctx,
+      meta,
+      action: "sale.offline.flagged",
+      entityType: "Sale",
+      entityId: saleId,
+      metadata: { number, flag, ...details },
+    });
+  }
   if (held) await recordSaleFulfils(tx, held, saleId, saleItemIds);
 
   return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };

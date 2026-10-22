@@ -288,6 +288,8 @@ model Organization {
   receiptPhone         String?
   // Phase 13 (I1): EXTERNAL = the inventory system is master; changed only through modules/integrations.
   inventorySource      InventorySource @default(BUILT_IN)
+  // Offline till (offline-till-spec OF5): Owner only, off by default, refused while linked to the inventory system.
+  allowOfflineSales    Boolean         @default(false)
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
@@ -295,6 +297,7 @@ model Organization {
   stockPostings              ExternalStockPosting[]
   branches                   Branch[]
   registers                  Register[]
+  registerDevices            RegisterDevice[]
   memberships                Membership[]
   membershipBranches         MembershipBranch[]
   categories                 Category[]
@@ -426,14 +429,39 @@ model Register {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org    Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  branch Branch          @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
-  shifts RegisterShift[]
-  sales  Sale[]
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch            Branch       @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  // Offline series (offline-till-spec OF8): short code ("T1") given at the first device enrolment and kept
+  // forever, and the highest offline number accepted (a re-enrolled device continues from it).
+  offlineCode       String?
+  lastOfflineSaleNo Int          @default(0)
+
+  shifts  RegisterShift[]
+  sales   Sale[]
+  devices RegisterDevice[]
 
   @@unique([orgId, id])
   @@unique([orgId, branchId, id])
   @@unique([orgId, branchId, name])
+  @@unique([orgId, offlineCode])
+}
+
+// The browser enrolled to sell offline on a register (offline-till-spec OF16). `id` is the deviceId; only the
+// secret's SHA-256 is stored. At most one device per register is not revoked (partial unique index in SQL).
+model RegisterDevice {
+  id           String    @id @default(uuid()) @db.Uuid
+  orgId        String    @db.Uuid
+  registerId   String    @db.Uuid
+  secretHash   String
+  enrolledById String    @db.Uuid
+  enrolledAt   DateTime  @default(now())
+  revokedAt    DateTime?
+  revokedById  String?   @db.Uuid
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  register Register     @relation(fields: [orgId, registerId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, registerId])
 }
 
 model Membership {
@@ -1099,6 +1127,10 @@ model Sale {
   customerName      String?
   customerPhone     String?
   customerTaxNumber String?
+  // Offline sales (offline-till-spec OF12, OF20): `createdAt` is the device's soldAt, `receivedAt` when the server
+  // got it (NULL = sold online), and the review flags set at replay (PRICE_CHANGED, STOCK_NEGATIVE, ...).
+  receivedAt        DateTime?
+  offlineFlags      String[]   @default([])
 
   org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
