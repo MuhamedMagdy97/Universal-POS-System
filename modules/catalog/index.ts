@@ -24,6 +24,17 @@ export {
 } from "./products";
 export { createProductAggregate, updateProductAggregate } from "./aggregate";
 export {
+  previewProductImport,
+  importProducts,
+  IMPORT_COLUMNS,
+  MAX_IMPORT_ROWS,
+  type ImportColumn,
+  type ImportErrorCode,
+  type ImportPreview,
+  type ImportPreviewRow,
+} from "./import";
+export { parseCsv } from "./csv";
+export {
   createVariant,
   updateVariant,
   archiveVariant,

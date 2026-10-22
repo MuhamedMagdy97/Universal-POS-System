@@ -85,9 +85,14 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
         <h1 className="text-2xl font-semibold">{tr("catalog.products.title")}</h1>
         <CatalogSubnav locale={locale} current="products" />
         {can.create ? (
-          <Link href="/catalog/products/new" className="ms-auto rounded-md bg-foreground px-4 py-2 text-background">
-            {tr("catalog.products.add")}
-          </Link>
+          <div className="ms-auto flex gap-2">
+            <Link href="/catalog/products/import" className="rounded-md border border-border px-4 py-2">
+              {tr("catalog.import.link")}
+            </Link>
+            <Link href="/catalog/products/new" className="rounded-md bg-foreground px-4 py-2 text-background">
+              {tr("catalog.products.add")}
+            </Link>
+          </div>
         ) : null}
       </div>
       {managed ? <ManagedNotice locale={locale} area="catalog" /> : null}
