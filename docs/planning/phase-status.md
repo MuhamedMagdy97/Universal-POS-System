@@ -118,6 +118,11 @@
   (PR #51, [spec](offline-till/offline-till-spec.md)) and Egypt ETA e-receipts (PR #52,
   [spec](eta-e-receipt/eta-e-receipt-spec.md)).
 
+- 2026-10-22 batch 5: negative-stock rule on the settings screen (PR #56); product CSV import with preview and
+  all-or-nothing confirm (PR #57, [spec](catalog-import/catalog-import-spec.md)); receiving stock from a supplier
+  without a PO, in the purchases report, supplier balances and invoices (PR #58,
+  [spec](purchasing-direct-receipt/direct-receipt-spec.md)).
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

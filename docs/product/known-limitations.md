@@ -33,7 +33,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 ## Inventory
 
 - No freezing sales during a stock count; a transit transfer is received once (no several partial receipts), no low-stock notifications (the list and
-  dashboard tile are on screen only), no cost valuation or COGS, no CSV import, no settings screen for `blockNegativeStock`. [phase-7/inventory-spec §5]
+  dashboard tile are on screen only), no cost valuation or COGS, no stock CSV import (products can be imported). [phase-7/inventory-spec §5]
 - The opening-stock grid saves at most 100 items at a time. The transfer form has no scan shortcut beyond Enter in
   the search box. [phase-7/inventory-as-built, deferred minors]
 
@@ -60,7 +60,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Purchasing
 
-- Purchase returns only against a received PO (none without one). No receiving without a PO, barcode labels,
+- Purchase returns only against a received PO (none against a direct receipt or without one). No barcode labels,
   emailing a PO, or multi-currency. [phase-10/purchasing-spec §2, phase-status]
 
 ## Printing and hardening
