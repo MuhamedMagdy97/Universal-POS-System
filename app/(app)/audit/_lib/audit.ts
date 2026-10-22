@@ -55,6 +55,10 @@ export const AUDIT_ACTIONS = [
   "register.updated",
   "register.deactivated",
   "register.reactivated",
+  "register.offline.enrolled",
+  "register.offline.revoked",
+  "settings.offline.updated",
+  "sale.offline.flagged",
   "account.password_changed",
 ] as const;
 

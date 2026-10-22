@@ -1109,6 +1109,32 @@ export const ar: Messages = {
   "settings.tab.staff": "الموظفون",
   "settings.tab.branches": "الفروع ونقاط البيع",
   "settings.tab.inventory": "نظام المخزون",
+  "settings.tab.offline": "البيع دون اتصال",
+  "settings.offline.title": "البيع دون اتصال",
+  "settings.offline.intro":
+    "يتيح لنقطة البيع مواصلة البيع عندما لا تصل إلى الخادم. كل نقطة بيع تبيع دون اتصال ترقّم مبيعاتها في سلسلة خاصة بها (T1-000001) وترسلها عند عودة الاتصال.",
+  "settings.offline.allow": "السماح بالبيع دون اتصال",
+  "settings.offline.allowHint":
+    "متوقف افتراضيًا. غير متاح عندما يأتي المخزون من نظام المخزون. إيقافه يُبقي الأجهزة المسجلة، فتصل المبيعات التي تمت بالفعل.",
+  "settings.offline.linked": "هذا المتجر مرتبط بنظام المخزون، لذا لا يمكنه البيع دون اتصال.",
+  "settings.offline.ownerOnly": "يمكن للمالك فقط تغيير إعدادات البيع دون اتصال.",
+  "settings.offline.tills": "نقاط البيع",
+  "settings.offline.till": "نقطة البيع",
+  "settings.offline.series": "السلسلة",
+  "settings.offline.lastNumber": "آخر رقم دون اتصال",
+  "settings.offline.device": "الجهاز",
+  "settings.offline.device.none": "لا يوجد",
+  "settings.offline.device.enrolled": "مسجل {date}",
+  "settings.offline.revoke": "إلغاء الجهاز",
+  "settings.offline.revoke.title": "إلغاء جهاز نقطة البيع هذه؟",
+  "settings.offline.revoke.body":
+    "المبيعات التي لم يرسلها بعد ستُرفض وتُعرض على المدير. استخدم هذا لجهاز مفقود أو مستبدل.",
+  "settings.offline.cancel": "إلغاء",
+  "settings.offline.saved": "تم الحفظ.",
+  "settings.offline.revoked": "تم إلغاء الجهاز.",
+  "settings.offline.error.INVENTORY_LINKED": "المتجر المرتبط بنظام المخزون لا يمكنه البيع دون اتصال.",
+  "settings.offline.error.forbidden": "لا يمكنك تغيير هذا.",
+  "settings.offline.error.generic": "حدث خطأ ما. حاول مرة أخرى.",
   "settings.inventory.title": "نظام المخزون",
   "settings.inventory.intro":
     "اختياري. اربط نظام المخزون المنفصل لاستخدام منتجاته وأسعاره وباركوداته هنا. بدونه يحتفظ نظام نقاط البيع بمخزونه ومشترياته وتحويلاته.",
@@ -1161,6 +1187,8 @@ export const ar: Messages = {
   "settings.inventory.error.INVENTORY_REJECTED": "رفض نظام المخزون الطلب.",
   "settings.inventory.error.PENDING_POSTINGS":
     "بعض المبيعات أو المرتجعات لم تصل إلى نظام المخزون بعد. اضغط مزامنة الآن ثم حاول مرة أخرى.",
+  "settings.inventory.error.OFFLINE_ENABLED":
+    "أوقف البيع دون اتصال وألغِ جهاز كل نقطة بيع أولًا (الإعدادات، البيع دون اتصال).",
   "settings.inventory.error.WAREHOUSE_UNKNOWN": "اختر مستودعًا نشطًا من نظام المخزون.",
   "settings.inventory.error.WAREHOUSE_TAKEN": "فرع آخر يبيع بالفعل من هذا المستودع.",
   "settings.inventory.branches": "الفروع والمستودعات",
@@ -1307,6 +1335,10 @@ export const ar: Messages = {
   "audit.action.register.updated": "إعادة تسمية صندوق",
   "audit.action.register.deactivated": "إيقاف صندوق",
   "audit.action.register.reactivated": "إعادة تفعيل صندوق",
+  "audit.action.register.offline.enrolled": "تسجيل جهاز صندوق للبيع دون اتصال",
+  "audit.action.register.offline.revoked": "إلغاء جهاز البيع دون اتصال لصندوق",
+  "audit.action.settings.offline.updated": "تغيير إعداد البيع دون اتصال",
+  "audit.action.sale.offline.flagged": "بيع دون اتصال يحتاج مراجعة",
   "audit.action.account.password_changed": "تغيير كلمة المرور",
   // الصفحات العامة وإطار التطبيق
   "welcome.title": "مرحبًا بك في Universal POS",

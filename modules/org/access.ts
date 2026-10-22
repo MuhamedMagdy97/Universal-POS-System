@@ -9,7 +9,7 @@ import { record, type AuditRequestMeta } from "@/modules/audit";
 export type Tx = Prisma.TransactionClient;
 
 /** Denied attempts are audited as `settings.permission.denied` or `staff.permission.denied`. */
-const DENIED_ACTION = { "settings.manage": "settings", "users.manage": "staff" } as const;
+const DENIED_ACTION = { "settings.manage": "settings", "offline.manage": "settings", "users.manage": "staff" } as const;
 
 export async function requirePermission(
   ctx: TenantContext,

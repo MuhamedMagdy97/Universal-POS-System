@@ -27,6 +27,8 @@ export const PERMISSIONS = [
   "settings.manage",
   // Phase 13 (integration spec I2): link the shop to the inventory system. Owner only.
   "integrations.manage",
+  // Offline till (offline-till-spec OF5, OF16): allow offline sales, enrol and revoke till devices. Owner only.
+  "offline.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

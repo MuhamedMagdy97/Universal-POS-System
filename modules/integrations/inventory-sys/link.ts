@@ -267,10 +267,17 @@ export async function setInventorySource(
   const { source } = InventorySourceInput.parse(input);
   const row = await getDb().$transaction(async (tx) => {
     // Serialise with sales and purchasing writes on this org row while the checks run.
-    const org = await tx.$queryRaw<{ inventorySource: InventorySource }[]>`
-      SELECT "inventorySource" FROM "Organization" WHERE id = ${ctx.orgId}::uuid FOR UPDATE`;
+    const org = await tx.$queryRaw<{ inventorySource: InventorySource; allowOfflineSales: boolean }[]>`
+      SELECT "inventorySource", "allowOfflineSales" FROM "Organization" WHERE id = ${ctx.orgId}::uuid FOR UPDATE`;
     if (org[0]?.inventorySource === source)
       throw conflict("ALREADY_SET", "The shop already uses this inventory source");
+    // Offline till OF15: a linked shop never sells offline, so offline must be off and every device revoked.
+    if (
+      source === "EXTERNAL" &&
+      (org[0]?.allowOfflineSales || (await tx.registerDevice.count({ where: { orgId: ctx.orgId, revokedAt: null } })))
+    ) {
+      throw conflict("OFFLINE_ENABLED", "Turn off offline sales and revoke every till device first");
+    }
     const link = await tx.inventoryLink.findUnique({ where: { orgId: ctx.orgId } });
     if (source === "EXTERNAL" && !link?.lastCheckOk) {
       throw conflict("CHECK_FAILED", "Save the link and pass the connection check first");

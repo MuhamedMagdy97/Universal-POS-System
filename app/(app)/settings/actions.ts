@@ -1,7 +1,7 @@
 "use server";
 /**
  * Settings Server Actions: receipt (T10 H3), staff, branches and tills (onboarding), and the inventory-system
- * link (Phase 13). Thin adapters over modules/org and modules/integrations/inventory-sys.
+ * link (Phase 13), offline till. Thin adapters over modules/org and modules/integrations/inventory-sys.
  */
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -14,6 +14,8 @@ import {
   createBranch,
   createRegister,
   updateBranch,
+  revokeOfflineDevice,
+  updateOfflineSettings,
   updateReceiptSettings,
   updateRegister,
   updateStaff,
@@ -163,4 +165,19 @@ export async function retryInventoryPostingAction(
   postingId: string,
 ): Promise<ActionResult<{ status: "PENDING" | "DONE" | "FAILED" }>> {
   return run("/settings/inventory", (ctx, meta) => retryInventoryPosting(ctx, postingId, meta));
+}
+
+/** Offline till (offline-till-spec OF5, OF16; slice 1): the shop toggle and revoking a till's device. Owner only. */
+export async function setOfflineSalesAction(allowOfflineSales: boolean): Promise<ActionResult<null>> {
+  return run("/settings/offline", async (ctx, meta) => {
+    await updateOfflineSettings(ctx, { allowOfflineSales }, meta);
+    return null;
+  });
+}
+
+export async function revokeOfflineDeviceAction(registerId: string): Promise<ActionResult<null>> {
+  return run("/settings/offline", async (ctx, meta) => {
+    await revokeOfflineDevice(ctx, registerId, meta);
+    return null;
+  });
 }

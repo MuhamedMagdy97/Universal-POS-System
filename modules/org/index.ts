@@ -18,3 +18,13 @@ export {
 } from "./branches";
 export { changeOwnPassword } from "./account";
 export { STAFF_ROLES, canManageRole, type StaffRole } from "./schemas";
+export {
+  getOfflineSettings,
+  updateOfflineSettings,
+  enrolOfflineDevice,
+  revokeOfflineDevice,
+  OfflineSettingsInput,
+  type OfflineSettings,
+  type OfflineRegisterRow,
+  type EnrolledDevice,
+} from "./offline";

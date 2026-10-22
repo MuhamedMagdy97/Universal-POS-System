@@ -1120,6 +1120,32 @@ export const en = {
   "settings.tab.staff": "Staff",
   "settings.tab.branches": "Branches and tills",
   "settings.tab.inventory": "Inventory system",
+  "settings.tab.offline": "Offline till",
+  "settings.offline.title": "Offline till",
+  "settings.offline.intro":
+    "Lets a till keep selling while it cannot reach the server. Each till that sells offline numbers its sales in its own series (T1-000001) and sends them when the connection is back.",
+  "settings.offline.allow": "Allow offline sales",
+  "settings.offline.allowHint":
+    "Off by default. Not available while stock comes from the inventory system. Turning it off keeps enrolled devices, so sales already made still arrive.",
+  "settings.offline.linked": "This shop is linked to the inventory system, so it cannot sell offline.",
+  "settings.offline.ownerOnly": "Only the owner can change offline settings.",
+  "settings.offline.tills": "Tills",
+  "settings.offline.till": "Till",
+  "settings.offline.series": "Series",
+  "settings.offline.lastNumber": "Last offline number",
+  "settings.offline.device": "Device",
+  "settings.offline.device.none": "None",
+  "settings.offline.device.enrolled": "Enrolled {date}",
+  "settings.offline.revoke": "Revoke device",
+  "settings.offline.revoke.title": "Revoke this till's device?",
+  "settings.offline.revoke.body":
+    "Sales it has not sent yet will be refused and listed for a manager. Use this for a lost or replaced device.",
+  "settings.offline.cancel": "Cancel",
+  "settings.offline.saved": "Saved.",
+  "settings.offline.revoked": "Device revoked.",
+  "settings.offline.error.INVENTORY_LINKED": "A shop linked to the inventory system cannot sell offline.",
+  "settings.offline.error.forbidden": "You cannot change this.",
+  "settings.offline.error.generic": "Something went wrong. Try again.",
   "settings.inventory.title": "Inventory system",
   "settings.inventory.intro":
     "Optional. Link your separate inventory system to use its products, prices and barcodes here. Without it the POS keeps its own stock, purchasing and transfers.",
@@ -1174,6 +1200,8 @@ export const en = {
   "settings.inventory.error.INVENTORY_REJECTED": "The inventory system refused the request.",
   "settings.inventory.error.PENDING_POSTINGS":
     "Some sales or refunds have not reached the inventory system yet. Sync now, then try again.",
+  "settings.inventory.error.OFFLINE_ENABLED":
+    "Turn off offline sales and revoke every till device first (Settings, Offline till).",
   "settings.inventory.error.WAREHOUSE_UNKNOWN": "Choose an active warehouse of the inventory system.",
   "settings.inventory.error.WAREHOUSE_TAKEN": "Another branch already sells from this warehouse.",
   "settings.inventory.branches": "Branches and warehouses",
@@ -1324,6 +1352,10 @@ export const en = {
   "audit.action.register.updated": "Till renamed",
   "audit.action.register.deactivated": "Till deactivated",
   "audit.action.register.reactivated": "Till reactivated",
+  "audit.action.register.offline.enrolled": "Till device enrolled for offline sales",
+  "audit.action.register.offline.revoked": "Till offline device revoked",
+  "audit.action.settings.offline.updated": "Offline sales setting changed",
+  "audit.action.sale.offline.flagged": "Offline sale flagged for review",
   "audit.action.account.password_changed": "Password changed",
   // Public pages and app chrome
   "welcome.title": "Welcome to Universal POS",

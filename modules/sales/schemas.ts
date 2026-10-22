@@ -33,6 +33,34 @@ export type DiscountInput = z.infer<typeof DiscountInput>;
 
 export const SaleLineInput = z.object({ ref: ItemRefInput, qty: Qty, discount: DiscountInput.optional() }).strict();
 
+const Money = z.number().int().min(0).max(MAX_STORABLE_MINOR);
+
+/**
+ * An offline sale replayed by its device (offline-till-spec OF11): what was sold, as the device priced and numbered
+ * it. `lines` follow the sale's `lines` one for one. `deviceSecret` proves the enrolled device (OF16) and is left
+ * out of the request hash; `shiftId` and `snapshotAt` are the device's cached shift and snapshot time (OF13).
+ */
+export const OfflineSaleInput = z
+  .object({
+    deviceId: Uuid,
+    deviceSecret: z.string().min(16).max(200),
+    number: z.string().regex(/^[A-Z][A-Z0-9]{0,7}-\d{6}$/, "Offline number like T1-000045"),
+    soldAt: z.iso.datetime({ offset: true }),
+    snapshotAt: z.iso.datetime({ offset: true }),
+    snapshotVersion: z.number().int().min(1).max(1000),
+    shiftId: Uuid,
+    cashierId: Uuid,
+    lines: z
+      .array(z.object({ unitPriceMinor: Money, discountMinor: Money, lineTotalMinor: Money }).strict())
+      .min(1)
+      .max(200),
+    subtotalMinor: Money,
+    vatMinor: Money,
+    totalMinor: Money,
+  })
+  .strict();
+export type OfflineSaleInput = z.infer<typeof OfflineSaleInput>;
+
 export const SaleInput = z
   .object({
     branchId: Uuid,
@@ -49,8 +77,15 @@ export const SaleInput = z
       .refine((payments) => new Set(payments.map((p) => p.method)).size === payments.length, {
         message: "Each payment method may appear once",
       }),
+    // Sent only when a device replays an offline sale (OF11); online sales leave it out and hash as before.
+    offline: OfflineSaleInput.optional(),
   })
-  .strict();
+  .strict()
+  // Walk-in only offline (OF3).
+  .refine((sale) => !sale.offline || !sale.customerId, { message: "An offline sale has no customer" })
+  .refine((sale) => !sale.offline || sale.offline.lines.length === sale.lines.length, {
+    message: "Offline lines must match the sale lines",
+  });
 export type SaleInput = z.infer<typeof SaleInput>;
 
 /** `Idempotency-Key` header: 1–128 printable ASCII characters. */

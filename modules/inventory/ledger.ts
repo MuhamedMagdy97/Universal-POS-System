@@ -38,6 +38,8 @@ export type ApplyInput = {
   /** "block" never lets a line go below zero; "allow" lets a sale oversell (D4). */
   policy: "block" | "allow";
   lines: readonly SignedLine[];
+  /** An offline sale already happened, so an item archived meanwhile still moves (offline-till-spec OF13). */
+  allowArchived?: boolean;
 };
 
 /**
@@ -85,7 +87,8 @@ export async function applyLines(
     input.lines.map((line) => line.ref.productId),
   );
   for (const line of input.lines) {
-    if (archivedAllowed(input.reason, line.qtyDelta)) await assertKnownItems(tx, ctx.orgId, [line.ref]);
+    if (input.allowArchived || archivedAllowed(input.reason, line.qtyDelta))
+      await assertKnownItems(tx, ctx.orgId, [line.ref]);
     else await assertStockable(tx, ctx.orgId, line.ref);
   }
 
@@ -150,6 +153,7 @@ export type RecordMovementsInput = {
   /** Positive quantities; the sign comes from the reason. */
   lines: readonly { ref: ItemRef; qty: number }[];
   policy: "block" | "allow";
+  allowArchived?: boolean;
 };
 
 /**
@@ -174,5 +178,6 @@ export async function recordMovements(
     refId: input.refId,
     policy: input.policy,
     lines: input.lines.map((line) => ({ ref: line.ref, qtyDelta: sign * line.qty })),
+    allowArchived: input.allowArchived,
   });
 }
