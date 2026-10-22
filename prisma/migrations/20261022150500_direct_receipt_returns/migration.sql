@@ -6,8 +6,11 @@ ALTER TABLE "PurchaseReturn" ADD COLUMN "goodsReceiptId" UUID,
 ADD COLUMN "supplierId" UUID,
 ALTER COLUMN "purchaseOrderId" DROP NOT NULL;
 
+-- PurchaseReturn is append-only: lift the trigger for this one-off backfill only (same transaction).
+ALTER TABLE "PurchaseReturn" DISABLE TRIGGER "PurchaseReturn_append_only";
 UPDATE "PurchaseReturn" r SET "supplierId" = p."supplierId"
 FROM "PurchaseOrder" p WHERE p."orgId" = r."orgId" AND p."id" = r."purchaseOrderId";
+ALTER TABLE "PurchaseReturn" ENABLE TRIGGER "PurchaseReturn_append_only";
 
 ALTER TABLE "PurchaseReturn" ALTER COLUMN "supplierId" SET NOT NULL;
 
