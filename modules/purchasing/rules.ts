@@ -210,3 +210,10 @@ export function allocateOldestFirst(
   }
   return out;
 }
+
+// ---------- direct receipts (direct-receipt-spec D5) ----------
+
+/** `GR-1A2B3C4D`: a direct receipt has no PO number, so it shows the start of its id. */
+export function formatDirectReceiptNumber(receiptId: string): string {
+  return `GR-${receiptId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}

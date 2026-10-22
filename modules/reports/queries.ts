@@ -643,7 +643,8 @@ export type PurchasesRow = {
 };
 
 /**
- * Goods received per local day and supplier: receipts, units and value at the received unit cost.
+ * Goods received per local day and supplier: receipts (PO and direct, direct-receipt-spec D6), units
+ * and value at the received unit cost.
  * Returns to the supplier go in their own columns on their own day, valued at the PO cost
  * (purchase-returns-spec R12); a day with only returns has a row with nothing received.
  */
@@ -661,12 +662,11 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
     }[]
   >`
     WITH received AS (
-      SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, p."supplierId",
+      SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, g."supplierId",
              COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
              SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS value
       FROM "GoodsReceipt" g
       JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
-      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
       WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
       GROUP BY 1, 2
     ), returned AS (
@@ -753,11 +753,10 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
                    ELSE (SELECT tv.v FROM tvalue tv WHERE tv.id = d."purchaseReturnId") END, 0)) AS effect
       FROM "SupplierInvoice" d WHERE d."orgId" = ${scope.orgId}::uuid
     ), flows AS (
-      SELECT p."supplierId", g."receivedAt" < ${start} AS early,
+      SELECT g."supplierId", g."receivedAt" < ${start} AS early,
              rv.v AS received, 0::bigint AS returned, 0::bigint AS adjusted, 0::bigint AS paid
       FROM "GoodsReceipt" g
       JOIN rvalue rv ON rv.id = g."id"
-      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
       WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
       UNION ALL
       SELECT p."supplierId", r."returnedAt" < ${start}, 0, tv.v, 0, 0
@@ -777,10 +776,9 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
       FROM "SupplierPayment" sp
       WHERE sp."orgId" = ${scope.orgId}::uuid AND sp."paidOn" <= ${scope.to}::date
     ), uninvoiced AS (
-      SELECT p."supplierId", SUM(rv.v) AS v
+      SELECT g."supplierId", SUM(rv.v) AS v
       FROM "GoodsReceipt" g
       JOIN rvalue rv ON rv.id = g."id"
-      JOIN "PurchaseOrder" p ON p."orgId" = g."orgId" AND p."id" = g."purchaseOrderId"
       WHERE g."orgId" = ${scope.orgId}::uuid AND g."receivedAt" < ${end}
         AND NOT EXISTS (
           SELECT 1 FROM "SupplierInvoiceReceipt" l

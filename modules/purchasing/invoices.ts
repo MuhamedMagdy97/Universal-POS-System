@@ -9,7 +9,7 @@ import { todayIn } from "@/modules/reports/timezone";
 import { requestHashOf } from "@/modules/sales";
 import { requireAccountAccess, type Tx } from "./access";
 import { purchasingConflict, purchasingInvalid } from "./errors";
-import { formatReturnNumber, invoiceState, maxInputVat, type InvoiceStatus } from "./rules";
+import { formatDirectReceiptNumber, formatReturnNumber, invoiceState, maxInputVat, type InvoiceStatus } from "./rules";
 import {
   AllocationInput,
   IdempotencyKey,
@@ -32,8 +32,15 @@ import type { SupplierRow } from "./suppliers";
 
 type Client = Db | Tx;
 
-export type AccountReceipt = { id: string; at: Date; purchaseOrderId: string; number: string; valueMinor: number };
-export type AccountReturn = AccountReceipt;
+/** `purchaseOrderId` is null on a direct receipt (direct-receipt-spec D1). */
+export type AccountReceipt = {
+  id: string;
+  at: Date;
+  purchaseOrderId: string | null;
+  number: string;
+  valueMinor: number;
+};
+export type AccountReturn = AccountReceipt & { purchaseOrderId: string };
 
 export type AccountPayment = {
   id: string;
@@ -148,8 +155,9 @@ export async function loadAccount(
   const poNumber = new Map(pos.map((po) => [po.id, po.number]));
   const poIds = pos.map((po) => po.id);
 
+  // By supplier, not by PO: direct receipts count on the account too (direct-receipt-spec D6).
   const receiptRows = await db.goodsReceipt.findMany({
-    where: { orgId, purchaseOrderId: { in: poIds } },
+    where: { orgId, supplierId },
     select: { id: true, receivedAt: true, purchaseOrderId: true },
   });
   const receiptValue = valueBy(
@@ -252,7 +260,7 @@ export async function loadAccount(
       id: r.id,
       at: r.receivedAt,
       purchaseOrderId: r.purchaseOrderId,
-      number: poNumber.get(r.purchaseOrderId) ?? "",
+      number: r.purchaseOrderId ? (poNumber.get(r.purchaseOrderId) ?? "") : formatDirectReceiptNumber(r.id),
       valueMinor: receiptValue.get(r.id) ?? 0,
     })),
     returns: returnRows.map((r) => ({

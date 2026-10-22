@@ -35,7 +35,15 @@ export {
   type PoSummary,
   type PoPage,
 } from "./orders";
-export { receivePurchaseOrder, type ReceiveResult } from "./receipts";
+export {
+  receivePurchaseOrder,
+  receiveWithoutPo,
+  listDirectReceipts,
+  DIRECT_RECEIPTS_SHOWN,
+  type ReceiveResult,
+  type DirectReceiveResult,
+  type DirectReceiptRow,
+} from "./receipts";
 export {
   returnToSupplier,
   getPurchaseReturn,

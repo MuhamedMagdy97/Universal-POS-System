@@ -142,14 +142,14 @@ export async function lockPo(tx: Tx, ctx: TenantContext, poId: string) {
   return { ...po, receivedUnits };
 }
 
-async function requireActiveSupplier(tx: Tx, orgId: string, supplierId: string): Promise<void> {
+export async function requireActiveSupplier(tx: Tx, orgId: string, supplierId: string): Promise<void> {
   const supplier = await tx.supplier.findFirst({ where: { id: supplierId, orgId }, select: { isActive: true } });
   if (!supplier) throw notFound("Supplier");
   if (!supplier.isActive) throw purchasingConflict("SUPPLIER_INACTIVE", "This supplier is archived");
 }
 
 /** Merges the lines, checks every item is stockable now (P8) and the PO value fits (2^53). */
-async function prepareLines(tx: Tx, orgId: string, input: readonly PoLineInput[]): Promise<PoLineInput[]> {
+export async function prepareLines(tx: Tx, orgId: string, input: readonly PoLineInput[]): Promise<PoLineInput[]> {
   const lines = mergePoLines(input);
   await getSellableItems(
     tx,

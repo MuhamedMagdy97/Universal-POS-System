@@ -5,6 +5,7 @@ import { translator } from "@/lib/i18n";
 import { formatMinor } from "@/lib/money";
 import {
   branchesInScope,
+  listDirectReceipts,
   listPurchaseOrders,
   PO_STATUS_FILTERS,
   type PoPage,
@@ -56,7 +57,11 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
   const { ctx, locale, can, managed, zone } = page;
   const tr = translator(locale);
 
-  const [branches, suppliers] = await Promise.all([branchesInScope(ctx), activeSuppliers(ctx.orgId)]);
+  const [branches, suppliers, direct] = await Promise.all([
+    branchesInScope(ctx),
+    activeSuppliers(ctx.orgId),
+    listDirectReceipts(ctx),
+  ]);
   let result: PoPage | null = null;
   try {
     result = await listPurchaseOrders(ctx, { status, branchId: branch, supplierId: supplier, q, cursor });
@@ -72,18 +77,26 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{tr("purchasing.title")}</h1>
-        {can.manage ? (
-          <span className="ms-auto flex gap-2">
+        <span className="ms-auto flex gap-2">
+          {can.manage ? (
             <Link href="/purchasing/suppliers" className="rounded-md border border-border px-3 py-2">
               {tr("purchasing.suppliers")}
             </Link>
+          ) : null}
+          {can.receive ? (
+            <Link href="/purchasing/receive" className="rounded-md border border-border px-3 py-2">
+              {tr("purchasing.direct.new")}
+            </Link>
+          ) : null}
+          {can.manage ? (
             <Link href="/purchasing/new" className="rounded-md bg-foreground px-3 py-2 text-background">
               {tr("purchasing.new")}
             </Link>
-          </span>
-        ) : null}
+          ) : null}
+        </span>
       </div>
       {managed ? <ManagedNotice locale={locale} area="stock" /> : null}
+      {one(params.received) ? <p role="status">{tr("purchasing.direct.done")}</p> : null}
 
       <form method="get" action="/purchasing" className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
@@ -191,6 +204,46 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
           {tr("purchasing.next")}
         </Link>
       ) : null}
+
+      <section aria-labelledby="direct-receipts" className="flex flex-col gap-2">
+        <h2 id="direct-receipts" className="text-lg font-semibold">
+          {tr("purchasing.direct.list")}
+        </h2>
+        {direct.rows.length === 0 ? (
+          <p className="text-muted">{tr("purchasing.direct.none")}</p>
+        ) : (
+          <table className="w-full text-start">
+            <thead>
+              <tr className="text-sm text-muted">
+                <th className="py-2 text-start">{tr("purchasing.col.number")}</th>
+                <th className="text-start">{tr("purchasing.col.supplier")}</th>
+                {branches.length > 1 ? <th className="text-start">{tr("purchasing.col.branch")}</th> : null}
+                <th className="text-end">{tr("purchasing.direct.units")}</th>
+                <th className="text-end">{tr("purchasing.direct.value")}</th>
+                <th className="text-end">{tr("purchasing.col.date")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {direct.rows.map((row) => (
+                <tr key={row.id} className="border-t border-border">
+                  <td className="py-2" dir="ltr">
+                    {row.number}
+                  </td>
+                  <td>{row.supplier.name}</td>
+                  {branches.length > 1 ? <td>{row.branch.name}</td> : null}
+                  <td className="text-end" dir="ltr">
+                    {row.units}
+                  </td>
+                  <td className="text-end">{formatMinor(row.valueMinor, direct.currency, locale)}</td>
+                  <td className="text-end text-sm text-muted" dir="ltr">
+                    {shopDateTime(row.receivedAt, zone)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

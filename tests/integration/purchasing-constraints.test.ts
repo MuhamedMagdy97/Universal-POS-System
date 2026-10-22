@@ -108,6 +108,7 @@ describe("goods receipts", () => {
       data: {
         orgId: tenant.org.id,
         branchId: tenant.branchA.id,
+        supplierId: order.supplierId,
         purchaseOrderId: order.id,
         idempotencyKey: randomUUID(),
         requestHash: "x",

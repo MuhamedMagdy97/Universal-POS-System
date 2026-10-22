@@ -33,6 +33,7 @@ async function receipt(supplierId: string, receivedAt: string, lines: [number, n
       id,
       orgId: tenant.org.id,
       branchId: branch,
+      supplierId,
       purchaseOrderId: po.id,
       idempotencyKey: randomUUID(),
       requestHash: "fixture",
