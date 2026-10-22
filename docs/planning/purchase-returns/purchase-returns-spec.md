@@ -11,7 +11,8 @@ item, expired. The return takes the stock out of the PO's branch through the led
 document to hand to the supplier, and shows in the **Purchases received** report so the received value is net of
 returns.
 
-Out of scope: supplier credit notes, refunds or balances, returns without a PO, exchanging goods on the same PO
+Out of scope: supplier credit notes, refunds or balances, returns without a PO (later built for direct receipts:
+[direct-receipt-returns-spec.md](direct-receipt-returns-spec.md)), exchanging goods on the same PO
 (raise a new PO for replacements), editing or cancelling a return.
 
 ## 2. Decisions

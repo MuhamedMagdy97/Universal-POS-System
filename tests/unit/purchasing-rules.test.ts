@@ -6,6 +6,7 @@ import {
   canEdit,
   canOrder,
   canReceive,
+  formatDirectReceiptNumber,
   formatPoNumber,
   formatReturnNumber,
   mergePoLines,
@@ -14,7 +15,7 @@ import {
   returnable,
   statusAfterReceipt,
 } from "@/modules/purchasing/rules";
-import { PoInput, ReceiptInput, ReturnInput, SupplierInput } from "@/modules/purchasing/schemas";
+import { DirectReturnInput, PoInput, ReceiptInput, ReturnInput, SupplierInput } from "@/modules/purchasing/schemas";
 
 const P = randomUUID();
 const V = randomUUID();
@@ -136,5 +137,19 @@ describe("purchase returns (purchase-returns-spec R1, R5, R9)", () => {
       false,
     );
     expect(ReturnInput.safeParse({ reason: "OTHER", lines: [{ poItemId, qty: -1 }] }).success).toBe(false);
+  });
+});
+
+describe("returns against a direct receipt (direct-receipt-returns-spec DR1, DR8)", () => {
+  it("numbers per receipt and takes receipt lines, strictly", () => {
+    const id = "1a2b3c4d-0000-4000-8000-000000000000";
+    expect(formatReturnNumber(formatDirectReceiptNumber(id), 1)).toBe("GR-1A2B3C4D-R1");
+    const goodsReceiptItemId = randomUUID();
+    expect(DirectReturnInput.parse({ reason: "EXPIRED", lines: [{ goodsReceiptItemId, qty: 2 }] })).toEqual({
+      reason: "EXPIRED",
+      lines: [{ goodsReceiptItemId, qty: 2 }],
+      note: null,
+    });
+    expect(DirectReturnInput.safeParse({ reason: "OTHER", lines: [{ poItemId: id, qty: 1 }] }).success).toBe(false);
   });
 });

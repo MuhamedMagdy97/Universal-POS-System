@@ -105,6 +105,13 @@ Start each branch with **Opening stock** [الرصيد الافتتاحي]. By d
    [manager guide](manager.md#receive-a-delivery)). The cost entered on receipt becomes the product's cost.
 5. **Cancel order** [إلغاء الأمر] if nothing was received; **Close short** [إغلاق بالنقص] to drop units that will
    never come.
+6. Goods that came without an order: **Receive without PO** [استلام بدون أمر شراء]. They are listed under **Direct
+   receipts** [استلامات مباشرة]; open one by its `GR-` number.
+7. To send received goods back, press **Return to supplier** [إرجاع إلى المورد] on the order, or on the direct
+   receipt. Enter what goes back on each line (at most what was received less what went back already), a reason and
+   an optional note. Stock leaves the branch at the order's (or receipt's) cost, the supplier's balance goes down, and
+   **Print return** [طباعة المرتجع] gives the A4 document for the supplier. A credit note from the supplier can then
+   be recorded against the return.
 
 Refusals: "This order can no longer be edited.", "This supplier is archived.", "A supplier with this name already
 exists.", "Enter a quantity of at least 1 and a valid cost on every line."

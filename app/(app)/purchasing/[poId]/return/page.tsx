@@ -51,9 +51,9 @@ async function ReturnContent({ params }: Props) {
           key={open.map((line) => `${line.id}:${line.returnable}`).join(",")}
           locale={locale}
           currency={currency}
-          poId={po.id}
+          source={{ kind: "po", id: po.id }}
           lines={open.map((line) => ({
-            poItemId: line.id,
+            lineId: line.id,
             name: locale === "ar" && line.nameAr ? line.nameAr : line.name,
             sku: line.sku,
             returnable: line.returnable,

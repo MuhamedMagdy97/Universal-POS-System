@@ -148,6 +148,19 @@ export const ReturnInput = z
   .strict();
 export type ReturnInput = z.infer<typeof ReturnInput>;
 
+/** A return against a direct receipt (direct-receipt-returns-spec DR1): the same rules by receipt line. */
+export const DirectReturnInput = z
+  .object({
+    reason: z.enum(PURCHASE_RETURN_REASONS),
+    lines: z
+      .array(z.object({ goodsReceiptItemId: Uuid, qty: z.number().int().min(0).max(MAX_QTY) }).strict())
+      .min(1)
+      .max(MAX_PO_LINES),
+    note: Note.optional().transform((value) => (value ? value : null)),
+  })
+  .strict();
+export type DirectReturnInput = z.infer<typeof DirectReturnInput>;
+
 // ---------- supplier payments (supplier-payments-spec) ----------
 
 export const SUPPLIER_PAYMENT_METHODS = ["CASH", "BANK_TRANSFER", "CARD", "CHEQUE", "OTHER"] as const;
