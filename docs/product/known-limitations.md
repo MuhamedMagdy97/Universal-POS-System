@@ -8,7 +8,9 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Product-wide
 
-- Online only: no offline checkout (designed in [offline-till-spec](../planning/offline-till/offline-till-spec.md), not built). Manual payments only (cash, card, wallet recorded by hand); no payment-provider
+- Online only: no offline checkout. [offline-till-spec](../planning/offline-till/offline-till-spec.md) slice 1 (server: shop setting,
+  device enrolment, register series, accept-as-sold with review flags) is built but hidden; the till cache, queue, service
+  worker and review list (slices 2–4) are not. Offline numbers (`T1-000045`) cannot yet be looked up on Returns. Manual payments only (cash, card, wallet recorded by hand); no payment-provider
   integration. No native mobile or desktop app, no e-commerce, no full accounting. [mvp-scope]
 - Saudi receipts carry the ZATCA Phase 1 QR (simplified tax invoice); ZATCA Phase 2 (Fatoora clearance, CSID, UBL XML)
   is not built. Egypt ETA e-receipts are designed in [eta-e-receipt-spec](../planning/eta-e-receipt/eta-e-receipt-spec.md)
@@ -33,7 +35,7 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 ## Inventory
 
 - No freezing sales during a stock count; a transit transfer is received once (no several partial receipts), no low-stock notifications (the list and
-  dashboard tile are on screen only), no cost valuation or COGS, no stock CSV import (products can be imported). [phase-7/inventory-spec §5]
+  dashboard tile are on screen only), no cost valuation or COGS. Stock CSV import is one branch per file, with no template download and no "set to counted" mode. [phase-7/inventory-spec §5]
 - The opening-stock grid saves at most 100 items at a time. The transfer form has no scan shortcut beyond Enter in
   the search box. [phase-7/inventory-as-built, deferred minors]
 
@@ -60,7 +62,8 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Purchasing
 
-- Purchase returns only against a received PO (none against a direct receipt or without one). No barcode labels,
+- Purchase returns need a received PO or a direct receipt (none without one); supplier statements show direct
+  receipt and return numbers as text, not links. No barcode labels,
   emailing a PO, or multi-currency. [phase-10/purchasing-spec §2, phase-status]
 
 ## Printing and hardening
