@@ -780,6 +780,7 @@ export const en = {
   "audit.action.inventory.reorder_point.set": "Reorder point set",
   "audit.action.inventory.low_stock.exported": "Low stock exported",
   "audit.action.catalog.product.created": "Product added",
+  "audit.action.catalog.product.imported": "Products imported from CSV",
   "audit.action.catalog.product.updated": "Product changed",
   "audit.action.catalog.product.price_changed": "Price changed",
   "audit.action.catalog.product.archived": "Product archived",

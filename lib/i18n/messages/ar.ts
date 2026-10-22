@@ -773,6 +773,7 @@ export const ar: Messages = {
   "audit.action.inventory.reorder_point.set": "تعديل حد إعادة الطلب",
   "audit.action.inventory.low_stock.exported": "تصدير المخزون المنخفض",
   "audit.action.catalog.product.created": "إضافة منتج",
+  "audit.action.catalog.product.imported": "استيراد منتجات من ملف CSV",
   "audit.action.catalog.product.updated": "تعديل منتج",
   "audit.action.catalog.product.price_changed": "تغيير سعر",
   "audit.action.catalog.product.archived": "أرشفة منتج",
