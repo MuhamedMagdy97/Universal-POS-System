@@ -97,6 +97,15 @@ export const TransferInput = z
   .strict();
 export type TransferInput = z.infer<typeof TransferInput>;
 
+/** Stock CSV import (docs/planning/stock-import/stock-import-spec.md). `csv` is the file text. */
+export const STOCK_IMPORT_MODES = ["opening", "adjustment"] as const;
+export type StockImportMode = (typeof STOCK_IMPORT_MODES)[number];
+export const StockImportPreviewInput = z
+  .object({ branchId: Uuid, mode: z.enum(STOCK_IMPORT_MODES), csv: z.string() })
+  .strict();
+/** `importId` is chosen by the client per file: a repeated confirm returns the first result. */
+export const StockImportInput = StockImportPreviewInput.extend({ importId: Uuid }).strict();
+
 /** `unopened`: no ledger rows at the branch yet (the opening-stock grid's list). */
 export const STOCK_FILTER_VALUES = ["all", "inStock", "zero", "negative", "unopened"] as const;
 export const StockFilter = z.enum(STOCK_FILTER_VALUES);
@@ -150,6 +159,15 @@ export function normalizeQty(input: string): number | null {
   if (!/^\d+$/.test(digits)) return null;
   const value = Number(digits);
   return Qty.safeParse(value).success ? value : null;
+}
+
+/** A signed change (`-3`, `+5`, `5`): non-zero, at most MAX_QTY either way; Arabic-Indic digits accepted. */
+export function normalizeSignedQty(input: string): number | null {
+  const match = /^([+-]?)(\d+)$/.exec(normalizeDigits(input).trim());
+  if (!match) return null;
+  const value = Number(match[2]);
+  if (value === 0 || value > MAX_QTY) return null;
+  return match[1] === "-" ? -value : value;
 }
 
 export const LedgerQuery = z

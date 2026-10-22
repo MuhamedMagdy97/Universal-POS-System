@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "@/modules/catalog/csv";
+import type { AppError } from "@/lib/errors";
+import { MAX_IMPORT_CHARS, MAX_IMPORT_ROWS, parseCsv, readCsvTable } from "@/modules/catalog/csv";
 
 describe("parseCsv", () => {
   it("splits plain records on commas and LF", () => {
@@ -46,5 +47,39 @@ describe("parseCsv", () => {
 
   it("returns null when a quoted field is never closed", () => {
     expect(parseCsv('a,b\n"open,1\n')).toBeNull();
+  });
+});
+
+describe("readCsvTable (shared by the product and stock imports)", () => {
+  const reasonOf = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (err) {
+      return ((err as AppError).details as { reason?: string }).reason;
+    }
+    return null;
+  };
+
+  it("maps columns case-insensitively, skips blank lines and numbers rows as in the file", () => {
+    const table = readCsvTable(" SKU ,Qty\n\nab-1, 5 ,x\n", ["sku", "qty", "note"], ["qty"]);
+    expect(table.has("sku")).toBe(true);
+    expect(table.has("note")).toBe(false);
+    const [row] = table.rows;
+    expect(row?.line).toBe(3);
+    expect([row?.cell("sku"), row?.cell("qty"), row?.cell("note")]).toEqual(["ab-1", "5", ""]);
+    expect(row?.extraFields).toBe(true);
+  });
+
+  it("refuses bad files with a reason", () => {
+    expect(reasonOf(() => readCsvTable("", ["a"], []))).toBe("CSV_EMPTY");
+    expect(reasonOf(() => readCsvTable("a\n", ["a"], []))).toBe("CSV_EMPTY");
+    expect(reasonOf(() => readCsvTable('a\n"x', ["a"], []))).toBe("CSV_MALFORMED");
+    expect(reasonOf(() => readCsvTable("a,b\n1,2", ["a"], []))).toBe("CSV_UNKNOWN_COLUMN");
+    expect(reasonOf(() => readCsvTable("a,A\n1,2", ["a"], []))).toBe("CSV_UNKNOWN_COLUMN");
+    expect(reasonOf(() => readCsvTable("a\n1", ["a", "b"], ["b"]))).toBe("CSV_MISSING_COLUMN");
+    expect(reasonOf(() => readCsvTable(`a\n${"1\n".repeat(MAX_IMPORT_ROWS + 1)}`, ["a"], []))).toBe(
+      "CSV_TOO_MANY_ROWS",
+    );
+    expect(reasonOf(() => readCsvTable("a".repeat(MAX_IMPORT_CHARS + 1), ["a"], []))).toBe("CSV_TOO_LARGE");
   });
 });

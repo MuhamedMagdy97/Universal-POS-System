@@ -11,6 +11,19 @@ import {
   signedDelta,
   transferErrorKey,
 } from "@/app/(app)/inventory/_lib/form";
+import { MAX_QTY, normalizeSignedQty } from "@/modules/inventory/schemas";
+
+describe("normalizeSignedQty (stock import adjustments)", () => {
+  it("reads signed whole changes and refuses zero, decimals and out-of-range values", () => {
+    expect(normalizeSignedQty("-3")).toBe(-3);
+    expect(normalizeSignedQty(" +5 ")).toBe(5);
+    expect(normalizeSignedQty("٧")).toBe(7);
+    expect(normalizeSignedQty(String(MAX_QTY))).toBe(MAX_QTY);
+    for (const bad of ["0", "-0", "1.5", "", "abc", "--1", String(MAX_QTY + 1)]) {
+      expect(normalizeSignedQty(bad)).toBeNull();
+    }
+  });
+});
 
 const ref = (productId: string) => ({ productId, variantId: null });
 

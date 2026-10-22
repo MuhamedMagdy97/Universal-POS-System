@@ -24,6 +24,10 @@ import {
   type CountItemInput,
   type CountItemsInput,
   recordOpeningBalances,
+  importStock,
+  previewStockImport,
+  type StockImportInput,
+  type StockImportPreviewInput,
   setReorderPoint,
   transferStock,
   sendTransfer,
@@ -64,6 +68,16 @@ export async function transferStockAction(input: z.input<typeof TransferInput>) 
 
 export async function recordOpeningAction(input: z.input<typeof OpeningInput>) {
   return run((ctx, meta) => recordOpeningBalances(ctx, input, meta));
+}
+
+/** Checks a stock CSV against the branch; writes nothing. */
+export async function previewStockImportAction(input: z.input<typeof StockImportPreviewInput>) {
+  return run((ctx) => previewStockImport(ctx, input));
+}
+
+/** Applies every row of a stock CSV in one transaction (refused when any row has an error). */
+export async function importStockAction(input: z.input<typeof StockImportInput>) {
+  return run((ctx, meta) => importStock(ctx, input, meta));
 }
 
 export async function setReorderPointAction(input: z.input<typeof ReorderPointInput>) {

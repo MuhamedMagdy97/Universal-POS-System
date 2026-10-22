@@ -15,6 +15,13 @@ export { insufficientStock, type InsufficientLine } from "./errors";
 export { listStock, getItemLedger, type StockRow, type StockPage, type LedgerRow, type LedgerPage } from "./stock";
 export { recordOpeningBalances } from "./opening";
 export { adjustStock } from "./adjust";
+export {
+  previewStockImport,
+  importStock,
+  type StockImportPreview,
+  type StockImportRow,
+  type StockImportErrorCode,
+} from "./import";
 export { transferStock } from "./transfer";
 export {
   sendTransfer,
@@ -60,6 +67,8 @@ export {
   CountEntryInput,
   OpeningInput,
   AdjustInput,
+  StockImportInput,
+  StockImportPreviewInput,
   TransferInput,
   TransferListQuery,
   TransferReceiveInput,

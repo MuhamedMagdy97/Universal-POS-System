@@ -33,7 +33,8 @@ export {
   type ImportPreview,
   type ImportPreviewRow,
 } from "./import";
-export { parseCsv } from "./csv";
+// Shared with the stock import (modules/inventory/import.ts).
+export { parseCsv, readCsvTable, csvFileError, type CsvRow } from "./csv";
 export {
   createVariant,
   updateVariant,

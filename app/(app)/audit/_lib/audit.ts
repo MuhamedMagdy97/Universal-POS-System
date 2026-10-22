@@ -11,6 +11,7 @@ export const AUDIT_ACTIONS = [
   "shift.closed",
   "shift.cash_movement",
   "inventory.opening.recorded",
+  "inventory.stock.imported",
   "inventory.adjusted",
   "inventory.transferred",
   "catalog.product.created",

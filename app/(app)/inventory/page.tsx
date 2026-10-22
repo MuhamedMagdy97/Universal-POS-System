@@ -84,6 +84,11 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
               {tr("inventory.action.opening")}
             </Link>
           ) : null}
+          {can.adjust ? (
+            <Link href={`/inventory/import?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+              {tr("inventory.action.import")}
+            </Link>
+          ) : null}
           {can.transfer ? (
             <Link
               href={`/inventory/transfer?${branchParam}`}
