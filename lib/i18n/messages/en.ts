@@ -585,7 +585,7 @@ export const en = {
   "returns.nav": "Returns",
   "returns.title": "Returns",
   "returns.search.label": "Receipt number",
-  "returns.search.placeholder": "e.g. 000123",
+  "returns.search.placeholder": "e.g. 000123 or T1-000045",
   "returns.search.submit": "Find sale",
   "returns.search.hint": "Enter the sale number printed on the receipt.",
   "returns.notFound": "No sale with that number.",

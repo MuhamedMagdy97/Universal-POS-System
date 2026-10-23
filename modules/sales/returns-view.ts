@@ -54,11 +54,15 @@ export type SaleForReturns = {
   canVoid: boolean;
 };
 
-/** Receipt numbers are six digits; "123", "000123" and "١٢٣" all find sale 000123. Anything else is not a number. */
+/**
+ * Receipt numbers are six digits; "123", "000123" and "١٢٣" all find sale 000123. Offline sales carry their
+ * register's series (offline till slice 1): "t1-45" and "T1-000045" both find T1-000045. Anything else is not a number.
+ */
 export function normalizeSaleNumber(raw: string): string | null {
-  const digits = normalizeDigits(raw).trim();
-  if (!/^\d{1,6}$/.test(digits)) return null;
-  return digits.padStart(6, "0");
+  const value = normalizeDigits(raw).trim().toUpperCase();
+  if (/^\d{1,6}$/.test(value)) return value.padStart(6, "0");
+  const offline = /^([A-Z][A-Z0-9]{0,7})-(\d{1,6})$/.exec(value);
+  return offline ? `${offline[1]}-${offline[2].padStart(6, "0")}` : null;
 }
 
 export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): Promise<SaleForReturns> {
