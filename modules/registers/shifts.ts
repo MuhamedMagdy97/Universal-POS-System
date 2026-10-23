@@ -350,7 +350,25 @@ export type ZReport = CashBreakdown & {
   countedCashMinor: number;
   discrepancyMinor: number;
   discrepancyNote: string | null;
+  /** Offline sales that reached the server after the close (OF13): beside the stored close, never folded into it. */
+  lateOfflineSales: number;
+  lateOfflineCashMinor: number;
+  correctedExpectedCashMinor: number;
 };
+
+/** Offline sales replayed into a shift after it closed (flag LATE_FOR_CLOSED_SHIFT): count and applied cash. */
+async function lateOfflineCash(
+  client: Tx,
+  orgId: string,
+  shiftId: string,
+): Promise<{ count: number; cashMinor: number }> {
+  const where = { orgId, shiftId, status: "COMPLETED" as const, offlineFlags: { has: "LATE_FOR_CLOSED_SHIFT" } };
+  const [count, cash] = await Promise.all([
+    client.sale.count({ where }),
+    client.payment.aggregate({ where: { orgId, method: "CASH", sale: where }, _sum: { amountMinor: true } }),
+  ]);
+  return { count, cashMinor: cash._sum.amountMinor ?? 0 };
+}
 
 export async function getZReport(ctx: TenantContext, shiftId: string): Promise<ZReport> {
   // The till that closes it, or anyone who reads the Shifts report.
@@ -364,15 +382,22 @@ export async function getZReport(ctx: TenantContext, shiftId: string): Promise<Z
     include: { register: { select: { name: true } }, branch: { select: { name: true } }, org: true },
   });
   if (!shift || !shift.closedAt || !shift.closedById) throw notFound("Shift");
-  const [cash, users] = await Promise.all([
+  const [cash, late, users] = await Promise.all([
     db.$transaction((tx) => cashBreakdown(tx, ctx.orgId, shiftId, shift.openingFloatMinor)),
+    lateOfflineCash(db, ctx.orgId, shiftId),
     db.user.findMany({ where: { id: { in: [shift.openedById, shift.closedById] } }, select: { id: true, name: true } }),
   ]);
   const nameOf = (id: string) => users.find((user) => user.id === id)?.name ?? "";
+  // The stored figure is the authority for a closed shift (as the Shifts report).
+  const expectedCashMinor = shift.expectedCashMinor ?? cash.expectedCashMinor;
   return {
     ...cash,
-    // The stored figure is the authority for a closed shift (as the Shifts report).
-    expectedCashMinor: shift.expectedCashMinor ?? cash.expectedCashMinor,
+    // Cash sales as at the close, so the terms still add up to the stored expected cash.
+    cashSalesMinor: cash.cashSalesMinor - late.cashMinor,
+    expectedCashMinor,
+    lateOfflineSales: late.count,
+    lateOfflineCashMinor: late.cashMinor,
+    correctedExpectedCashMinor: expectedCashMinor + late.cashMinor,
     shiftId: shift.id,
     registerName: shift.register.name,
     branchName: shift.branch.name,

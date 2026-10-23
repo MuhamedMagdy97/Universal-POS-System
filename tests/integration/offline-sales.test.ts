@@ -6,9 +6,11 @@ import { setInventorySource } from "@/modules/integrations/inventory-sys";
 import * as inventory from "@/modules/inventory";
 import { enrolOfflineDevice, getOfflineSettings, revokeOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { closeShift, getZReport, openShift } from "@/modules/registers";
-import { createSale, requestHashOf } from "@/modules/sales";
+import { getReport, todayIn } from "@/modules/reports";
+import { createSale, listOfflineReview, markOfflineSaleReviewed, requestHashOf } from "@/modules/sales";
 import { priceSale, type Discount } from "@/modules/sales/totals";
 import { createMember, createProduct, createTenant, expectAppError, expectReconciled, testDb } from "./helpers";
+import { createScopedMember } from "./reports-fixture";
 
 /**
  * Offline till slice 1 (docs/planning/offline-till/offline-till-spec.md §3, integration): the shop setting, device
@@ -302,9 +304,20 @@ describe("offline sales", () => {
     );
     expect(sale.shiftId).toBe(shift.id);
     expect(await flagsOf(sale.id)).toEqual(["LATE_FOR_CLOSED_SHIFT"]);
-    const report = await getZReport(manager, shift.id);
-    // Cash sales now include the late sale; the stored close figures are not rewritten (OF13, risks).
-    expect(report).toMatchObject({ cashSalesMinor: 1000, expectedCashMinor: 0, countedCashMinor: 0 });
+    // The stored close is not rewritten; the late sale shows beside it with the corrected expected cash (OF13).
+    const late = {
+      cashSalesMinor: 0,
+      expectedCashMinor: 0,
+      countedCashMinor: 0,
+      discrepancyMinor: 0,
+      lateOfflineSales: 1,
+      lateOfflineCashMinor: 1000,
+      correctedExpectedCashMinor: 1000,
+    };
+    expect(await getZReport(manager, shift.id)).toMatchObject(late);
+    const day = todayIn("Africa/Cairo");
+    const { rows } = await getReport(manager, "shifts", { from: day, to: day });
+    expect(rows.find((row) => row.shiftId === shift.id)).toMatchObject(late);
   });
 
   it("flags a snapshot over 24 h old at sale time, and a soldAt in the future", async () => {
@@ -452,5 +465,97 @@ describe("offline hard refusals", () => {
       409,
       "OFFLINE_NOT_ALLOWED",
     );
+  });
+});
+
+describe("offline sales to review (slice 4)", () => {
+  const FLAGS = [
+    "PRICE_CHANGED",
+    "ITEM_ARCHIVED",
+    "STOCK_NEGATIVE",
+    "DISCOUNT_OVER_LIMIT",
+    "LATE_FOR_CLOSED_SHIFT",
+    "STALE_SNAPSHOT",
+    "CLOCK_SKEW",
+    "TOTALS_DIFFER",
+  ];
+
+  it("lists each flagged sale with the review details from its audit rows, newest received first", async () => {
+    const { rows, nextCursor } = await listOfflineReview(manager);
+    expect(nextCursor).toBeNull();
+    const flagged = await db.sale.findMany({
+      where: { orgId, NOT: { offlineFlags: { isEmpty: true } } },
+      orderBy: [{ receivedAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    });
+    expect(rows.map((row) => row.saleId)).toEqual(flagged.map((sale) => sale.id));
+    const of = (flag: string) => {
+      const row = rows.find((r) => r.flags.some((f) => f.flag === flag));
+      if (!row) throw new Error(`no ${flag} row`);
+      return { row, details: row.flags.find((f) => f.flag === flag)?.details ?? {} };
+    };
+    for (const flag of FLAGS) of(flag);
+
+    const price = of("PRICE_CHANGED");
+    expect(price.details).toEqual({ lines: [{ sku: price.row.items[0].sku, soldMinor: 1000, currentMinor: 1200 }] });
+    expect(of("ITEM_ARCHIVED").details).toEqual({ skus: [of("ITEM_ARCHIVED").row.items[0].sku] });
+    expect(of("STOCK_NEGATIVE").details).toMatchObject({ lines: [{ qty: -2 }] });
+    const discount = of("DISCOUNT_OVER_LIMIT");
+    expect(discount.details).toMatchObject({ cashierId: cashier.userId, discountMinor: 200 });
+    expect(discount.row.cashierName).not.toBeNull();
+    const late = of("LATE_FOR_CLOSED_SHIFT");
+    expect(late.row).toMatchObject({ cashMinor: 1000, number: expect.stringMatching(/^T\d+-000001$/) });
+    expect(late.row.shift.closedAt).not.toBeNull();
+    expect(late.details).toEqual({ shiftId: late.row.shift.id });
+    expect(of("STALE_SNAPSHOT").details).toHaveProperty("snapshotAt");
+    expect(of("CLOCK_SKEW").details).toHaveProperty("receivedAt");
+    expect(of("TOTALS_DIFFER").details).toMatchObject({ device: { totalMinor: 1150 } });
+  });
+
+  it("is for Owner, Admin and Manager; a refusal is audited", async () => {
+    await listOfflineReview(owner);
+    await listOfflineReview(admin);
+    await expectAppError(listOfflineReview(cashier), 403);
+    await expectAppError(listOfflineReview(await createMember(db, orgId, "REPORTING")), 403);
+    const denied = await db.auditEvent.findFirst({
+      where: { orgId, actorUserId: cashier.userId, action: "sales.permission.denied" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(denied?.metadata).toMatchObject({ permission: "sales.review", operation: "sale.offline.list" });
+    await expectAppError(listOfflineReview(manager, { cursor: "nope" }), 422, "INVALID_CURSOR");
+  });
+
+  it("never shows another shop's or another branch's sales", async () => {
+    const other = await createTenant(db, "OfflineReviewOther");
+    const otherOwner = await createMember(db, other.org.id, "OWNER");
+    expect((await listOfflineReview(otherOwner)).rows).toEqual([]);
+    const [row] = (await listOfflineReview(manager)).rows;
+    await expectAppError(markOfflineSaleReviewed(otherOwner, row.saleId), 404);
+
+    const branchB = await createScopedMember(db, orgId, "MANAGER", [
+      (await db.branch.findFirstOrThrow({ where: { orgId, id: { not: branchId } } })).id,
+    ]);
+    expect((await listOfflineReview(branchB)).rows).toEqual([]);
+    await expectAppError(markOfflineSaleReviewed(branchB, row.saleId), 404);
+  });
+
+  it("marks a sale reviewed once, with an audit row, which takes it off the list", async () => {
+    const before = (await listOfflineReview(manager)).rows;
+    const target = before[0];
+    await expectAppError(markOfflineSaleReviewed(cashier, target.saleId), 403);
+    await markOfflineSaleReviewed(manager, target.saleId);
+    await markOfflineSaleReviewed(admin, target.saleId);
+    const reviewed = await db.auditEvent.findMany({
+      where: { orgId, action: "sale.offline.reviewed", entityId: target.saleId },
+    });
+    expect(reviewed).toHaveLength(1);
+    expect(reviewed[0]).toMatchObject({ actorUserId: manager.userId, entityType: "Sale" });
+    expect(reviewed[0].metadata).toMatchObject({ number: target.number });
+    const after = (await listOfflineReview(manager)).rows;
+    expect(after.map((row) => row.saleId)).toEqual(before.slice(1).map((row) => row.saleId));
+
+    const unflagged = await db.sale.findFirstOrThrow({ where: { orgId, offlineFlags: { isEmpty: true } } });
+    await expectAppError(markOfflineSaleReviewed(manager, unflagged.id), 404);
+    await expectAppError(markOfflineSaleReviewed(manager, "not-a-uuid"), 404);
   });
 });
