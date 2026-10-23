@@ -101,7 +101,7 @@ async function SupplierAccount({ params, searchParams }: Props) {
         {[supplier.phone, supplier.email, supplier.taxNumber].filter(Boolean).join(" · ")}
       </p>
 
-      <section aria-labelledby="balance" className="flex flex-col gap-1 rounded-md border border-border p-4">
+      <section aria-labelledby="balance" className="card flex flex-col gap-1 p-4">
         <h2 id="balance" className="text-sm text-muted">
           {tr("purchasing.account.balance")}
         </h2>
@@ -151,68 +151,46 @@ async function SupplierAccount({ params, searchParams }: Props) {
 
       <h2 className="text-lg font-semibold">{tr("purchasing.account.statement")}</h2>
       <form method="get" className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.account.from")}</span>
-          <input
-            type="date"
-            name="from"
-            dir="ltr"
-            defaultValue={statement.from}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input type="date" name="from" dir="ltr" defaultValue={statement.from} className="input" />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.account.to")}</span>
-          <input
-            type="date"
-            name="to"
-            dir="ltr"
-            defaultValue={statement.to}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input type="date" name="to" dir="ltr" defaultValue={statement.to} className="input" />
         </label>
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("purchasing.account.apply")}
         </button>
       </form>
       {rangeError ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("reports.error.range")}
         </p>
       ) : null}
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
+      <div className="table-wrap">
+        <table className="table">
           <caption className="sr-only">{tr("purchasing.account.statement")}</caption>
           <thead>
-            <tr className="border-b border-border text-muted">
-              <th scope="col" className="px-2 py-2 text-start font-medium">
-                {tr("purchasing.account.col.date")}
-              </th>
-              <th scope="col" className="px-2 py-2 text-start font-medium">
-                {tr("purchasing.account.col.entry")}
-              </th>
-              <th scope="col" className="px-2 py-2 text-start font-medium">
-                {tr("purchasing.account.col.details")}
-              </th>
-              <th scope="col" className="px-2 py-2 text-end font-medium">
+            <tr>
+              <th scope="col">{tr("purchasing.account.col.date")}</th>
+              <th scope="col">{tr("purchasing.account.col.entry")}</th>
+              <th scope="col">{tr("purchasing.account.col.details")}</th>
+              <th scope="col" className="text-end">
                 {tr("purchasing.account.col.amount")}
               </th>
-              <th scope="col" className="px-2 py-2 text-end font-medium">
+              <th scope="col" className="text-end">
                 {tr("purchasing.account.col.balance")}
               </th>
               <th scope="col" className="print:hidden" />
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-border">
-              <td className="px-2 py-2" dir="ltr">
-                {statement.from}
-              </td>
-              <td className="px-2 py-2" colSpan={3}>
-                {tr("purchasing.account.opening")}
-              </td>
-              <td className="px-2 py-2 text-end tabular-nums" dir="ltr">
+            <tr>
+              <td dir="ltr">{statement.from}</td>
+              <td colSpan={3}>{tr("purchasing.account.opening")}</td>
+              <td className="text-end tabular-nums" dir="ltr">
                 {money(statement.openingMinor)}
               </td>
               <td />
@@ -239,13 +217,9 @@ async function SupplierAccount({ params, searchParams }: Props) {
           </tbody>
           <tfoot>
             <tr className="font-semibold">
-              <td className="px-2 py-2" dir="ltr">
-                {statement.to}
-              </td>
-              <td className="px-2 py-2" colSpan={3}>
-                {tr("purchasing.account.closing")}
-              </td>
-              <td className="px-2 py-2 text-end tabular-nums" dir="ltr" data-testid="statement-closing">
+              <td dir="ltr">{statement.to}</td>
+              <td colSpan={3}>{tr("purchasing.account.closing")}</td>
+              <td className="text-end tabular-nums" dir="ltr" data-testid="statement-closing">
                 {money(statement.closingMinor)}
               </td>
               <td />
@@ -282,12 +256,12 @@ function EntryRow(props: {
     entry.note,
   ].filter(Boolean);
   return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-2 whitespace-nowrap" dir="ltr">
+    <tr>
+      <td className="whitespace-nowrap" dir="ltr">
         {entry.day}
       </td>
-      <td className="px-2 py-2">{tr(`purchasing.account.kind.${entry.kind}`)}</td>
-      <td className="px-2 py-2">
+      <td>{tr(`purchasing.account.kind.${entry.kind}`)}</td>
+      <td>
         {entry.purchaseOrderId && !isPayment ? (
           <Link href={`/purchasing/${entry.purchaseOrderId}`} className="underline-offset-4 hover:underline" dir="ltr">
             {entry.number}
@@ -296,10 +270,10 @@ function EntryRow(props: {
           details.join(" · ")
         )}
       </td>
-      <td className="px-2 py-2 text-end tabular-nums" dir="ltr">
+      <td className="text-end tabular-nums" dir="ltr">
         {formatMinor(balanceEffect(entry), currency, locale)}
       </td>
-      <td className="px-2 py-2 text-end tabular-nums" dir="ltr">
+      <td className="text-end tabular-nums" dir="ltr">
         {formatMinor(entry.balanceMinor, currency, locale)}
       </td>
       <td className="px-2 py-2 print:hidden">
@@ -335,9 +309,9 @@ function sumValues(rows: readonly { valueMinor: number }[]): number {
 }
 
 const STATUS_TONE: Record<InvoiceRow["status"], string> = {
-  OPEN: "border-blue-600 text-blue-700",
-  PAID: "border-green-700 text-green-700",
-  OVERDUE: "border-red-700 text-red-700",
+  OPEN: "border-accent text-accent",
+  PAID: "border-success text-success",
+  OVERDUE: "border-danger text-danger",
   VOID: "border-border text-muted line-through",
 };
 
@@ -363,11 +337,11 @@ function InvoicesTable(props: {
       {docs.length === 0 ? (
         <p className="text-sm text-muted">{tr("purchasing.invoice.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <caption className="sr-only">{tr("purchasing.invoice.title")}</caption>
             <thead>
-              <tr className="border-b border-border text-muted">
+              <tr>
                 <th scope="col" className={th}>
                   {tr("purchasing.invoice.number")}
                 </th>
@@ -400,15 +374,13 @@ function InvoicesTable(props: {
             </thead>
             <tbody>
               {docs.map((doc) => (
-                <tr key={doc.id} className="border-b border-border" data-testid={`invoice-${doc.number}`}>
-                  <td className="px-2 py-2" dir="ltr">
-                    {doc.number}
-                  </td>
-                  <td className="px-2 py-2">{tr(`purchasing.invoice.kind.${doc.kind}`)}</td>
-                  <td className="px-2 py-2 whitespace-nowrap" dir="ltr">
+                <tr key={doc.id} data-testid={`invoice-${doc.number}`}>
+                  <td dir="ltr">{doc.number}</td>
+                  <td>{tr(`purchasing.invoice.kind.${doc.kind}`)}</td>
+                  <td className="whitespace-nowrap" dir="ltr">
                     {doc.issuedOn}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap" dir="ltr">
+                  <td className="whitespace-nowrap" dir="ltr">
                     {doc.dueOn ?? "—"}
                   </td>
                   <td className={num} dir="ltr">
@@ -423,7 +395,7 @@ function InvoicesTable(props: {
                   <td className={num} dir="ltr">
                     {doc.kind === "INVOICE" ? money(doc.openMinor) : "—"}
                   </td>
-                  <td className="px-2 py-2">
+                  <td>
                     <span
                       className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_TONE[doc.status]}`}
                       data-testid="invoice-status"

@@ -86,10 +86,10 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
         <CatalogSubnav locale={locale} current="products" />
         {can.create ? (
           <div className="ms-auto flex gap-2">
-            <Link href="/catalog/products/import" className="rounded-md border border-border px-4 py-2">
+            <Link href="/catalog/products/import" className="btn">
               {tr("catalog.import.link")}
             </Link>
-            <Link href="/catalog/products/new" className="rounded-md bg-foreground px-4 py-2 text-background">
+            <Link href="/catalog/products/new" className="btn btn-primary">
               {tr("catalog.products.add")}
             </Link>
           </div>
@@ -113,41 +113,41 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
 
       {result.items.length === 0 ? (
         filtered || cursor ? (
-          <div className="flex flex-col items-start gap-2 rounded-md border border-border p-6">
+          <div className="card flex flex-col items-start gap-2">
             <p>{q ? tr("catalog.state.noResults", { q }) : tr("catalog.state.noResultsFiltered")}</p>
             <Link href="/catalog/products" className="underline">
               {tr("catalog.state.clearFilters")}
             </Link>
           </div>
         ) : (
-          <div className="flex flex-col items-start gap-2 rounded-md border border-border p-6">
+          <div className="card flex flex-col items-start gap-2">
             <p className="text-lg font-medium">{tr("catalog.state.empty.title")}</p>
             <p className="text-muted">{tr("catalog.state.empty.body")}</p>
             {can.create ? (
-              <Link href="/catalog/products/new" className="rounded-md bg-foreground px-4 py-2 text-background">
+              <Link href="/catalog/products/new" className="btn btn-primary">
                 {tr("catalog.products.add")}
               </Link>
             ) : null}
           </div>
         )
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
               <tr className="border-b border-border text-start">
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.name")}</th>
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.sku")}</th>
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.barcode")}</th>
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.category")}</th>
-                <th className="px-2 py-2 text-end font-medium">{tr("catalog.products.column.price")}</th>
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.vat")}</th>
-                <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.status")}</th>
+                <th>{tr("catalog.products.column.name")}</th>
+                <th>{tr("catalog.products.column.sku")}</th>
+                <th>{tr("catalog.products.column.barcode")}</th>
+                <th>{tr("catalog.products.column.category")}</th>
+                <th className="text-end">{tr("catalog.products.column.price")}</th>
+                <th>{tr("catalog.products.column.vat")}</th>
+                <th>{tr("catalog.products.column.status")}</th>
               </tr>
             </thead>
             <tbody>
               {result.items.map((item) => (
-                <tr key={item.id} className="border-b border-border">
-                  <td className="px-2 py-2">
+                <tr key={item.id}>
+                  <td>
                     <Link
                       href={`/catalog/products/${item.id}`}
                       className="font-medium underline-offset-4 hover:underline"
@@ -160,26 +160,26 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-2 py-2" dir="ltr">
+                  <td dir="ltr">
                     <bdi className="font-mono">{item.sku}</bdi>
                   </td>
-                  <td className="px-2 py-2" dir="ltr">
+                  <td dir="ltr">
                     {item.primaryBarcode ? (
                       <bdi className="font-mono">{item.primaryBarcode}</bdi>
                     ) : (
                       <span className="text-muted">—</span>
                     )}
                   </td>
-                  <td className="px-2 py-2">
+                  <td>
                     {item.categoryId
                       ? (categoryName.get(item.categoryId) ?? tr("catalog.category.none"))
                       : tr("catalog.category.none")}
                   </td>
-                  <td className="px-2 py-2 text-end tabular-nums">
+                  <td className="text-end tabular-nums">
                     <bdi>{formatMinor(item.priceMinor, currency, locale)}</bdi>
                   </td>
-                  <td className="px-2 py-2">{tr(`catalog.vatCategory.${item.vatCategory}`)}</td>
-                  <td className="px-2 py-2">
+                  <td>{tr(`catalog.vatCategory.${item.vatCategory}`)}</td>
+                  <td>
                     <StatusBadge locale={locale} active={item.isActive} />
                   </td>
                 </tr>
@@ -192,12 +192,12 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
       {cursor || nextHref ? (
         <div className="flex gap-3">
           {cursor ? (
-            <Link href={listPath} className="rounded-md border border-border px-3 py-1">
+            <Link href={listPath} className="btn btn-sm">
               {tr("catalog.products.firstPage")}
             </Link>
           ) : null}
           {nextHref ? (
-            <Link href={nextHref} className="rounded-md border border-border px-3 py-1">
+            <Link href={nextHref} className="btn btn-sm">
               {tr("catalog.products.loadMore")}
             </Link>
           ) : null}

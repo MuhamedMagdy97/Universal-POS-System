@@ -46,7 +46,7 @@ function one(value: string | string[] | undefined): string | undefined {
 function Denied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("reports.state.forbidden")}</h1>
       <p className="text-muted">{tr("reports.state.forbiddenBody")}</p>
     </section>
@@ -110,9 +110,7 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
             key={name}
             href={reportHref({ report: name, branch, from, to })}
             aria-current={name === report ? "page" : undefined}
-            className={`rounded-md border border-border px-3 py-1 text-sm ${
-              name === report ? "bg-foreground text-background" : ""
-            }`}
+            className={`btn btn-sm ${name === report ? "btn-primary" : ""}`}
           >
             {tr(`reports.tab.${name}`)}
           </Link>
@@ -122,13 +120,9 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
       <form method="get" action="/reports" className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="report" value={report} />
         {branches.length > 1 ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("reports.branch")}</span>
-            <select
-              name="branch"
-              defaultValue={branch ?? ""}
-              className="rounded-md border border-border bg-background px-3 py-2"
-            >
+            <select name="branch" defaultValue={branch ?? ""} className="input">
               <option value="">{tr("reports.branch.all")}</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -138,33 +132,21 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
             </select>
           </label>
         ) : null}
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("reports.from")}</span>
-          <input
-            type="date"
-            name="from"
-            defaultValue={from ?? ""}
-            dir="ltr"
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input type="date" name="from" defaultValue={from ?? ""} dir="ltr" className="input" />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("reports.to")}</span>
-          <input
-            type="date"
-            name="to"
-            defaultValue={to ?? ""}
-            dir="ltr"
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input type="date" name="to" defaultValue={to ?? ""} dir="ltr" className="input" />
         </label>
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("reports.apply")}
         </button>
         {result ? (
           <a
             href={csvHref({ report, branch, from: result.from, to: result.to, locale })}
-            className="ms-auto rounded-md bg-foreground px-4 py-2 text-background"
+            className="btn btn-primary ms-auto"
             download
           >
             {tr("reports.export")}
@@ -185,13 +167,13 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
       </nav>
 
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr(error === "range" ? "reports.error.range" : "reports.error.branch")}
         </p>
       ) : null}
 
       {result && isProfitReport(report) && (result.totals.revenueNoCostMinor ?? 0) !== 0 ? (
-        <p role="note" className="text-sm text-amber-700">
+        <p role="note" className="text-sm text-warning">
           {tr("reports.profit.missingCost")}
         </p>
       ) : null}
@@ -199,11 +181,11 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
       {result && result.rows.length === 0 ? <p className="text-muted">{tr("reports.empty")}</p> : null}
 
       {result && result.rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <caption className="sr-only">{tr(`reports.tab.${report}`)}</caption>
             <thead>
-              <tr className="border-b border-border">
+              <tr>
                 {columns.map((column) => (
                   <th
                     key={column.key}
@@ -218,13 +200,13 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
             </thead>
             <tbody>
               {result.rows.map((row, index) => (
-                <tr key={index} className="border-b border-border">
+                <tr key={index}>
                   {columns.map((column) => (
                     <td
                       key={column.key}
                       dir={isNumeric(column) || column.kind === "datetime" || column.kind === "day" ? "ltr" : undefined}
                       className={`px-2 py-2 whitespace-nowrap ${isNumeric(column) ? "text-end tabular-nums" : ""} ${
-                        isDiscrepancy(column, row) ? "font-semibold text-amber-700" : ""
+                        isDiscrepancy(column, row) ? "font-semibold text-warning" : ""
                       }`}
                     >
                       {cellText(column, row, format)}
@@ -236,7 +218,7 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
                         <PrintZReportButton
                           locale={locale}
                           shiftId={row.shiftId}
-                          className="rounded-md border border-border px-2 py-0.5 text-xs whitespace-nowrap disabled:opacity-50"
+                          className="btn btn-sm whitespace-nowrap"
                         />
                       ) : null}
                     </td>

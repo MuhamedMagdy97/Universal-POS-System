@@ -49,7 +49,7 @@ export function OpenShiftForm({ locale, branchId, registerId, currency }: Props)
 
   return (
     <form onSubmit={submit} className="flex flex-col items-start gap-3">
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>
           {tr("pos.shift.float")} ({currency})
         </span>
@@ -58,19 +58,15 @@ export function OpenShiftForm({ locale, branchId, registerId, currency }: Props)
           inputMode="decimal"
           value={float}
           onChange={(e) => setFloat(e.target.value)}
-          className="w-40 rounded-md border border-border bg-background px-3 py-2"
+          className="input w-40"
         />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {pending ? tr("pos.shift.opening") : tr("pos.shift.open")}
       </button>
     </form>

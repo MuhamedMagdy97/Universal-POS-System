@@ -108,10 +108,10 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-start">
+      <div className="table-wrap">
+        <table className="table">
           <thead>
-            <tr className="border-b border-border text-muted">
+            <tr>
               <th className="py-2">{tr("inventory.history.columns.date")}</th>
               <th>{tr("inventory.history.columns.reason")}</th>
               <th>{tr("inventory.history.columns.change")}</th>
@@ -123,7 +123,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
           <tbody>
             {history.rows.map((row) => (
               <tr key={row.id} className="border-b border-border align-top">
-                <td className="py-2">{dateFormat.format(row.createdAt)}</td>
+                <td>{dateFormat.format(row.createdAt)}</td>
                 <td>
                   {reasonLabel(row)}
                   {row.transfer?.otherBranch ? (
@@ -142,7 +142,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
                     </Link>
                   ) : null}
                 </td>
-                <td dir="ltr" className={row.qtyDelta < 0 ? "text-red-700" : ""}>
+                <td dir="ltr" className={row.qtyDelta < 0 ? "text-danger" : ""}>
                   {row.qtyDelta > 0 ? `+${row.qtyDelta}` : row.qtyDelta}
                 </td>
                 <td dir="ltr">{row.balanceAfter}</td>
@@ -155,10 +155,7 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
       </div>
 
       {history.nextCursor ? (
-        <Link
-          href={`/inventory/items/${rawProductId}?${nextQuery}`}
-          className="self-start rounded-md border border-border px-4 py-2"
-        >
+        <Link href={`/inventory/items/${rawProductId}?${nextQuery}`} className="btn self-start">
           {tr("inventory.state.loadMore")}
         </Link>
       ) : null}

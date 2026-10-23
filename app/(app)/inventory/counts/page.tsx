@@ -73,12 +73,12 @@ async function CountsContent({ searchParams }: { searchParams: SearchParams }) {
       ) : null}
 
       {rows.length === 0 ? (
-        <p className="rounded-md border border-border p-6 text-muted">{tr("inventory.count.empty")}</p>
+        <p className="card text-muted">{tr("inventory.count.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-start">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="border-b border-border text-muted">
+              <tr>
                 <th className="py-2">{tr("inventory.count.column.created")}</th>
                 <th>{tr("inventory.count.column.scope")}</th>
                 <th>{tr("inventory.count.column.status")}</th>
@@ -88,8 +88,8 @@ async function CountsContent({ searchParams }: { searchParams: SearchParams }) {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-border">
-                  <td className="py-2">{dateFormat.format(row.createdAt)}</td>
+                <tr key={row.id}>
+                  <td>{dateFormat.format(row.createdAt)}</td>
                   <td>
                     {tr(`inventory.count.scope.${row.scope}` as const)}
                     {row.categoryName ? `: ${row.categoryName}` : ""}

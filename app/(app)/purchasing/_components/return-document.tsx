@@ -147,39 +147,41 @@ export function ReturnDocument(props: Props) {
         </article>
       </PrintButton>
 
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-end">{tr("purchasing.line.returned")}</th>
-            <th className="text-end">{tr("purchasing.line.cost")}</th>
-            <th className="text-end">{tr("purchasing.line.total")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line) => (
-            <tr key={line.key} className="border-t border-border">
-              <td className="py-2">
-                {line.name}{" "}
-                <span dir="ltr" className="text-muted">
-                  {line.sku}
-                </span>
-              </td>
-              <td className="text-end">{line.qty}</td>
-              <td className="text-end">{money(line.unitCostMinor)}</td>
-              <td className="text-end">{money(line.lineTotalMinor)}</td>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("purchasing.line.item")}</th>
+              <th className="text-end">{tr("purchasing.line.returned")}</th>
+              <th className="text-end">{tr("purchasing.line.cost")}</th>
+              <th className="text-end">{tr("purchasing.line.total")}</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-border font-semibold">
-            <td className="py-2">{tr("purchasing.po.total")}</td>
-            <td className="text-end">{ret.units}</td>
-            <td />
-            <td className="text-end">{money(ret.valueMinor)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {lines.map((line) => (
+              <tr key={line.key}>
+                <td>
+                  {line.name}{" "}
+                  <span dir="ltr" className="text-muted">
+                    {line.sku}
+                  </span>
+                </td>
+                <td className="text-end">{line.qty}</td>
+                <td className="text-end">{money(line.unitCostMinor)}</td>
+                <td className="text-end">{money(line.lineTotalMinor)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-semibold">
+              <td>{tr("purchasing.po.total")}</td>
+              <td className="text-end">{ret.units}</td>
+              <td />
+              <td className="text-end">{money(ret.valueMinor)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function CustomerForm({ locale, customer }: { locale: Locale; customer?: 
   }
 
   const field = (key: keyof Draft, label: string, max: number, dir?: "ltr") => (
-    <label className="flex flex-col gap-1">
+    <label className="field">
       <span>{label}</span>
       <input
         value={draft[key]}
@@ -70,7 +70,7 @@ export function CustomerForm({ locale, customer }: { locale: Locale; customer?: 
         maxLength={max}
         inputMode={key === "phone" ? "tel" : undefined}
         onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-        className="rounded-md border border-border bg-background px-3 py-2"
+        className="input"
       />
     </label>
   );
@@ -85,17 +85,12 @@ export function CustomerForm({ locale, customer }: { locale: Locale; customer?: 
               setDraft(customer ? toDraft(customer) : EMPTY);
               setOpen(true);
             }}
-            className="rounded-md bg-foreground px-4 py-2 text-background"
+            className="btn btn-primary"
           >
             {customer ? tr("customers.edit") : tr("customers.add")}
           </button>
           {customer ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => void toggleActive()}
-              className="rounded-md border border-border px-4 py-2"
-            >
+            <button type="button" disabled={pending} onClick={() => void toggleActive()} className="btn">
               {customer.isActive ? tr("customers.archive") : tr("customers.restore")}
             </button>
           ) : null}
@@ -104,23 +99,23 @@ export function CustomerForm({ locale, customer }: { locale: Locale; customer?: 
         <form
           onSubmit={save}
           aria-label={customer ? tr("customers.edit") : tr("customers.add")}
-          className="flex flex-wrap items-end gap-3 rounded-md border border-border p-4"
+          className="card flex flex-wrap items-end gap-3 p-4"
         >
           {field("name", tr("customers.field.name"), 120)}
           {field("phone", tr("customers.field.phone"), 40, "ltr")}
           {field("email", tr("customers.field.email"), 254, "ltr")}
           {field("taxNumber", tr("customers.field.taxNumber"), 40, "ltr")}
           {field("note", tr("customers.field.note"), 500)}
-          <button type="submit" disabled={pending} className="rounded-md bg-foreground px-4 py-2 text-background">
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {tr("customers.save")}
           </button>
-          <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-border px-4 py-2">
+          <button type="button" onClick={() => setOpen(false)} className="btn">
             {tr("customers.cancel")}
           </button>
         </form>
       )}
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}

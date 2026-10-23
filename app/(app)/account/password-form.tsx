@@ -7,8 +7,6 @@ import { plain } from "../inventory/_lib/form";
 import { orgErrorKey } from "../settings/_lib/errors";
 import { changePasswordAction } from "./actions";
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-
 export function PasswordForm({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   const [pending, setPending] = useState(false);
@@ -38,7 +36,7 @@ export function PasswordForm({ locale }: { locale: Locale }) {
   }
 
   const field = (name: string, label: string, autoComplete: string, min = PASSWORD_MIN) => (
-    <label className="flex flex-col gap-1">
+    <label className="field">
       <span>{label}</span>
       <input
         name={name}
@@ -47,7 +45,7 @@ export function PasswordForm({ locale }: { locale: Locale }) {
         minLength={min}
         maxLength={PASSWORD_MAX}
         autoComplete={autoComplete}
-        className={INPUT}
+        className="input"
       />
     </label>
   );
@@ -60,16 +58,12 @@ export function PasswordForm({ locale }: { locale: Locale }) {
       {status ? (
         <p
           role={status.tone === "error" ? "alert" : "status"}
-          className={status.tone === "error" ? "text-red-700" : "text-green-800"}
+          className={status.tone === "error" ? "text-danger" : "text-success"}
         >
           {status.text}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary self-start">
         {tr("account.save")}
       </button>
     </form>

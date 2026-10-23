@@ -71,7 +71,7 @@ async function CustomerContent({ params }: { params: Params }) {
 
       <dl className="grid gap-3 sm:grid-cols-3" data-testid="customer-totals">
         {tiles.map(([label, amount, count]) => (
-          <div key={label} className="rounded-md border border-border p-4">
+          <div key={label} className="card p-4">
             <dt className="text-sm text-muted">{label}</dt>
             <dd dir="ltr" className="text-end text-xl font-semibold">
               {amount}
@@ -88,36 +88,38 @@ async function CustomerContent({ params }: { params: Params }) {
         {customer.sales.length === 0 ? (
           <p className="text-muted">{tr("customers.history.noSales")}</p>
         ) : (
-          <table className="w-full text-start" data-testid="customer-sales">
-            <thead>
-              <tr className="text-sm text-muted">
-                <th className="py-2 text-start">{tr("customers.history.number")}</th>
-                <th className="text-start">{tr("customers.history.time")}</th>
-                <th className="text-start">{tr("customers.history.branch")}</th>
-                <th className="text-start">{tr("customers.status")}</th>
-                <th className="text-end">{tr("customers.history.total")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customer.sales.map((sale) => (
-                <tr key={sale.id} className="border-t border-border">
-                  <td dir="ltr" className="py-2 text-start">
-                    {sale.number}
-                  </td>
-                  <td dir="ltr" className="text-start">
-                    {when(sale.createdAt)}
-                  </td>
-                  <td>{sale.branchName}</td>
-                  <td>
-                    {sale.status === "VOIDED" ? tr("customers.history.voided") : tr("customers.history.completed")}
-                  </td>
-                  <td dir="ltr" className="text-end">
-                    {money(sale.totalMinor)}
-                  </td>
+          <div className="table-wrap">
+            <table className="table" data-testid="customer-sales">
+              <thead>
+                <tr className="text-sm text-muted">
+                  <th>{tr("customers.history.number")}</th>
+                  <th className="text-start">{tr("customers.history.time")}</th>
+                  <th className="text-start">{tr("customers.history.branch")}</th>
+                  <th className="text-start">{tr("customers.status")}</th>
+                  <th className="text-end">{tr("customers.history.total")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {customer.sales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td dir="ltr" className="py-2 text-start">
+                      {sale.number}
+                    </td>
+                    <td dir="ltr" className="text-start">
+                      {when(sale.createdAt)}
+                    </td>
+                    <td>{sale.branchName}</td>
+                    <td>
+                      {sale.status === "VOIDED" ? tr("customers.history.voided") : tr("customers.history.completed")}
+                    </td>
+                    <td dir="ltr" className="text-end">
+                      {money(sale.totalMinor)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -128,30 +130,32 @@ async function CustomerContent({ params }: { params: Params }) {
         {customer.refunds.length === 0 ? (
           <p className="text-muted">{tr("customers.history.noRefunds")}</p>
         ) : (
-          <table className="w-full text-start" data-testid="customer-refunds">
-            <thead>
-              <tr className="text-sm text-muted">
-                <th className="py-2 text-start">{tr("customers.history.number")}</th>
-                <th className="text-start">{tr("customers.history.time")}</th>
-                <th className="text-end">{tr("customers.history.amount")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customer.refunds.map((refund) => (
-                <tr key={refund.id} className="border-t border-border">
-                  <td dir="ltr" className="py-2 text-start">
-                    {refund.saleNumber}
-                  </td>
-                  <td dir="ltr" className="text-start">
-                    {when(refund.createdAt)}
-                  </td>
-                  <td dir="ltr" className="text-end">
-                    {money(refund.totalMinor)}
-                  </td>
+          <div className="table-wrap">
+            <table className="table" data-testid="customer-refunds">
+              <thead>
+                <tr className="text-sm text-muted">
+                  <th>{tr("customers.history.number")}</th>
+                  <th className="text-start">{tr("customers.history.time")}</th>
+                  <th className="text-end">{tr("customers.history.amount")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {customer.refunds.map((refund) => (
+                  <tr key={refund.id}>
+                    <td dir="ltr" className="py-2 text-start">
+                      {refund.saleNumber}
+                    </td>
+                    <td dir="ltr" className="text-start">
+                      {when(refund.createdAt)}
+                    </td>
+                    <td dir="ltr" className="text-end">
+                      {money(refund.totalMinor)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
       <p className="text-sm text-muted">{tr("customers.history.limit", { limit: String(HISTORY_LIMIT) })}</p>

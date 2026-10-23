@@ -360,10 +360,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
   if (receipt) {
     const paid = receipt.payments.reduce((sum, payment) => sum + payment.amountMinor, 0) + receipt.changeMinor;
     return (
-      <section
-        aria-labelledby="receipt-title"
-        className="flex max-w-md flex-col gap-3 rounded-md border border-border p-4"
-      >
+      <section aria-labelledby="receipt-title" className="card flex max-w-md flex-col gap-3 p-4">
         <h2 id="receipt-title" className="text-xl font-semibold">
           {tr("pos.receipt.title", { number: receipt.number })}
         </h2>
@@ -437,12 +434,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
             request={{ kind: "SALE", copy: false }}
             label="pos.receipt.print"
           />
-          <button
-            type="button"
-            onClick={newSale}
-            autoFocus
-            className="rounded-md bg-foreground px-4 py-2 text-background"
-          >
+          <button type="button" onClick={newSale} autoFocus className="btn btn-primary">
             {tr("pos.receipt.newSale")}
           </button>
         </div>
@@ -465,7 +457,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
               saleId={lastSaleId}
               request={{ kind: "SALE", copy: true }}
               label="receipt.reprintLast"
-              className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+              className="btn btn-sm"
             />
           </div>
         ) : null}
@@ -485,9 +477,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
               }
             }}
             dir="ltr"
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2"
+            className="input flex-1"
           />
-          <button type="button" onClick={() => void find()} className="rounded-md border border-border px-4 py-2">
+          <button type="button" onClick={() => void find()} className="btn">
             {tr("pos.search.submit")}
           </button>
         </div>
@@ -525,7 +517,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                       type="button"
                       onClick={() => add(item)}
                       aria-label={tr("pos.search.add", { name: displayName(item, locale) })}
-                      className="rounded-md border border-border px-3 py-1"
+                      className="btn btn-sm"
                     >
                       +
                     </button>
@@ -542,84 +534,86 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
         {cart.length === 0 ? (
           <p className="text-muted">{tr("pos.cart.empty")}</p>
         ) : (
-          <table className="w-full text-start">
-            <thead>
-              <tr className="text-muted">
-                <th className="py-1 text-start font-normal">{tr("pos.cart.item")}</th>
-                <th className="text-start font-normal">{tr("pos.cart.qty")}</th>
-                <th className="text-end font-normal">{tr("pos.cart.price")}</th>
-                <th className="text-end font-normal">{tr("pos.cart.lineTotal")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {cart.map((line) => {
-                const key = lineKey(line);
-                const name = displayName(line, locale);
-                return (
-                  <tr
-                    key={key}
-                    data-selected={key === selected}
-                    className="border-t border-border data-[selected=true]:bg-foreground/5"
-                  >
-                    <td className="py-2">
-                      {name}{" "}
-                      <span dir="ltr" className="text-muted">
-                        {line.sku}
-                      </span>
-                      <StockNote locale={locale} onHand={stock[key]} qty={line.qty} block />
-                      {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
-                        <span className="block text-sm text-muted" data-testid="line-discount">
-                          {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr className="text-muted">
+                  <th className="py-1 text-start font-normal">{tr("pos.cart.item")}</th>
+                  <th className="text-start font-normal">{tr("pos.cart.qty")}</th>
+                  <th className="text-end">{tr("pos.cart.price")}</th>
+                  <th className="text-end">{tr("pos.cart.lineTotal")}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map((line) => {
+                  const key = lineKey(line);
+                  const name = displayName(line, locale);
+                  return (
+                    <tr
+                      key={key}
+                      data-selected={key === selected}
+                      className="border-t border-border data-[selected=true]:bg-accent-soft"
+                    >
+                      <td>
+                        {name}{" "}
+                        <span dir="ltr" className="text-muted">
+                          {line.sku}
                         </span>
-                      ) : null}
-                    </td>
-                    <td>
-                      <input
-                        dir="ltr"
-                        inputMode="numeric"
-                        aria-label={tr("pos.cart.qtyFor", { name })}
-                        aria-invalid={line.qty < 1}
-                        value={line.qty === 0 ? "" : line.qty}
-                        onChange={(e) => setCart((current) => setLineQty(current, key, e.target.value))}
-                        onFocus={() => setSelectedKey(key)}
-                        className="w-20 rounded-md border border-border bg-background px-2 py-1"
-                      />
-                    </td>
-                    <td dir="ltr" className="text-end">
-                      {money(line.unitPriceMinor)}
-                    </td>
-                    <td dir="ltr" className="text-end">
-                      {preview.ok ? money(preview.lineTotals[key] ?? 0) : "—"}
-                    </td>
-                    <td className="whitespace-nowrap text-end">
-                      {settings.discount.allowed ? (
+                        <StockNote locale={locale} onHand={stock[key]} qty={line.qty} block />
+                        {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
+                          <span className="block text-sm text-muted" data-testid="line-discount">
+                            {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <input
+                          dir="ltr"
+                          inputMode="numeric"
+                          aria-label={tr("pos.cart.qtyFor", { name })}
+                          aria-invalid={line.qty < 1}
+                          value={line.qty === 0 ? "" : line.qty}
+                          onChange={(e) => setCart((current) => setLineQty(current, key, e.target.value))}
+                          onFocus={() => setSelectedKey(key)}
+                          className="input min-h-12 w-20 px-2 py-1"
+                        />
+                      </td>
+                      <td dir="ltr" className="text-end">
+                        {money(line.unitPriceMinor)}
+                      </td>
+                      <td dir="ltr" className="text-end">
+                        {preview.ok ? money(preview.lineTotals[key] ?? 0) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap text-end">
+                        {settings.discount.allowed ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedKey(key);
+                              openDiscount(key);
+                            }}
+                            aria-label={tr("pos.discount.lineFor", { name })}
+                            className="btn btn-sm me-1"
+                          >
+                            {tr("pos.discount.line")}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedKey(key);
-                            openDiscount(key);
-                          }}
-                          aria-label={tr("pos.discount.lineFor", { name })}
-                          className="me-1 rounded-md border border-border px-2 py-1 text-sm"
+                          onClick={() => setCart((current) => removeLine(current, key))}
+                          aria-label={tr("pos.cart.remove", { name })}
+                          className="btn btn-sm"
                         >
-                          {tr("pos.discount.line")}
+                          ×
                         </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => setCart((current) => removeLine(current, key))}
-                        aria-label={tr("pos.cart.remove", { name })}
-                        className="rounded-md border border-border px-2 py-1"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {discountDraft ? (
           <DiscountBox
@@ -675,21 +669,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
             ) : null}
           </dl>
         ) : (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {tr(preview.reason === "DISCOUNT_TOO_LARGE" ? "pos.totals.discountTooLarge" : "pos.totals.tooLarge")}
           </p>
         )}
         {settings.discount.allowed && cart.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => openDiscount("SALE")}
-            className="self-start rounded-md border border-border px-3 py-1 text-sm"
-          >
+          <button type="button" onClick={() => openDiscount("SALE")} className="btn btn-sm self-start">
             {tr("pos.discount.sale")}
           </button>
         ) : null}
         {preview.ok && preview.overLimit && limitLabel ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {tr("pos.discount.overLimit", { limit: limitLabel })}
           </p>
         ) : null}
@@ -701,7 +691,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
               {METHODS.map((option) => (
                 <label
                   key={option.value}
-                  className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground"
+                  className="flex items-center gap-1 min-h-12 cursor-pointer rounded-lg border border-border-strong px-4 py-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
                 >
                   <input
                     type="radio"
@@ -713,7 +703,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                   {tr(option.label)}
                 </label>
               ))}
-              <label className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground">
+              <label className="flex items-center gap-1 min-h-12 cursor-pointer rounded-lg border border-border-strong px-4 py-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
                 <input
                   type="radio"
                   name="method"
@@ -740,7 +730,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                           inputMode="decimal"
                           value={splitRaw[option.value]}
                           onChange={(e) => setSplitRaw((current) => ({ ...current, [option.value]: e.target.value }))}
-                          className="rounded-md border border-border bg-background px-3 py-2"
+                          className="input"
                         />
                       </label>
                       {option.value === "CASH" ? (
@@ -752,7 +742,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                             value={splitRef[option.value]}
                             onChange={(e) => setSplitRef((current) => ({ ...current, [option.value]: e.target.value }))}
                             maxLength={64}
-                            className="rounded-md border border-border bg-background px-3 py-2"
+                            className="input"
                           />
                         </label>
                       )}
@@ -774,7 +764,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                         {money(Math.max(totalMinor - splitEnteredMinor, 0))}
                       </strong>
                     </p>
-                    {splitEnteredMinor > 0 ? <p className="text-red-700">{tr("pos.pay.splitShort")}</p> : null}
+                    {splitEnteredMinor > 0 ? <p className="text-danger">{tr("pos.pay.splitShort")}</p> : null}
                   </>
                 )}
               </>
@@ -791,7 +781,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                       inputMode="decimal"
                       value={cashRaw}
                       onChange={(e) => setCashRaw(e.target.value)}
-                      className="rounded-md border border-border bg-background px-3 py-2"
+                      className="input"
                     />
                   </label>
                   <ExactCashButton locale={locale} onClick={fillExactCash} />
@@ -804,17 +794,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                     </strong>
                   </p>
                 ) : cashRaw.trim() !== "" ? (
-                  <p className="text-red-700">{tr("pos.pay.short")}</p>
+                  <p className="text-danger">{tr("pos.pay.short")}</p>
                 ) : null}
               </>
             ) : (
-              <label className="flex flex-col gap-1">
+              <label className="field">
                 <span>{tr("pos.pay.reference")}</span>
                 <input
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   maxLength={64}
-                  className="rounded-md border border-border bg-background px-3 py-2"
+                  className="input"
                 />
               </label>
             )}
@@ -822,16 +812,12 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
         ) : null}
 
         {error ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {error}
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={!ready}
-          className="rounded-md bg-foreground px-4 py-3 text-lg text-background disabled:opacity-50"
-        >
+        <button type="submit" disabled={!ready} className="btn btn-primary min-h-14 text-lg">
           {pending
             ? tr("pos.pay.charging")
             : cart.length > 0 && totalMinor === 0
@@ -878,14 +864,14 @@ function DiscountBox({
     <div
       role="group"
       aria-labelledby="discount-title"
-      className="flex flex-col gap-2 rounded-md border border-border p-3"
+      className="card flex flex-col gap-2 p-3"
       data-testid="discount-box"
     >
       <p id="discount-title" className="font-semibold">
         {title}
       </p>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("pos.discount.value")}</span>
           <input
             ref={inputRef}
@@ -901,14 +887,14 @@ function DiscountBox({
                 onApply(draft);
               }
             }}
-            className="w-28 rounded-md border border-border bg-background px-3 py-2"
+            className="input w-28"
           />
         </label>
         <div role="radiogroup" aria-labelledby="discount-title" className="flex gap-1">
           {kinds.map((option) => (
             <label
               key={option.kind}
-              className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground"
+              className="flex items-center gap-1 min-h-12 cursor-pointer rounded-lg border border-border-strong px-4 py-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
             >
               <input
                 type="radio"
@@ -920,27 +906,19 @@ function DiscountBox({
             </label>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => onApply(draft)}
-          className="rounded-md bg-foreground px-3 py-2 text-background"
-        >
+        <button type="button" onClick={() => onApply(draft)} className="btn btn-primary">
           {tr("pos.discount.apply")}
         </button>
-        <button
-          type="button"
-          onClick={() => onApply(draft, true)}
-          className="rounded-md border border-border px-3 py-2"
-        >
+        <button type="button" onClick={() => onApply(draft, true)} className="btn">
           {tr("pos.discount.remove")}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-md px-3 py-2 underline-offset-4 hover:underline">
+        <button type="button" onClick={onCancel} className="btn btn-ghost">
           {tr("pos.discount.cancel")}
         </button>
       </div>
       {limitLabel ? <p className="text-sm text-muted">{tr("pos.discount.limit", { limit: limitLabel })}</p> : null}
       {draft.invalid ? (
-        <p id="discount-invalid" role="alert" className="text-red-700">
+        <p id="discount-invalid" role="alert" className="notice notice-error">
           {tr("pos.discount.invalid")}
         </p>
       ) : null}
@@ -950,7 +928,7 @@ function DiscountBox({
 
 function ExactCashButton({ locale, onClick }: { locale: Locale; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="self-end rounded-md border border-border px-3 py-2">
+    <button type="button" onClick={onClick} className="btn self-end">
       {translator(locale)("pos.pay.exact")}
     </button>
   );
@@ -972,7 +950,7 @@ function StockNote({
   return (
     <span
       data-testid="till-stock"
-      className={`text-sm ${block ? "block " : ""}${stockShort(onHand, qty) ? "font-semibold text-red-700" : "text-muted"}`}
+      className={`text-sm ${block ? "block " : ""}${stockShort(onHand, qty) ? "font-semibold text-danger" : "text-muted"}`}
     >
       {translator(locale)("pos.stock.onHand", { qty: String(onHand) })}
     </span>
@@ -1014,7 +992,7 @@ function OfflineBar({
   return (
     <div className="flex flex-col gap-2 lg:col-span-2" data-testid="offline-bar">
       {off.offline ? (
-        <p role="status" className="rounded-md bg-red-700 px-3 py-2 font-semibold text-white">
+        <p role="status" className="rounded-lg bg-danger px-3 py-2 font-semibold text-white">
           {tr("pos.offline.bar", { count: String(pending) })}
           {off.block ? ` — ${plain(locale, OFFLINE_BLOCK[off.block])}` : ""}
         </p>
@@ -1028,14 +1006,14 @@ function OfflineBar({
         </p>
       ) : null}
       {off.needsSignIn ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("pos.offline.signIn")}
         </p>
       ) : null}
       {rejected.length > 0 ? (
         <ul className="flex flex-col gap-1" data-testid="offline-rejected">
           {rejected.map((entry) => (
-            <li key={entry.key} role="alert" className="text-red-700">
+            <li key={entry.key} role="alert" className="text-danger">
               {tr(entry.error?.code === "IDEMPOTENCY_CONFLICT" ? "pos.offline.rejectedTwice" : "pos.offline.rejected", {
                 number: entry.number,
               })}
@@ -1053,12 +1031,12 @@ function OfflineBar({
               setEnrolFailed(!(await off.enrol()));
               setEnrolling(false);
             }}
-            className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+            className="btn btn-sm"
           >
             {tr("pos.offline.enrol")}
           </button>
           {enrolFailed ? (
-            <span role="alert" className="text-red-700">
+            <span role="alert" className="text-danger">
               {tr("pos.offline.enrolFailed")}
             </span>
           ) : null}
@@ -1083,33 +1061,21 @@ function OfflineReceipt({
   const tr = translator(locale);
   const { print, portal } = usePrinter();
   return (
-    <section
-      aria-labelledby="receipt-title"
-      className="flex max-w-md flex-col gap-3 rounded-md border border-border p-4"
-    >
+    <section aria-labelledby="receipt-title" className="card flex max-w-md flex-col gap-3 p-4">
       <h2 id="receipt-title" className="text-xl font-semibold">
         {tr("pos.receipt.title", { number: doc.saleNumber })}
       </h2>
-      <p role="status" className="font-semibold text-red-700" data-testid="offline-receipt-note">
+      <p role="status" className="font-semibold text-danger" data-testid="offline-receipt-note">
         {tr("pos.offline.receiptNote", { count: String(queued) })}
       </p>
-      <div className="rounded-md border border-border py-2">
+      <div className="card py-2">
         <ReceiptSlip doc={doc} locale={locale} />
       </div>
       <div className="flex gap-2 print:hidden">
-        <button
-          type="button"
-          onClick={() => print(<ReceiptSlip doc={doc} locale={locale} />)}
-          className="rounded-md border border-border px-4 py-2"
-        >
+        <button type="button" onClick={() => print(<ReceiptSlip doc={doc} locale={locale} />)} className="btn">
           {tr("pos.receipt.print")}
         </button>
-        <button
-          type="button"
-          onClick={onNewSale}
-          autoFocus
-          className="rounded-md bg-foreground px-4 py-2 text-background"
-        >
+        <button type="button" onClick={onNewSale} autoFocus className="btn btn-primary">
           {tr("pos.receipt.newSale")}
         </button>
       </div>

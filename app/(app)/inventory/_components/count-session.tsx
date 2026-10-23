@@ -151,7 +151,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
 
       {editable && !showReview && (count.status === "COUNTING" || count.scope === "ITEMS") ? (
         <div className="flex flex-col gap-2">
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{count.status === "COUNTING" ? tr("inventory.count.scan.label") : tr("inventory.search.label")}</span>
             <input
               ref={scanRef}
@@ -166,7 +166,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
                 }
               }}
               dir="ltr"
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
           {count.status === "COUNTING" ? <p className="text-sm text-muted">{tr("inventory.count.scan.help")}</p> : null}
@@ -183,7 +183,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
                   type="button"
                   disabled={pending}
                   onClick={() => void (count.status === "DRAFT" ? addToDraft(row) : addOne(row))}
-                  className="rounded-md border border-border px-3 py-1"
+                  className="btn btn-sm"
                 >
                   {count.status === "DRAFT" ? tr("inventory.count.addItem") : tr("inventory.count.addOne")}
                 </button>
@@ -196,7 +196,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
       {message ? (
         <p
           role={message.kind === "error" ? "alert" : "status"}
-          className={message.kind === "error" ? "text-red-700" : ""}
+          className={message.kind === "error" ? "text-danger" : ""}
         >
           {message.text}
         </p>
@@ -205,59 +205,61 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
       {showReview ? (
         <ReviewTable locale={locale} count={count} nameOf={nameOf} />
       ) : (
-        <table className="w-full text-start">
-          <thead>
-            <tr className="border-b border-border text-muted">
-              <th className="py-2">{tr("inventory.column.item")}</th>
-              <th>{tr("inventory.column.sku")}</th>
-              {count.status === "COUNTING" ? <th>{tr("inventory.count.column.counted")}</th> : null}
-              <th>{tr("inventory.column.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {count.lines.map((line) => (
-              <tr key={keyOf(line.ref)} className="border-b border-border" data-testid="count-line">
-                <td className="py-2">{nameOf(line)}</td>
-                <td dir="ltr">{line.sku}</td>
-                {count.status === "COUNTING" ? (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th className="py-2">{tr("inventory.column.item")}</th>
+                <th>{tr("inventory.column.sku")}</th>
+                {count.status === "COUNTING" ? <th>{tr("inventory.count.column.counted")}</th> : null}
+                <th>{tr("inventory.column.actions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {count.lines.map((line) => (
+                <tr key={keyOf(line.ref)} data-testid="count-line">
+                  <td>{nameOf(line)}</td>
+                  <td dir="ltr">{line.sku}</td>
+                  {count.status === "COUNTING" ? (
+                    <td>
+                      <QtyCell
+                        key={`${keyOf(line.ref)}:${line.countedQty ?? ""}`}
+                        label={`${tr("inventory.count.column.counted")}: ${nameOf(line)}`}
+                        value={line.countedQty}
+                        disabled={pending}
+                        onCommit={(value) => void setCounted(line, value)}
+                      />
+                      {line.countedQty === null ? (
+                        <span className="ms-2 text-sm text-muted">{tr("inventory.count.notCounted")}</span>
+                      ) : null}
+                    </td>
+                  ) : null}
                   <td>
-                    <QtyCell
-                      key={`${keyOf(line.ref)}:${line.countedQty ?? ""}`}
-                      label={`${tr("inventory.count.column.counted")}: ${nameOf(line)}`}
-                      value={line.countedQty}
-                      disabled={pending}
-                      onCommit={(value) => void setCounted(line, value)}
-                    />
-                    {line.countedQty === null ? (
-                      <span className="ms-2 text-sm text-muted">{tr("inventory.count.notCounted")}</span>
+                    {count.status === "DRAFT" ? (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => void act(() => removeCountItemAction(count.id, { ref: line.ref }))}
+                        className="btn btn-sm"
+                      >
+                        {tr("inventory.count.remove")}
+                      </button>
+                    ) : line.countedQty !== null ? (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => void setCounted(line, null)}
+                        className="btn btn-sm"
+                      >
+                        {tr("inventory.count.clear")}
+                      </button>
                     ) : null}
                   </td>
-                ) : null}
-                <td>
-                  {count.status === "DRAFT" ? (
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => void act(() => removeCountItemAction(count.id, { ref: line.ref }))}
-                      className="rounded-md border border-border px-2 py-1"
-                    >
-                      {tr("inventory.count.remove")}
-                    </button>
-                  ) : line.countedQty !== null ? (
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => void setCounted(line, null)}
-                      className="rounded-md border border-border px-2 py-1"
-                    >
-                      {tr("inventory.count.clear")}
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {editable ? (
@@ -267,7 +269,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
               type="button"
               disabled={pending}
               onClick={() => void act(() => startCountAction(count.id))}
-              className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
+              className="btn btn-primary"
             >
               {tr("inventory.count.start")}
             </button>
@@ -277,15 +279,11 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
                 type="button"
                 disabled={pending || counted.length === 0}
                 onClick={() => void post()}
-                className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
+                className="btn btn-primary"
               >
                 {tr("inventory.count.post")}
               </button>
-              <button
-                type="button"
-                onClick={() => setReviewing(false)}
-                className="rounded-md border border-border px-4 py-2"
-              >
+              <button type="button" onClick={() => setReviewing(false)} className="btn">
                 {tr("inventory.count.backToCounting")}
               </button>
             </>
@@ -297,17 +295,12 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
                 setMessage(null);
                 setReviewing(true);
               }}
-              className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
+              className="btn btn-primary"
             >
               {tr("inventory.count.review")}
             </button>
           )}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => void cancel()}
-            className="rounded-md border border-border px-4 py-2"
-          >
+          <button type="button" disabled={pending} onClick={() => void cancel()} className="btn">
             {tr("inventory.count.cancel")}
           </button>
         </div>
@@ -352,7 +345,7 @@ function QtyCell({
           commit();
         }
       }}
-      className="w-24 rounded-md border border-border bg-background px-2 py-1"
+      className="input min-h-9 w-24 px-2 py-1"
     />
   );
 }
@@ -378,10 +371,10 @@ function ReviewTable({
           {tr("inventory.count.uncounted", { count: count.uncounted })}
         </p>
       ) : null}
-      <div className="overflow-x-auto">
-        <table className="w-full text-start">
+      <div className="table-wrap">
+        <table className="table">
           <thead>
-            <tr className="border-b border-border text-muted">
+            <tr>
               <th className="py-2">{tr("inventory.column.item")}</th>
               <th>{tr("inventory.column.sku")}</th>
               <th>{tr("inventory.count.column.expected")}</th>
@@ -392,8 +385,8 @@ function ReviewTable({
           </thead>
           <tbody>
             {count.lines.map((line) => (
-              <tr key={keyOf(line.ref)} className="border-b border-border" data-testid="review-line">
-                <td className="py-2">{nameOf(line)}</td>
+              <tr key={keyOf(line.ref)} data-testid="review-line">
+                <td>{nameOf(line)}</td>
                 <td dir="ltr">{line.sku}</td>
                 <td dir="ltr">{line.expectedQty ?? "—"}</td>
                 <td dir="ltr">
@@ -402,9 +395,7 @@ function ReviewTable({
                 <td dir="ltr">{line.countedQty ?? tr("inventory.count.notCounted")}</td>
                 <td
                   dir="ltr"
-                  className={
-                    line.qtyDelta && line.qtyDelta < 0 ? "text-red-700" : line.qtyDelta ? "text-green-700" : ""
-                  }
+                  className={line.qtyDelta && line.qtyDelta < 0 ? "text-danger" : line.qtyDelta ? "text-success" : ""}
                 >
                   {line.qtyDelta === null ? "—" : signed(line.qtyDelta)}
                 </td>

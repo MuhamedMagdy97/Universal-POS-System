@@ -50,7 +50,7 @@ export function PoActions({ locale, poId, status, receivedUnits, outstandingUnit
     router.refresh();
   }
 
-  const button = "rounded-md border border-border px-3 py-2";
+  const button = "btn";
   const titles: Record<Kind, string> = {
     order: tr("purchasing.action.order"),
     cancel: tr("purchasing.action.cancel"),
@@ -61,7 +61,7 @@ export function PoActions({ locale, poId, status, receivedUnits, outstandingUnit
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
         {can.receive && canReceive(state) ? (
-          <Link href={`/purchasing/${poId}/receive`} className="rounded-md bg-foreground px-3 py-2 text-background">
+          <Link href={`/purchasing/${poId}/receive`} className="btn btn-primary">
             {tr("purchasing.action.receive")}
           </Link>
         ) : null}
@@ -82,7 +82,7 @@ export function PoActions({ locale, poId, status, receivedUnits, outstandingUnit
         ) : null}
       </div>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
@@ -100,14 +100,14 @@ export function PoActions({ locale, poId, status, receivedUnits, outstandingUnit
                     : tr("purchasing.action.closeBody", { units: outstandingUnits })}
               </p>
               {open !== "order" ? (
-                <label className="flex flex-col gap-1">
+                <label className="field">
                   <span>{tr("purchasing.action.reason")}</span>
                   <input
                     value={reason}
                     maxLength={500}
                     required={open === "close"}
                     onChange={(e) => setReason(e.target.value)}
-                    className="rounded-md border border-border bg-background px-3 py-2"
+                    className="input"
                   />
                 </label>
               ) : null}

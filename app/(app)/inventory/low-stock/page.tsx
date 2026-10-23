@@ -53,7 +53,7 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
         </Link>
         <h1 className="text-2xl font-semibold">{tr("inventory.lowStock.title")}</h1>
         {result.rows.length > 0 ? (
-          <a href={csvHref} download className="ms-auto rounded-md bg-foreground px-4 py-2 text-background">
+          <a href={csvHref} download className="btn btn-primary ms-auto">
             {tr("inventory.lowStock.export")}
           </a>
         ) : null}
@@ -63,12 +63,12 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
       <BranchPicker locale={locale} action="/inventory/low-stock" branches={branches} currentId={branch.id} />
 
       {result.rows.length === 0 ? (
-        <p className="rounded-md border border-border p-6 text-muted">{tr("inventory.lowStock.empty")}</p>
+        <p className="card text-muted">{tr("inventory.lowStock.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-start">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="border-b border-border text-muted">
+              <tr>
                 <th className="py-2">{tr("inventory.column.item")}</th>
                 <th>{tr("inventory.column.sku")}</th>
                 <th>{tr("inventory.column.onHand")}</th>
@@ -82,19 +82,19 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
                 const label = row.variantName ? `${name} — ${row.variantName}` : name;
                 const historyHref = `/inventory/items/${row.productId}?branch=${branch.id}${row.variantId ? `&variant=${row.variantId}` : ""}`;
                 return (
-                  <tr key={`${row.productId}|${row.variantId ?? ""}`} className="border-b border-border">
-                    <td className="py-2">
+                  <tr key={`${row.productId}|${row.variantId ?? ""}`}>
+                    <td>
                       <Link href={historyHref} className="underline-offset-4 hover:underline">
                         {label}
                       </Link>
                       {row.archived ? (
-                        <span className="ms-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
+                        <span className="ms-2 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
                           {tr("inventory.badge.archived")}
                         </span>
                       ) : null}
                     </td>
                     <td dir="ltr">{row.sku}</td>
-                    <td dir="ltr" className={row.qty < 0 ? "text-red-700" : ""}>
+                    <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
                       {row.qty}
                     </td>
                     <td dir="ltr">{row.reorderPoint}</td>

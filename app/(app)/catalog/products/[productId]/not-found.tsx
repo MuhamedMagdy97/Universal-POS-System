@@ -8,7 +8,7 @@ import { useClientLocale } from "@/lib/i18n/client";
 export default function ProductNotFound() {
   const tr = translator(useClientLocale());
   return (
-    <section className="flex flex-col items-start gap-2 rounded-md border border-border p-6">
+    <section className="card flex flex-col items-start gap-2">
       <h1 className="text-xl font-semibold">{tr("catalog.state.notFound")}</h1>
       <p className="text-muted">{tr("catalog.state.notFoundBody")}</p>
       <Link href="/catalog/products" className="underline">

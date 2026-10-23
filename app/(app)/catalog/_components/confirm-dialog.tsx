@@ -44,23 +44,17 @@ export function ConfirmDialog({ open, title, body, confirmLabel, cancelLabel, pe
         if (!ref.current?.open) onClose();
       }}
       aria-labelledby="confirm-dialog-title"
-      className="m-auto max-w-md rounded-md border border-border bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="card m-auto max-w-md text-foreground backdrop:bg-black/40"
     >
       <h2 id="confirm-dialog-title" className="text-lg font-semibold">
         {title}
       </h2>
       {body ? <div className="mt-2 text-muted">{body}</div> : null}
       <div className="mt-4 flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2">
+        <button type="button" onClick={onClose} className="btn">
           {cancelLabel}
         </button>
-        <button
-          ref={confirmRef}
-          type="button"
-          onClick={onConfirm}
-          disabled={pending}
-          className="rounded-md bg-red-700 px-4 py-2 text-white disabled:opacity-60"
-        >
+        <button ref={confirmRef} type="button" onClick={onConfirm} disabled={pending} className="btn btn-danger">
           {confirmLabel}
         </button>
       </div>

@@ -122,10 +122,7 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
 
   if (customer) {
     return (
-      <div
-        className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2"
-        data-testid="till-customer"
-      >
+      <div className="card flex flex-wrap items-center gap-2 px-3 py-2" data-testid="till-customer">
         <span>
           {tr("pos.customer.label")}: <strong>{customer.name}</strong>{" "}
           <span dir="ltr" className="text-muted">
@@ -135,11 +132,7 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
         {customer.taxNumber ? (
           <span className="text-sm text-muted">{tr("pos.customer.vatNo", { number: customer.taxNumber })}</span>
         ) : null}
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="ms-auto rounded-md border border-border px-2 py-1 text-sm"
-        >
+        <button type="button" onClick={() => onChange(null)} className="btn btn-sm ms-auto">
           {tr("pos.customer.remove")}
         </button>
       </div>
@@ -167,11 +160,11 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
             typing.current = setTimeout(() => void search(q), 200);
           }}
           onKeyDown={onKey}
-          className="min-w-48 flex-1 rounded-md border border-border bg-background px-3 py-2"
+          className="input min-w-48 flex-1"
         />
         <span className="text-sm text-muted">{tr("pos.customer.walkIn")}</span>
         {canCreate && !adding ? (
-          <button type="button" onClick={startAdd} className="rounded-md border border-border px-3 py-2 text-sm">
+          <button type="button" onClick={startAdd} className="btn">
             {tr("pos.customer.add")}
           </button>
         ) : null}
@@ -192,7 +185,7 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
                   e.preventDefault();
                   pick(toTill(row));
                 }}
-                className="flex cursor-pointer justify-between gap-2 rounded-md px-2 py-1 aria-selected:bg-foreground/10"
+                className="flex cursor-pointer justify-between gap-2 rounded-lg px-2 py-1 aria-selected:bg-accent-soft"
               >
                 <span>{row.name}</span>
                 <span dir="ltr" className="text-muted">
@@ -204,12 +197,8 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
         )
       ) : null}
       {adding ? (
-        <form
-          onSubmit={add}
-          aria-label={tr("pos.customer.add")}
-          className="flex flex-wrap items-end gap-2 rounded-md border border-border p-3"
-        >
-          <label className="flex flex-col gap-1">
+        <form onSubmit={add} aria-label={tr("pos.customer.add")} className="card flex flex-wrap items-end gap-2 p-3">
+          <label className="field">
             <span>{tr("customers.field.name")}</span>
             <input
               autoFocus={adding.name === ""}
@@ -217,10 +206,10 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
               maxLength={120}
               value={adding.name}
               onChange={(e) => setAdding({ ...adding, name: e.target.value })}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("customers.field.phone")}</span>
             <input
               autoFocus={adding.name !== ""}
@@ -230,10 +219,10 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
               maxLength={40}
               value={adding.phone}
               onChange={(e) => setAdding({ ...adding, phone: e.target.value })}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
-          <button type="submit" disabled={pending} className="rounded-md bg-foreground px-3 py-2 text-background">
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {tr("pos.customer.save")}
           </button>
           <button
@@ -242,14 +231,14 @@ export function CustomerPicker({ locale, customer, onChange, canCreate, inputRef
               close();
               onDone();
             }}
-            className="rounded-md px-3 py-2 underline-offset-4 hover:underline"
+            className="btn btn-ghost"
           >
             {tr("pos.discount.cancel")}
           </button>
         </form>
       ) : null}
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}

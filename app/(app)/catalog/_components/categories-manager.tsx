@@ -19,7 +19,7 @@ export type CategoryRow = {
 
 type Props = { locale: Locale; rows: CategoryRow[]; maxDepth: number; canCreate: boolean; canUpdate: boolean };
 
-const inputClass = "rounded-md border border-border px-3 py-2";
+const inputClass = "input";
 
 /**
  * Category tree (up to 3 levels): inline add (Enter saves), rename (F2 or the
@@ -73,8 +73,8 @@ export function CategoriesManager({ locale, rows, maxDepth, canCreate, canUpdate
   return (
     <div className="flex flex-col gap-6">
       {canCreate ? (
-        <form onSubmit={onCreate} className="flex flex-wrap items-end gap-3 rounded-md border border-border p-4">
-          <label className="flex flex-col gap-1">
+        <form onSubmit={onCreate} className="card flex flex-wrap items-end gap-3 p-4">
+          <label className="field">
             <span className="text-sm">{tr("catalog.form.name")}</span>
             <input
               value={draft.name}
@@ -84,7 +84,7 @@ export function CategoriesManager({ locale, rows, maxDepth, canCreate, canUpdate
               className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span className="text-sm">{tr("catalog.form.nameAr")}</span>
             <input
               value={draft.nameAr}
@@ -95,7 +95,7 @@ export function CategoriesManager({ locale, rows, maxDepth, canCreate, canUpdate
               className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span className="text-sm">{tr("catalog.categories.parent")}</span>
             <select
               value={draft.parentId}
@@ -110,16 +110,12 @@ export function CategoriesManager({ locale, rows, maxDepth, canCreate, canUpdate
               ))}
             </select>
           </label>
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-60"
-          >
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {tr("catalog.categories.add")}
           </button>
           <p className="w-full text-xs text-muted">{tr("catalog.categories.depthHint")}</p>
           {createErrors.summary || createErrors.fields.name ? (
-            <p role="alert" className="w-full text-sm text-red-700">
+            <p role="alert" className="w-full text-sm text-danger">
               {createErrors.fields.name ?? createErrors.summary}
             </p>
           ) : null}
@@ -129,7 +125,7 @@ export function CategoriesManager({ locale, rows, maxDepth, canCreate, canUpdate
       {rows.length === 0 ? (
         <p className="text-muted">{tr("catalog.categories.empty")}</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+        <ul className="card flex flex-col divide-y divide-border">
           {rows.map((row) => (
             <CategoryItem
               key={row.id}
@@ -244,11 +240,11 @@ function CategoryItem({
             type="button"
             disabled={pending}
             onClick={() => onRename(name, nameAr)}
-            className="rounded-md bg-foreground px-3 py-1 text-background"
+            className="btn btn-primary btn-sm"
           >
             {tr("catalog.form.save")}
           </button>
-          <button type="button" onClick={onCancel} className="rounded-md border border-border px-3 py-1">
+          <button type="button" onClick={onCancel} className="btn btn-sm">
             {tr("catalog.form.cancel")}
           </button>
         </>
@@ -259,16 +255,11 @@ function CategoryItem({
           {canUpdate ? (
             <span className="ms-auto flex gap-2">
               {row.isActive ? (
-                <button type="button" onClick={onEdit} className="rounded-md border border-border px-3 py-1 text-sm">
+                <button type="button" onClick={onEdit} className="btn btn-sm">
                   {tr("catalog.categories.rename")}
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled={pending}
-                onClick={onToggle}
-                className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-60"
-              >
+              <button type="button" disabled={pending} onClick={onToggle} className="btn btn-sm">
                 {row.isActive ? tr("catalog.archive.action") : tr("catalog.restore.action")}
               </button>
             </span>
@@ -276,7 +267,7 @@ function CategoryItem({
         </>
       )}
       {error ? (
-        <p role="alert" className="w-full text-sm text-red-700">
+        <p role="alert" className="w-full text-sm text-danger">
           {error}
         </p>
       ) : null}

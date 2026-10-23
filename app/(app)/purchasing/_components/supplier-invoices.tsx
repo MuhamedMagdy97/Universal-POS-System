@@ -14,8 +14,6 @@ import { costText, errorKey, parseCost, plain, safeAction } from "../_lib/purcha
  * form, kept across retries, so a double submit never records twice.
  */
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-
 export type PickRow = { id: string; number: string; day: string; valueMinor: number };
 
 type InvoiceFormProps = {
@@ -106,17 +104,17 @@ export function InvoiceForm(props: InvoiceFormProps) {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border border-border p-4">
+    <form onSubmit={submit} className="card flex flex-col gap-3 p-4">
       <h2 className="text-lg font-semibold">{tr("purchasing.invoice.record")}</h2>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.invoice.kind")}</span>
-          <select value={kind} onChange={(e) => reset(e.target.value as SupplierDocumentKind)} className={INPUT}>
+          <select value={kind} onChange={(e) => reset(e.target.value as SupplierDocumentKind)} className="input">
             <option value="INVOICE">{tr("purchasing.invoice.kind.INVOICE")}</option>
             <option value="CREDIT_NOTE">{tr("purchasing.invoice.kind.CREDIT_NOTE")}</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.invoice.number")}</span>
           <input
             dir="ltr"
@@ -124,10 +122,10 @@ export function InvoiceForm(props: InvoiceFormProps) {
             maxLength={40}
             value={number}
             onChange={(e) => setNumber(e.target.value)}
-            className={`w-40 ${INPUT}`}
+            className="input w-40"
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.invoice.issuedOn")}</span>
           <input
             type="date"
@@ -136,11 +134,11 @@ export function InvoiceForm(props: InvoiceFormProps) {
             max={today}
             value={issuedOn}
             onChange={(e) => setIssuedOn(e.target.value)}
-            className={INPUT}
+            className="input"
           />
         </label>
         {isInvoice ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.invoice.dueOn")}</span>
             <input
               type="date"
@@ -148,7 +146,7 @@ export function InvoiceForm(props: InvoiceFormProps) {
               min={issuedOn}
               value={dueOn}
               onChange={(e) => setDueOn(e.target.value)}
-              className={INPUT}
+              className="input"
             />
           </label>
         ) : null}
@@ -181,7 +179,7 @@ export function InvoiceForm(props: InvoiceFormProps) {
         </fieldset>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.invoice.return")}</span>
             <select
               value={returnId}
@@ -190,7 +188,7 @@ export function InvoiceForm(props: InvoiceFormProps) {
                 setNet(null);
                 setVat(null);
               }}
-              className={INPUT}
+              className="input"
             >
               <option value="">{tr("purchasing.payment.poNone")}</option>
               {props.returns.map((r) => (
@@ -200,9 +198,9 @@ export function InvoiceForm(props: InvoiceFormProps) {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.invoice.appliesTo")}</span>
-            <select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value)} className={INPUT}>
+            <select value={appliesTo} onChange={(e) => setAppliesTo(e.target.value)} className="input">
               <option value="">{tr("purchasing.payment.poNone")}</option>
               {props.openInvoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>
@@ -215,7 +213,7 @@ export function InvoiceForm(props: InvoiceFormProps) {
       )}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.invoice.net")}</span>
           <input
             dir="ltr"
@@ -223,10 +221,10 @@ export function InvoiceForm(props: InvoiceFormProps) {
             required
             value={netText}
             onChange={(e) => setNet(e.target.value)}
-            className={`w-36 ${INPUT}`}
+            className="input w-36"
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.invoice.vat")}</span>
           <input
             dir="ltr"
@@ -234,7 +232,7 @@ export function InvoiceForm(props: InvoiceFormProps) {
             required
             value={vatText}
             onChange={(e) => setVat(e.target.value)}
-            className={`w-36 ${INPUT}`}
+            className="input w-36"
           />
         </label>
         <p className="py-2">
@@ -245,24 +243,20 @@ export function InvoiceForm(props: InvoiceFormProps) {
         </p>
       </div>
       {vatTooHigh ? (
-        <p className="text-sm text-red-700">{tr("purchasing.error.VAT_ABOVE_RATE")}</p>
+        <p className="text-sm text-danger">{tr("purchasing.error.VAT_ABOVE_RATE")}</p>
       ) : vatLow ? (
-        <p className="text-sm text-amber-700">{tr("purchasing.invoice.vatLow")}</p>
+        <p className="text-sm text-warning">{tr("purchasing.invoice.vatLow")}</p>
       ) : null}
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("purchasing.payment.note")}</span>
-        <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} className={INPUT} />
+        <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary self-start">
         {tr("purchasing.invoice.submit")}
       </button>
     </form>
@@ -298,7 +292,7 @@ export function VoidInvoice({ locale, supplierId, invoiceId, label }: VoidProps)
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`${tr("purchasing.invoice.void")} ${label}`}
-        className="rounded-md border border-border px-2 py-0.5 text-xs"
+        className="btn btn-sm"
       >
         {tr("purchasing.invoice.void")}
       </button>
@@ -313,17 +307,13 @@ export function VoidInvoice({ locale, supplierId, invoiceId, label }: VoidProps)
         placeholder={tr("purchasing.invoice.voidReason")}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+        className="input min-h-9 px-2 py-1 text-sm"
       />
-      <button
-        type="submit"
-        disabled={pending || reason.trim() === ""}
-        className="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || reason.trim() === ""} className="btn btn-primary btn-sm">
         {tr("purchasing.invoice.voidSubmit")}
       </button>
       {error ? (
-        <span role="alert" className="text-sm text-red-700">
+        <span role="alert" className="text-sm text-danger">
           {error}
         </span>
       ) : null}
@@ -390,7 +380,7 @@ export function AllocationEditor({ locale, currency, invoices, values, onChange 
             aria-label={`${tr("purchasing.allocation.amount")} ${inv.number}`}
             value={values[inv.id] ?? ""}
             onChange={(e) => onChange({ ...values, [inv.id]: e.target.value })}
-            className="w-32 rounded-md border border-border bg-background px-2 py-1"
+            className="input min-h-9 w-32 px-2 py-1"
           />
         </label>
       ))}
@@ -442,11 +432,7 @@ export function AllocatePayment(props: AllocateProps) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-md border border-border px-2 py-0.5 text-xs"
-      >
+      <button type="button" onClick={() => setOpen(true)} className="btn btn-sm">
         {tr("purchasing.allocation.allocate")}
       </button>
     );
@@ -460,15 +446,11 @@ export function AllocatePayment(props: AllocateProps) {
         values={values}
         onChange={setValues}
       />
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary btn-sm self-start">
         {tr("purchasing.allocation.submit")}
       </button>
       {error ? (
-        <span role="alert" className="text-sm text-red-700">
+        <span role="alert" className="text-sm text-danger">
           {error}
         </span>
       ) : null}

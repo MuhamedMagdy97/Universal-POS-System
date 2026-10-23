@@ -25,11 +25,7 @@ export function RegisterPicker({
       {branches.length > 1 ? (
         <label className="flex items-center gap-2">
           <span>{tr("pos.branch")}</span>
-          <select
-            name="branch"
-            defaultValue={branchId}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select name="branch" defaultValue={branchId} className="input">
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
                 {branch.name} ({branch.code})
@@ -43,11 +39,7 @@ export function RegisterPicker({
       {registers.length > 1 ? (
         <label className="flex items-center gap-2">
           <span>{tr("pos.register")}</span>
-          <select
-            name="register"
-            defaultValue={registerId ?? ""}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select name="register" defaultValue={registerId ?? ""} className="input">
             {registers.map((register) => (
               <option key={register.id} value={register.id}>
                 {register.name}
@@ -56,7 +48,7 @@ export function RegisterPicker({
           </select>
         </label>
       ) : null}
-      <button type="submit" className="rounded-md border border-border px-3 py-2">
+      <button type="submit" className="btn">
         {tr("pos.switch")}
       </button>
     </form>

@@ -38,7 +38,7 @@ type Props = {
   initialNotice?: { saved?: boolean; priceBelowCost?: boolean };
 };
 
-const inputClass = "rounded-md border border-border px-3 py-2 disabled:opacity-70";
+const inputClass = "input";
 
 export function ProductForm({ locale, currency, categories, canSeeCost, readOnly, product, initialNotice }: Props) {
   const tr = translator(locale);
@@ -159,7 +159,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
   const describe = (path: string) => (fieldError(path) ? `pf-${path}-error` : undefined);
   const errorText = (path: string) =>
     fieldError(path) ? (
-      <span id={`pf-${path}-error`} className="text-sm text-red-700">
+      <span id={`pf-${path}-error`} className="text-sm text-danger">
         {fieldError(path)}
       </span>
     ) : null;
@@ -179,22 +179,22 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         </Link>
       </div>
 
-      {readOnly ? <p className="rounded-md border border-border p-3">{tr("catalog.form.readOnly")}</p> : null}
+      {readOnly ? <p className="card p-3">{tr("catalog.form.readOnly")}</p> : null}
       {current && !current.isActive ? (
-        <p className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
+        <p className="rounded-lg border border-warning bg-warning-soft p-3 text-warning">
           {tr("catalog.archive.archivedNotice")}
         </p>
       ) : null}
 
       <div role="alert" aria-live="assertive">
         {errors.summary ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-md border border-red-400 bg-red-50 p-3 text-red-800">
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-danger bg-danger-soft p-3 text-danger">
             <span>{errors.summary}</span>
             {errors.stale ? (
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="rounded-md border border-red-400 px-3 py-1"
+                className="btn border-danger text-danger btn-sm"
               >
                 {tr("catalog.form.reload")}
               </button>
@@ -203,11 +203,11 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         ) : null}
       </div>
       <div role="status" aria-live="polite">
-        {saved ? <p className="text-green-700">{tr("catalog.form.saved")}</p> : null}
+        {saved ? <p className="text-success">{tr("catalog.form.saved")}</p> : null}
       </div>
 
       <fieldset disabled={readOnly} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.name")}</span>
           <input
             id="pf-name"
@@ -222,7 +222,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           />
           {errorText("name")}
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.nameAr")}</span>
           <input
             id="pf-nameAr"
@@ -237,7 +237,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           />
           {errorText("nameAr")}
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.sku")}</span>
           <input
             id="pf-sku"
@@ -254,7 +254,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           />
           {errorText("sku")}
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.category")}</span>
           <select
             id="pf-categoryId"
@@ -273,7 +273,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           </select>
           {errorText("categoryId")}
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.unit")}</span>
           {/* EACH only until the grocery preset (R9 / Q5); immutable after creation. */}
           <select id="pf-unitType" value="EACH" disabled={isEdit} onChange={() => {}} className={inputClass}>
@@ -281,7 +281,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           </select>
           {isEdit ? <span className="text-xs text-muted">{tr("catalog.form.unitHint")}</span> : null}
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("catalog.form.vatCategory")}</span>
           <select
             id="pf-vatCategory"
@@ -297,7 +297,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>
             {tr("catalog.form.price")} ({currency})
           </span>
@@ -322,7 +322,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           ) : null}
         </label>
         {canSeeCost ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>
               {tr("catalog.form.cost")} ({currency})
             </span>
@@ -342,7 +342,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
           </label>
         ) : null}
         {belowCost ? (
-          <p role="status" className="text-sm text-amber-800 sm:col-span-2">
+          <p role="status" className="text-sm text-warning sm:col-span-2">
             {tr("catalog.form.warning.priceBelowCost")}
           </p>
         ) : null}
@@ -377,11 +377,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
 
       {readOnly ? null : (
         <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-foreground px-5 py-2 text-background disabled:opacity-60"
-          >
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {pending ? tr("catalog.form.saving") : tr("catalog.form.save")}
           </button>
           <button
@@ -389,7 +385,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
             onClick={() => {
               if (!dirty || window.confirm(tr("catalog.form.discardConfirm"))) router.push("/catalog/products");
             }}
-            className="rounded-md border border-border px-5 py-2"
+            className="btn"
           >
             {tr("catalog.form.cancel")}
           </button>

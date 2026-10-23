@@ -70,30 +70,27 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{tr("inventory.title")}</h1>
         <div className="ms-auto flex flex-wrap gap-2">
-          <Link href={`/inventory/low-stock?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+          <Link href={`/inventory/low-stock?${branchParam}`} className="btn">
             {tr("inventory.action.lowStock")}
           </Link>
-          <Link href={`/inventory/transfers?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+          <Link href={`/inventory/transfers?${branchParam}`} className="btn">
             {tr("inventory.action.transfers")}
           </Link>
-          <Link href={`/inventory/counts?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+          <Link href={`/inventory/counts?${branchParam}`} className="btn">
             {tr("inventory.action.counts")}
           </Link>
           {can.adjust ? (
-            <Link href={`/inventory/opening?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+            <Link href={`/inventory/opening?${branchParam}`} className="btn">
               {tr("inventory.action.opening")}
             </Link>
           ) : null}
           {can.adjust ? (
-            <Link href={`/inventory/import?${branchParam}`} className="rounded-md border border-border px-3 py-2">
+            <Link href={`/inventory/import?${branchParam}`} className="btn">
               {tr("inventory.action.import")}
             </Link>
           ) : null}
           {can.transfer ? (
-            <Link
-              href={`/inventory/transfer?${branchParam}`}
-              className="rounded-md bg-foreground px-3 py-2 text-background"
-            >
+            <Link href={`/inventory/transfer?${branchParam}`} className="btn btn-primary">
               {tr("inventory.action.newTransfer")}
             </Link>
           ) : null}
@@ -111,9 +108,9 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
           aria-label={tr("inventory.search.label")}
           placeholder={tr("inventory.search.placeholder")}
           dir="ltr"
-          className="min-w-64 flex-1 rounded-md border border-border bg-background px-3 py-2"
+          className="input min-w-64 flex-1"
         />
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("inventory.search.submit")}
         </button>
       </form>
@@ -130,7 +127,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
               key={value}
               href={`/inventory?${chip}`}
               aria-current={active ? "page" : undefined}
-              className={`rounded-md px-3 py-1 text-sm ${active ? "bg-foreground text-background" : "border border-border"}`}
+              className={`btn btn-sm ${active ? "btn-primary" : ""}`}
             >
               {tr(`inventory.filter.${value}` as const)}
             </Link>
@@ -139,17 +136,17 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
       </nav>
 
       {result.rows.length === 0 ? (
-        <div className="flex flex-col items-start gap-2 rounded-md border border-border p-6">
+        <div className="card flex flex-col items-start gap-2">
           <p className="text-lg font-medium">
             {q || filter !== "all" ? tr("inventory.state.noResults") : tr("inventory.state.empty.title")}
           </p>
           {q || filter !== "all" ? null : <p className="text-muted">{tr("inventory.state.empty.body")}</p>}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-start">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="border-b border-border text-muted">
+              <tr>
                 <th className="py-2">{tr("inventory.column.item")}</th>
                 <th>{tr("inventory.column.sku")}</th>
                 <th>{tr("inventory.column.onHand")}</th>
@@ -165,19 +162,19 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                 const historyHref = `/inventory/items/${row.productId}?${branchParam}${row.variantId ? `&variant=${row.variantId}` : ""}`;
                 return (
                   <tr key={`${row.productId}|${row.variantId ?? ""}`} className="border-b border-border align-top">
-                    <td className="py-2">
+                    <td>
                       {label}
                       {row.archived ? (
-                        <span className="ms-2 rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">
+                        <span className="ms-2 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
                           {tr("inventory.badge.archived")}
                         </span>
                       ) : null}
                     </td>
                     <td dir="ltr">{row.sku}</td>
-                    <td dir="ltr" className={row.qty < 0 ? "text-red-700" : ""}>
+                    <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
                       {row.qty}
                       {row.qty < 0 ? (
-                        <span className="ms-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800">
+                        <span className="ms-2 rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">
                           {tr("inventory.badge.oversold")}
                         </span>
                       ) : null}
@@ -188,7 +185,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                     <td dir="ltr">
                       {row.reorderPoint ?? "—"}
                       {isLowStock(row.qty, row.reorderPoint) ? (
-                        <span className="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                        <span className="ms-2 rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">
                           {tr("inventory.badge.low")}
                         </span>
                       ) : null}
@@ -218,7 +215,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
       )}
 
       {nextHref ? (
-        <Link href={nextHref} className="self-start rounded-md border border-border px-4 py-2">
+        <Link href={nextHref} className="btn self-start">
           {tr("inventory.state.loadMore")}
         </Link>
       ) : null}

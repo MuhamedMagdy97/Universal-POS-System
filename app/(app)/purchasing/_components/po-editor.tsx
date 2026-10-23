@@ -127,14 +127,9 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-4">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.po.supplier")}</span>
-          <select
-            required
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select required value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="input">
             <option value="" disabled>
               {tr("purchasing.po.chooseSupplier")}
             </option>
@@ -146,13 +141,9 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
           </select>
         </label>
         {branches && branches.length > 1 ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.po.branch")}</span>
-            <select
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-2"
-            >
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="input">
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -163,12 +154,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
         ) : null}
         <label className="flex min-w-64 flex-1 flex-col gap-1">
           <span>{tr("purchasing.po.note")}</span>
-          <input
-            value={note}
-            maxLength={500}
-            onChange={(e) => setNote(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="input" />
         </label>
       </div>
 
@@ -188,9 +174,9 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
               }
             }}
             dir="ltr"
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2"
+            className="input flex-1"
           />
-          <button type="button" onClick={() => void find()} className="rounded-md border border-border px-4 py-2">
+          <button type="button" onClick={() => void find()} className="btn">
             {tr("purchasing.search.submit")}
           </button>
         </div>
@@ -204,7 +190,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
                   {item.sku}
                 </span>
               </span>
-              <button type="button" onClick={() => add(item)} className="rounded-md border border-border px-3 py-1">
+              <button type="button" onClick={() => add(item)} className="btn btn-sm">
                 {tr("purchasing.search.add")}
               </button>
             </li>
@@ -212,89 +198,87 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
         </ul>
       </div>
 
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-start">{tr(qtyLabel)}</th>
-            <th className="text-start">{tr("purchasing.line.cost")}</th>
-            <th className="text-end">{tr("purchasing.line.total")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => {
-            const qty = parseQty(line.qty);
-            const cost = parseCost(line.cost, currency);
-            return (
-              <tr key={keyOf(line)} className="border-t border-border">
-                <td className="py-2">
-                  {line.name}{" "}
-                  <span dir="ltr" className="text-muted">
-                    {line.sku}
-                  </span>
-                </td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="numeric"
-                    aria-label={`${tr(qtyLabel)} ${line.sku}`}
-                    aria-invalid={qty === null || qty < 1}
-                    value={line.qty}
-                    onChange={(e) => update(index, { qty: e.target.value })}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="decimal"
-                    aria-label={`${tr("purchasing.line.cost")} ${line.sku}`}
-                    aria-invalid={cost === null}
-                    value={line.cost}
-                    onChange={(e) => update(index, { cost: e.target.value })}
-                    className="w-28 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-                <td className="text-end">
-                  {qty !== null && cost !== null ? formatMinor(qty * cost, currency, locale) : "—"}
-                </td>
-                <td className="text-end">
-                  <button
-                    type="button"
-                    onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
-                    className="rounded-md border border-border px-2 py-1 text-sm"
-                  >
-                    {tr("purchasing.line.remove")}
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-border font-semibold">
-            <td className="py-2">{tr("purchasing.po.total")}</td>
-            <td colSpan={2} />
-            <td className="text-end">{total === null ? "—" : formatMinor(total, currency, locale)}</td>
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("purchasing.line.item")}</th>
+              <th className="text-start">{tr(qtyLabel)}</th>
+              <th className="text-start">{tr("purchasing.line.cost")}</th>
+              <th className="text-end">{tr("purchasing.line.total")}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => {
+              const qty = parseQty(line.qty);
+              const cost = parseCost(line.cost, currency);
+              return (
+                <tr key={keyOf(line)}>
+                  <td>
+                    {line.name}{" "}
+                    <span dir="ltr" className="text-muted">
+                      {line.sku}
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="numeric"
+                      aria-label={`${tr(qtyLabel)} ${line.sku}`}
+                      aria-invalid={qty === null || qty < 1}
+                      value={line.qty}
+                      onChange={(e) => update(index, { qty: e.target.value })}
+                      className="input min-h-9 w-24 px-2 py-1"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="decimal"
+                      aria-label={`${tr("purchasing.line.cost")} ${line.sku}`}
+                      aria-invalid={cost === null}
+                      value={line.cost}
+                      onChange={(e) => update(index, { cost: e.target.value })}
+                      className="input min-h-9 w-28 px-2 py-1"
+                    />
+                  </td>
+                  <td className="text-end">
+                    {qty !== null && cost !== null ? formatMinor(qty * cost, currency, locale) : "—"}
+                  </td>
+                  <td className="text-end">
+                    <button
+                      type="button"
+                      onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
+                      className="btn btn-sm"
+                    >
+                      {tr("purchasing.line.remove")}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-semibold">
+              <td>{tr("purchasing.po.total")}</td>
+              <td colSpan={2} />
+              <td className="text-end">{total === null ? "—" : formatMinor(total, currency, locale)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       {message ? (
         <p
           role={message.kind === "error" ? "alert" : "status"}
-          className={message.kind === "error" ? "text-red-700" : ""}
+          className={message.kind === "error" ? "text-danger" : ""}
         >
           {message.text}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending || supplierId === ""}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || supplierId === ""} className="btn btn-primary self-start">
         {direct ? tr("purchasing.direct.submit") : existing ? tr("purchasing.po.save") : tr("purchasing.po.create")}
       </button>
     </form>

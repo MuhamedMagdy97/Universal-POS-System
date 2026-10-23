@@ -118,10 +118,7 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
 
   if (result) {
     return (
-      <section
-        aria-labelledby="close-result-title"
-        className="flex max-w-md flex-col gap-3 rounded-md border border-border p-4"
-      >
+      <section aria-labelledby="close-result-title" className="card flex max-w-md flex-col gap-3 p-4">
         <h2 id="close-result-title" className="text-xl font-semibold">
           {tr("pos.close.resultTitle")}
         </h2>
@@ -142,12 +139,7 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
         {result.discrepancyNote ? <p className="text-sm text-muted">{result.discrepancyNote}</p> : null}
         <div className="flex flex-wrap gap-2">
           <PrintZReportButton locale={locale} shiftId={result.id} />
-          <button
-            type="button"
-            onClick={() => router.refresh()}
-            autoFocus
-            className="rounded-md bg-foreground px-4 py-2 text-background"
-          >
+          <button type="button" onClick={() => router.refresh()} autoFocus className="btn btn-primary">
             {tr("pos.close.done")}
           </button>
         </div>
@@ -168,12 +160,12 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
             refresh();
             setOpen(true);
           }}
-          className="self-start rounded-md border border-border px-4 py-2"
+          className="btn self-start"
         >
           {tr("pos.close.open")}
         </button>
         {queuedHere > 0 ? (
-          <p role="alert" className="max-w-xs text-sm text-red-700" data-testid="close-offline-queued">
+          <p role="alert" className="max-w-xs text-sm text-danger" data-testid="close-offline-queued">
             {tr("pos.close.offlineQueued", { count: String(queuedHere) })}
           </p>
         ) : null}
@@ -187,7 +179,7 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
       onKeyDown={(e) => {
         if (e.key === "Escape" && !pending) reset();
       }}
-      className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4"
+      className="card flex max-w-md flex-col gap-4 p-4"
     >
       <h2 id="close-title" className="text-xl font-semibold">
         {tr("pos.close.title")}
@@ -226,7 +218,7 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
       </dl>
 
       <form onSubmit={submit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>
             {tr("pos.close.counted")} ({currency})
           </span>
@@ -236,11 +228,11 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
             value={countedRaw}
             onChange={(e) => setCountedRaw(e.target.value)}
             aria-invalid={countedRaw.trim() !== "" && preview.countedMinor === null}
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="input"
           />
         </label>
         {countedRaw.trim() !== "" && parseCash(countedRaw, currency) === null ? (
-          <p className="text-red-700">{tr("pos.close.invalidCount")}</p>
+          <p className="text-danger">{tr("pos.close.invalidCount")}</p>
         ) : preview.differenceMinor !== null ? (
           <p>
             {tr("pos.close.difference")}:{" "}
@@ -251,7 +243,7 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
         ) : null}
 
         {preview.noteRequired ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("pos.close.noteLabel")}</span>
             <span className="text-sm text-muted">{tr("pos.close.noteHint")}</span>
             <textarea
@@ -259,19 +251,19 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
               onChange={(e) => setNote(e.target.value)}
               maxLength={500}
               rows={3}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
         ) : null}
 
         {queuedHere > 0 ? (
-          <p role="alert" className="text-red-700" data-testid="close-offline-queued">
+          <p role="alert" className="notice notice-error" data-testid="close-offline-queued">
             {tr("pos.close.offlineQueued", { count: String(queuedHere) })}
           </p>
         ) : null}
         {unsynced ? (
-          <label className="flex flex-col gap-1">
-            <span role="alert" className="text-red-700" data-testid="close-offline-unsynced">
+          <label className="field">
+            <span role="alert" className="text-danger" data-testid="close-offline-unsynced">
               {tr("pos.close.offlineUnsynced", {
                 code: unsynced.offlineCode ?? "—",
                 count: String(unsynced.queued),
@@ -284,30 +276,21 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
               onChange={(e) => setUnsyncedNote(e.target.value)}
               maxLength={500}
               rows={2}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
         ) : null}
         {error ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {plain(locale, error)}
           </p>
         ) : null}
 
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={!ready}
-            className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-          >
+          <button type="submit" disabled={!ready} className="btn btn-primary">
             {pending ? tr("pos.close.closing") : tr("pos.close.submit")}
           </button>
-          <button
-            type="button"
-            onClick={reset}
-            disabled={pending}
-            className="rounded-md border border-border px-4 py-2"
-          >
+          <button type="button" onClick={reset} disabled={pending} className="btn">
             {tr("pos.close.cancel")}
           </button>
         </div>

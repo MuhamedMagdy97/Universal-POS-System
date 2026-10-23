@@ -95,7 +95,7 @@ body {
     @apply min-h-8 px-3 py-1;
   }
   .input {
-    @apply min-h-10 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30 disabled:opacity-60;
+    @apply min-h-10 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-normal text-foreground placeholder:text-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30 disabled:opacity-60;
   }
   .card {
     @apply rounded-xl border border-border bg-surface p-5;

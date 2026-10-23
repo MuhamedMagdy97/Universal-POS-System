@@ -29,25 +29,21 @@ export function StockRowActions(props: Props) {
   return (
     <div className="flex flex-wrap gap-2">
       {props.canAdjust ? (
-        <button type="button" onClick={() => setOpen(true)} className="rounded-md border border-border px-3 py-1">
+        <button type="button" onClick={() => setOpen(true)} className="btn btn-sm">
           {tr("inventory.action.adjust")}
         </button>
       ) : null}
       {props.canAdjust ? (
-        <button
-          type="button"
-          onClick={() => setReorderOpen(true)}
-          className="rounded-md border border-border px-3 py-1"
-        >
+        <button type="button" onClick={() => setReorderOpen(true)} className="btn btn-sm">
           {tr("inventory.action.reorderPoint")}
         </button>
       ) : null}
       {props.canTransfer ? (
-        <Link href={props.transferHref} className="rounded-md border border-border px-3 py-1">
+        <Link href={props.transferHref} className="btn btn-sm">
           {tr("inventory.action.transfer")}
         </Link>
       ) : null}
-      <Link href={props.historyHref} className="rounded-md border border-border px-3 py-1">
+      <Link href={props.historyHref} className="btn btn-sm">
         {tr("inventory.action.history")}
       </Link>
       {props.canAdjust ? (

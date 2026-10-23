@@ -11,7 +11,7 @@ import { inventoryErrorKey } from "../_lib/inventory";
 /** A posting row with its times already formatted in the shop's timezone (by the page, on the server). */
 export type PostingRow = InventoryPosting & { nextAttemptLocal: string };
 
-const button = "rounded-md border border-border px-3 py-1 disabled:opacity-50";
+const button = "btn btn-sm";
 
 /**
  * Postings waiting or refused (integration spec I19, I22), 20 a page, with Retry (Owner, Admin).
@@ -52,44 +52,40 @@ export function PostingsList({
       {rows.length === 0 ? (
         <p className="text-sm text-muted">{tr("settings.inventory.postingsList.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="table-wrap">
           <table data-testid="inventory-postings-list" className="w-full text-sm">
             <thead>
               <tr className="text-start">
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.kind")}</th>
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.document")}</th>
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.status")}</th>
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.attempts")}</th>
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.error")}</th>
-                <th className="p-2 text-start">{tr("settings.inventory.postingsList.next")}</th>
+                <th>{tr("settings.inventory.postingsList.kind")}</th>
+                <th>{tr("settings.inventory.postingsList.document")}</th>
+                <th>{tr("settings.inventory.postingsList.status")}</th>
+                <th>{tr("settings.inventory.postingsList.attempts")}</th>
+                <th>{tr("settings.inventory.postingsList.error")}</th>
+                <th>{tr("settings.inventory.postingsList.next")}</th>
                 <th className="p-2" />
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="p-2">{tr(`settings.inventory.postingsList.kind.${row.kind}`)}</td>
-                  <td className="p-2">
+                <tr key={row.id}>
+                  <td>{tr(`settings.inventory.postingsList.kind.${row.kind}`)}</td>
+                  <td>
                     {tr(`settings.inventory.postingsList.document.${row.document}`, {
                       number: row.saleNumber ?? "—",
                     })}
                   </td>
-                  <td className="p-2">
+                  <td>
                     {tr(`settings.inventory.postingsList.status.${row.status}`)}
                     {row.stale ? (
-                      <span className="ms-2 font-medium text-red-700">
+                      <span className="ms-2 font-medium text-danger">
                         {tr("settings.inventory.postingsList.stale")}
                       </span>
                     ) : null}
                   </td>
-                  <td className="p-2">{row.attempts}</td>
-                  <td className="p-2" dir="ltr">
-                    {row.lastErrorCode ?? "—"}
-                  </td>
-                  <td className="p-2" dir="ltr">
-                    {row.status === "PENDING" ? row.nextAttemptLocal : "—"}
-                  </td>
-                  <td className="p-2">
+                  <td>{row.attempts}</td>
+                  <td dir="ltr">{row.lastErrorCode ?? "—"}</td>
+                  <td dir="ltr">{row.status === "PENDING" ? row.nextAttemptLocal : "—"}</td>
+                  <td>
                     <button type="button" className={button} disabled={busy !== null} onClick={() => retry(row.id)}>
                       {busy === row.id ? tr("settings.inventory.working") : tr("settings.inventory.postingsList.retry")}
                     </button>
@@ -117,7 +113,7 @@ export function PostingsList({
       {notice ? (
         <p
           role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-red-700" : "text-green-800"}
+          className={notice.tone === "error" ? "text-danger" : "text-success"}
         >
           {plain(locale, notice.key)}
         </p>

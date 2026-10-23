@@ -138,7 +138,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
   }
 
   return (
-    <section aria-labelledby="sale-title" className="flex flex-col gap-4 rounded-md border border-border p-4">
+    <section aria-labelledby="sale-title" className="card flex flex-col gap-4 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="sale-title" className="text-xl font-semibold">
           {tr("returns.sale.title", { number: sale.number })}
@@ -156,7 +156,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
           saleId={sale.id}
           request={{ kind: "SALE", copy: true }}
           label="receipt.reprint"
-          className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+          className="btn btn-sm"
         />
         {!completed ? (
           <PrintReceiptButton
@@ -164,7 +164,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
             saleId={sale.id}
             request={{ kind: "VOID", copy: !justVoided }}
             label="receipt.printVoid"
-            className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+            className="btn btn-sm"
           />
         ) : null}
       </div>
@@ -176,7 +176,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
       </p>
 
       {!completed ? (
-        <div role="status" className="rounded-md border border-border p-3">
+        <div role="status" className="card p-3">
           <p className="font-semibold">{tr("returns.sale.voided")}</p>
           {sale.voidReason ? (
             <p className="text-muted">{tr("returns.sale.voidReason", { reason: sale.voidReason })}</p>
@@ -185,97 +185,95 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
       ) : null}
 
       {message ? (
-        <p role="status" className="text-green-800" data-testid="returns-message">
+        <p role="status" className="notice notice-success" data-testid="returns-message">
           {message}
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {plain(locale, error)}
         </p>
       ) : null}
 
       <form onSubmit={refund} aria-label={tr("returns.refund.title")} className="flex flex-col gap-4">
-        <table className="w-full text-start">
-          <thead>
-            <tr className="text-muted">
-              <th className="py-1 text-start font-normal">{tr("returns.lines.item")}</th>
-              <th className="text-end font-normal">{tr("returns.lines.sold")}</th>
-              <th className="text-end font-normal">{tr("returns.lines.refunded")}</th>
-              {showRefund ? <th className="text-start font-normal">{tr("returns.lines.refund")}</th> : null}
-              {showRefund ? <th className="text-end font-normal">{tr("returns.lines.amount")}</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {sale.lines.map((line) => {
-              const left = refundableOf(line);
-              const raw = qtys[line.saleItemId] ?? "";
-              const qty = parseRefundQty(raw, left);
-              const name = nameOf(line);
-              return (
-                <tr key={line.saleItemId} className="border-t border-border">
-                  <td className="py-2">
-                    {name}{" "}
-                    <span dir="ltr" className="text-muted">
-                      {line.sku}
-                    </span>
-                    {line.discountMinor > 0 ? (
-                      <span className="block text-sm text-muted">
-                        {tr("returns.lines.discounted", {
-                          discount: money(line.discountMinor),
-                          paid: money(line.lineTotalMinor),
-                        })}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td dir="ltr" className="text-end">
-                    {line.qty}
-                  </td>
-                  <td dir="ltr" className="text-end" data-testid={`refunded-${line.sku}`}>
-                    {line.refundedQty}
-                  </td>
-                  {showRefund ? (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr className="text-muted">
+                <th className="py-1 text-start font-normal">{tr("returns.lines.item")}</th>
+                <th className="text-end">{tr("returns.lines.sold")}</th>
+                <th className="text-end">{tr("returns.lines.refunded")}</th>
+                {showRefund ? <th className="text-start font-normal">{tr("returns.lines.refund")}</th> : null}
+                {showRefund ? <th className="text-end">{tr("returns.lines.amount")}</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {sale.lines.map((line) => {
+                const left = refundableOf(line);
+                const raw = qtys[line.saleItemId] ?? "";
+                const qty = parseRefundQty(raw, left);
+                const name = nameOf(line);
+                return (
+                  <tr key={line.saleItemId}>
                     <td>
-                      {left > 0 ? (
-                        <input
-                          dir="ltr"
-                          inputMode="numeric"
-                          aria-label={tr("returns.lines.qtyFor", { name })}
-                          aria-invalid={qty === null}
-                          value={raw}
-                          placeholder="0"
-                          onChange={(e) => setQtys((current) => ({ ...current, [line.saleItemId]: e.target.value }))}
-                          className="w-20 rounded-md border border-border bg-background px-2 py-1"
-                        />
-                      ) : (
-                        "—"
-                      )}
+                      {name}{" "}
+                      <span dir="ltr" className="text-muted">
+                        {line.sku}
+                      </span>
+                      {line.discountMinor > 0 ? (
+                        <span className="block text-sm text-muted">
+                          {tr("returns.lines.discounted", {
+                            discount: money(line.discountMinor),
+                            paid: money(line.lineTotalMinor),
+                          })}
+                        </span>
+                      ) : null}
                     </td>
-                  ) : null}
-                  {showRefund ? (
                     <td dir="ltr" className="text-end">
-                      {qty === null ? "—" : money(lineRefundMinor(line, qty))}
+                      {line.qty}
                     </td>
-                  ) : null}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!plan.ok ? <p className="text-red-700">{tr("returns.lines.invalid")}</p> : null}
+                    <td dir="ltr" className="text-end" data-testid={`refunded-${line.sku}`}>
+                      {line.refundedQty}
+                    </td>
+                    {showRefund ? (
+                      <td>
+                        {left > 0 ? (
+                          <input
+                            dir="ltr"
+                            inputMode="numeric"
+                            aria-label={tr("returns.lines.qtyFor", { name })}
+                            aria-invalid={qty === null}
+                            value={raw}
+                            placeholder="0"
+                            onChange={(e) => setQtys((current) => ({ ...current, [line.saleItemId]: e.target.value }))}
+                            className="input min-h-9 w-20 px-2 py-1"
+                          />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    ) : null}
+                    {showRefund ? (
+                      <td dir="ltr" className="text-end">
+                        {qty === null ? "—" : money(lineRefundMinor(line, qty))}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!plan.ok ? <p className="text-danger">{tr("returns.lines.invalid")}</p> : null}
 
         {canRefund && completed && !anyLeft ? <p className="text-muted">{tr("returns.refund.nothingLeft")}</p> : null}
 
         {showRefund ? (
           <div className="flex max-w-md flex-col gap-3">
             {tillOpen ? (
-              <label className="flex flex-col gap-1">
+              <label className="field">
                 <span>{tr("returns.refund.till")}</span>
-                <select
-                  value={chosen}
-                  onChange={(e) => setTillId(e.target.value)}
-                  className="rounded-md border border-border bg-background px-3 py-2"
-                >
+                <select value={chosen} onChange={(e) => setTillId(e.target.value)} className="input">
                   {sale.registers.map((till) => (
                     <option key={till.id} value={till.id} disabled={!till.hasOpenShift}>
                       {till.hasOpenShift ? till.name : tr("returns.refund.tillClosed", { name: till.name })}
@@ -284,7 +282,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                 </select>
               </label>
             ) : (
-              <p role="alert" className="text-red-700">
+              <p role="alert" className="notice notice-error">
                 {tr("returns.refund.noShift")}
               </p>
             )}
@@ -294,7 +292,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                 {METHODS.map((option) => (
                   <label
                     key={option.value}
-                    className="flex items-center gap-1 rounded-md border border-border px-3 py-2 has-[:checked]:border-foreground"
+                    className="flex items-center gap-1 min-h-12 cursor-pointer rounded-lg border border-border-strong px-4 py-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
                   >
                     <input
                       type="radio"
@@ -309,24 +307,19 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
               </div>
             </fieldset>
             {method !== "CASH" ? (
-              <label className="flex flex-col gap-1">
+              <label className="field">
                 <span>{tr("returns.refund.reference")}</span>
                 <input
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   maxLength={64}
-                  className="rounded-md border border-border bg-background px-3 py-2"
+                  className="input"
                 />
               </label>
             ) : null}
-            <label className="flex flex-col gap-1">
+            <label className="field">
               <span>{tr("returns.refund.reason")}</span>
-              <input
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                maxLength={200}
-                className="rounded-md border border-border bg-background px-3 py-2"
-              />
+              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="input" />
             </label>
             <p>
               {tr("returns.refund.total")}:{" "}
@@ -335,11 +328,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
               </strong>
             </p>
             <p className="text-sm text-muted">{tr("returns.refund.preview")}</p>
-            <button
-              type="submit"
-              disabled={!ready}
-              className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-            >
+            <button type="submit" disabled={!ready} className="btn btn-primary self-start">
               {pending
                 ? tr("returns.refund.submitting")
                 : tr("returns.refund.submit", { total: money(plan.ok ? plan.totalMinor : 0) })}
@@ -365,7 +354,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                     saleId={sale.id}
                     request={{ kind: "REFUND", refundId: refund.id, copy: refund.id !== justRefunded }}
                     label="receipt.printRefund"
-                    className="rounded-md border border-border px-2 py-0.5 text-xs disabled:opacity-50"
+                    className="btn btn-sm"
                   />
                 </span>
               </li>
@@ -385,29 +374,25 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
               <button
                 type="button"
                 onClick={() => setVoiding(true)}
-                className="self-start rounded-md border border-red-700 px-4 py-2 text-red-700"
+                className="btn border-danger text-danger self-start"
               >
                 {tr("returns.void.start")}
               </button>
             </>
           ) : (
             <form onSubmit={voidIt} className="flex flex-col gap-2">
-              <label className="flex flex-col gap-1">
+              <label className="field">
                 <span>{tr("returns.void.reason")}</span>
                 <input
                   value={voidReason}
                   onChange={(e) => setVoidReason(e.target.value)}
                   maxLength={200}
                   autoFocus
-                  className="rounded-md border border-border bg-background px-3 py-2"
+                  className="input"
                 />
               </label>
               <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={pending || voidReason.trim() === ""}
-                  className="rounded-md bg-red-700 px-4 py-2 text-white disabled:opacity-50"
-                >
+                <button type="submit" disabled={pending || voidReason.trim() === ""} className="btn btn-danger">
                   {pending ? tr("returns.void.voiding") : tr("returns.void.confirm")}
                 </button>
                 <button
@@ -417,7 +402,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                     setVoidReason("");
                   }}
                   disabled={pending}
-                  className="rounded-md border border-border px-4 py-2"
+                  className="btn"
                 >
                   {tr("returns.void.cancel")}
                 </button>

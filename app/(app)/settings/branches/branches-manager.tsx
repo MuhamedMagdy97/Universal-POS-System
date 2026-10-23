@@ -15,9 +15,6 @@ type Editing =
   | { kind: "till"; id: string }
   | null;
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-const SMALL = "rounded-md border border-border px-2 py-1 text-sm disabled:opacity-50";
-
 /** Branches with their tills: add, rename, deactivate and reactivate (O5). */
 export function BranchesManager({ locale, branches }: { locale: Locale; branches: BranchRow[] }) {
   const tr = translator(locale);
@@ -60,7 +57,7 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
   const isNewBranch = editing?.kind === "newBranch";
   const form = (
     <form onSubmit={save} className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>
           {editing?.kind === "newTill" || editing?.kind === "till" ? tr("branches.tillName") : tr("branches.name")}
         </span>
@@ -69,11 +66,11 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
           maxLength={editing?.kind === "newTill" || editing?.kind === "till" ? 40 : 60}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className={INPUT}
+          className="input"
         />
       </label>
       {isNewBranch ? (
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("branches.code")}</span>
           <input
             required
@@ -81,21 +78,26 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
             maxLength={12}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            className={INPUT}
+            className="input"
           />
         </label>
       ) : null}
-      <button type="submit" disabled={pending} className="rounded-md bg-foreground px-4 py-2 text-background">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {tr("branches.save")}
       </button>
-      <button type="button" onClick={() => setEditing(null)} className="rounded-md border border-border px-4 py-2">
+      <button type="button" onClick={() => setEditing(null)} className="btn">
         {tr("branches.cancel")}
       </button>
     </form>
   );
 
   const toggle = (row: { isActive: boolean }, action: (isActive: boolean) => Promise<ActionResult<null>>) => (
-    <button type="button" disabled={pending} className={SMALL} onClick={() => void run(() => action(!row.isActive))}>
+    <button
+      type="button"
+      disabled={pending}
+      className="btn btn-sm"
+      onClick={() => void run(() => action(!row.isActive))}
+    >
       {row.isActive ? tr("branches.deactivate") : tr("branches.reactivate")}
     </button>
   );
@@ -110,7 +112,7 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
           <span className="ms-auto flex gap-2">
             <button
               type="button"
-              className={SMALL}
+              className="btn btn-sm"
               onClick={() => start({ kind: "till", id: register.id }, register.name)}
             >
               {tr("branches.rename")}
@@ -125,23 +127,19 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
   return (
     <div className="flex flex-col gap-4">
       {editing === null ? (
-        <button
-          type="button"
-          onClick={() => start({ kind: "newBranch" })}
-          className="self-start rounded-md bg-foreground px-4 py-2 text-background"
-        >
+        <button type="button" onClick={() => start({ kind: "newBranch" })} className="btn btn-primary self-start">
           {tr("branches.add")}
         </button>
       ) : null}
-      {isNewBranch ? <div className="rounded-md border border-border p-4">{form}</div> : null}
+      {isNewBranch ? <div className="card p-4">{form}</div> : null}
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
       <ul className="flex flex-col gap-3">
         {branches.map((branch) => (
-          <li key={branch.id} className="flex flex-col gap-2 rounded-md border border-border p-4">
+          <li key={branch.id} className="card flex flex-col gap-2 p-4">
             {editing?.kind === "branch" && editing.id === branch.id ? (
               form
             ) : (
@@ -154,7 +152,7 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
                 <span className="ms-auto flex gap-2">
                   <button
                     type="button"
-                    className={SMALL}
+                    className="btn btn-sm"
                     onClick={() => start({ kind: "branch", id: branch.id }, branch.name)}
                   >
                     {tr("branches.rename")}
@@ -171,7 +169,7 @@ export function BranchesManager({ locale, branches }: { locale: Locale; branches
               ) : branch.isActive ? (
                 <button
                   type="button"
-                  className={`${SMALL} mt-1`}
+                  className="btn btn-sm mt-1"
                   onClick={() => start({ kind: "newTill", branchId: branch.id })}
                 >
                   {tr("branches.addTill")}

@@ -70,51 +70,50 @@ async function ReceiptContent({ params }: Props) {
       </dl>
 
       {returnable ? (
-        <Link
-          href={`/purchasing/receipts/${receipt.id}/return`}
-          className="self-start rounded-md border border-border px-3 py-2"
-        >
+        <Link href={`/purchasing/receipts/${receipt.id}/return`} className="btn self-start">
           {tr("purchasing.action.return")}
         </Link>
       ) : null}
 
       <h2 className="text-lg font-semibold">{tr("purchasing.po.lines")}</h2>
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-end">{tr("purchasing.line.received")}</th>
-            <th className="text-end">{tr("purchasing.line.returned")}</th>
-            <th className="text-end">{tr("purchasing.line.cost")}</th>
-            <th className="text-end">{tr("purchasing.line.total")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {receipt.lines.map((line) => (
-            <tr key={line.id} className="border-t border-border">
-              <td className="py-2">
-                {locale === "ar" && line.nameAr ? line.nameAr : line.name}{" "}
-                <span dir="ltr" className="text-muted">
-                  {line.sku}
-                </span>
-              </td>
-              <td className="text-end">{line.qtyReceived}</td>
-              <td className="text-end">{line.qtyReturned}</td>
-              <td className="text-end">{money(line.unitCostMinor)}</td>
-              <td className="text-end">{money(line.lineTotalMinor)}</td>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("purchasing.line.item")}</th>
+              <th className="text-end">{tr("purchasing.line.received")}</th>
+              <th className="text-end">{tr("purchasing.line.returned")}</th>
+              <th className="text-end">{tr("purchasing.line.cost")}</th>
+              <th className="text-end">{tr("purchasing.line.total")}</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-border font-semibold">
-            <td className="py-2">{tr("purchasing.po.total")}</td>
-            <td className="text-end">{receipt.units}</td>
-            <td className="text-end">{returnedUnits}</td>
-            <td />
-            <td className="text-end">{money(receipt.valueMinor)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {receipt.lines.map((line) => (
+              <tr key={line.id}>
+                <td>
+                  {locale === "ar" && line.nameAr ? line.nameAr : line.name}{" "}
+                  <span dir="ltr" className="text-muted">
+                    {line.sku}
+                  </span>
+                </td>
+                <td className="text-end">{line.qtyReceived}</td>
+                <td className="text-end">{line.qtyReturned}</td>
+                <td className="text-end">{money(line.unitCostMinor)}</td>
+                <td className="text-end">{money(line.lineTotalMinor)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-border font-semibold">
+              <td>{tr("purchasing.po.total")}</td>
+              <td className="text-end">{receipt.units}</td>
+              <td className="text-end">{returnedUnits}</td>
+              <td />
+              <td className="text-end">{money(receipt.valueMinor)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       {receipt.returns.length > 0 ? (
         <>

@@ -39,14 +39,12 @@ function one(value: string | string[] | undefined): string | undefined {
 function Denied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("audit.state.forbidden")}</h1>
       <p className="text-muted">{tr("audit.state.forbiddenBody")}</p>
     </section>
   );
 }
-
-const SELECT = "rounded-md border border-border bg-background px-3 py-2";
 
 async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
   const [params, locale, requestHeaders] = await Promise.all([searchParams, getLocale(), headers()]);
@@ -98,17 +96,17 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
       <h1 className="text-2xl font-semibold">{tr("audit.title")}</h1>
 
       <form method="get" action="/audit" className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("reports.from")}</span>
-          <input type="date" name="from" defaultValue={from ?? ""} dir="ltr" className={SELECT} />
+          <input type="date" name="from" defaultValue={from ?? ""} dir="ltr" className="input" />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("reports.to")}</span>
-          <input type="date" name="to" defaultValue={to ?? ""} dir="ltr" className={SELECT} />
+          <input type="date" name="to" defaultValue={to ?? ""} dir="ltr" className="input" />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("audit.filter.actor")}</span>
-          <select name="actor" defaultValue={filters.actor ?? ""} className={SELECT}>
+          <select name="actor" defaultValue={filters.actor ?? ""} className="input">
             <option value="">{tr("audit.filter.anyone")}</option>
             {actors.map((actor) => (
               <option key={actor.id} value={actor.id}>
@@ -117,9 +115,9 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("audit.filter.action")}</span>
-          <select name="action" defaultValue={filters.action ?? ""} className={SELECT}>
+          <select name="action" defaultValue={filters.action ?? ""} className="input">
             <option value="">{tr("audit.filter.anyAction")}</option>
             <option value={DENIED_ACTIONS}>{tr("audit.filter.denied")}</option>
             {AUDIT_ACTIONS.map((action) => (
@@ -129,9 +127,9 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("audit.filter.entity")}</span>
-          <select name="entityType" defaultValue={filters.entityType ?? ""} className={SELECT}>
+          <select name="entityType" defaultValue={filters.entityType ?? ""} className="input">
             <option value="">{tr("audit.filter.anyEntity")}</option>
             {AUDIT_ENTITY_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -140,43 +138,33 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
             ))}
           </select>
         </label>
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("reports.apply")}
         </button>
         {page ? (
-          <a href={`/api/audit?${csv}`} download className="ms-auto rounded-md bg-foreground px-4 py-2 text-background">
+          <a href={`/api/audit?${csv}`} download className="btn btn-primary ms-auto">
             {tr("reports.export")}
           </a>
         ) : null}
       </form>
 
       {invalid ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("reports.error.range")}
         </p>
       ) : null}
       {page && page.rows.length === 0 ? <p className="text-muted">{tr("audit.empty")}</p> : null}
 
       {page && page.rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
               <tr className="border-b border-border text-start">
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("audit.col.time")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("audit.col.actor")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("audit.col.action")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("audit.col.entity")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("audit.col.details")}
-                </th>
+                <th scope="col">{tr("audit.col.time")}</th>
+                <th scope="col">{tr("audit.col.actor")}</th>
+                <th scope="col">{tr("audit.col.action")}</th>
+                <th scope="col">{tr("audit.col.entity")}</th>
+                <th scope="col">{tr("audit.col.details")}</th>
               </tr>
             </thead>
             <tbody>
@@ -184,16 +172,16 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
                 const entries = metadataEntries(row.metadata);
                 return (
                   <tr key={row.id} className="border-b border-border align-top">
-                    <td dir="ltr" className="px-2 py-2 whitespace-nowrap">
+                    <td dir="ltr" className="whitespace-nowrap">
                       {formatLocalDateTime(row.at, page.timezone)}
                     </td>
-                    <td className="px-2 py-2">{row.actorName ?? "—"}</td>
-                    <td className="px-2 py-2">
-                      <span className={row.action.endsWith(".permission.denied") ? "text-red-700" : ""}>
+                    <td>{row.actorName ?? "—"}</td>
+                    <td>
+                      <span className={row.action.endsWith(".permission.denied") ? "text-danger" : ""}>
                         {actionLabel(row.action, locale)}
                       </span>
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       {row.entityType}
                       {row.entityId ? (
                         <span dir="ltr" className="block text-xs text-muted">
@@ -201,7 +189,7 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       {entries.length > 0 ? (
                         <details>
                           <summary className="cursor-pointer">{tr("audit.details.show")}</summary>
@@ -228,12 +216,12 @@ async function AuditContent({ searchParams }: { searchParams: SearchParams }) {
 
       <div className="flex gap-3">
         {cursor ? (
-          <Link href={`/audit?${new URLSearchParams(base)}`} className="rounded-md border border-border px-3 py-2">
+          <Link href={`/audit?${new URLSearchParams(base)}`} className="btn">
             {tr("audit.page.newest")}
           </Link>
         ) : null}
         {older ? (
-          <Link href={`/audit?${older}`} className="rounded-md border border-border px-3 py-2">
+          <Link href={`/audit?${older}`} className="btn">
             {tr("audit.page.older")}
           </Link>
         ) : null}

@@ -6,7 +6,7 @@ import { BranchPicker } from "./branch-picker";
 export function NotAllowed({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("inventory.state.forbidden")}</h1>
       <p className="text-muted">{tr("inventory.state.forbiddenBody")}</p>
     </section>
@@ -17,7 +17,7 @@ export function NotAllowed({ locale }: { locale: Locale }) {
 export function NotFound({ locale, branches }: { locale: Locale; branches: BranchOption[] }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("inventory.state.notFound")}</h1>
       {branches.length > 0 ? (
         <BranchPicker locale={locale} action="/inventory" branches={branches} currentId="" />

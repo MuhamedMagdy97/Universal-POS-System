@@ -50,10 +50,10 @@ async function CustomersContent({ searchParams }: { searchParams: SearchParams }
           defaultValue={q}
           aria-label={tr("customers.search")}
           placeholder={tr("customers.searchPlaceholder")}
-          className="min-w-64 flex-1 rounded-md border border-border bg-background px-3 py-2"
+          className="input min-w-64 flex-1"
         />
         {showArchived ? <input type="hidden" name="archived" value="1" /> : null}
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("customers.searchSubmit")}
         </button>
       </form>
@@ -61,34 +61,36 @@ async function CustomersContent({ searchParams }: { searchParams: SearchParams }
       {customers.length === 0 ? (
         <p className="text-muted">{tr("customers.none")}</p>
       ) : (
-        <table className="w-full text-start">
-          <thead>
-            <tr className="text-sm text-muted">
-              <th className="py-2 text-start">{tr("customers.field.name")}</th>
-              <th className="text-start">{tr("customers.field.phone")}</th>
-              <th className="text-start">{tr("customers.field.taxNumber")}</th>
-              <th className="text-start">{tr("customers.status")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((row) => (
-              <tr key={row.id} className="border-t border-border">
-                <td className="py-2">
-                  <Link href={`/customers/${row.id}`} className="underline-offset-4 hover:underline">
-                    {row.name}
-                  </Link>
-                </td>
-                <td dir="ltr" className="text-start">
-                  {row.phone}
-                </td>
-                <td dir="ltr" className="text-start">
-                  {row.taxNumber}
-                </td>
-                <td>{row.isActive ? tr("customers.active") : tr("customers.archived")}</td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr className="text-sm text-muted">
+                <th>{tr("customers.field.name")}</th>
+                <th className="text-start">{tr("customers.field.phone")}</th>
+                <th className="text-start">{tr("customers.field.taxNumber")}</th>
+                <th className="text-start">{tr("customers.status")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {customers.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <Link href={`/customers/${row.id}`} className="underline-offset-4 hover:underline">
+                      {row.name}
+                    </Link>
+                  </td>
+                  <td dir="ltr" className="text-start">
+                    {row.phone}
+                  </td>
+                  <td dir="ltr" className="text-start">
+                    {row.taxNumber}
+                  </td>
+                  <td>{row.isActive ? tr("customers.active") : tr("customers.archived")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

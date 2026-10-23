@@ -22,11 +22,7 @@ export function BranchPicker({
     <form action={action} method="get" className="flex items-center gap-2">
       <label className="flex items-center gap-2">
         <span>{tr("inventory.branch")}</span>
-        <select
-          name="branch"
-          defaultValue={currentId}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        >
+        <select name="branch" defaultValue={currentId} className="input">
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
               {branch.name} ({branch.code})
@@ -34,7 +30,7 @@ export function BranchPicker({
           ))}
         </select>
       </label>
-      <button type="submit" className="rounded-md border border-border px-3 py-2">
+      <button type="submit" className="btn">
         {tr("inventory.search.submit")}
       </button>
     </form>

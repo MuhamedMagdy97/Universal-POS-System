@@ -73,7 +73,7 @@ async function TransferContent({ params, searchParams }: Props) {
         <h1 className="text-2xl font-semibold">
           <bdi>{transfer.reference}</bdi>
         </h1>
-        <span data-testid="transfer-status" className="rounded-full bg-gray-200 px-2 py-0.5 text-sm text-gray-700">
+        <span data-testid="transfer-status" className="rounded-full bg-surface-sunken px-2 py-0.5 text-sm text-muted">
           {tr(`inventory.transfers.status.${transfer.status}` as const)}
         </span>
       </div>
@@ -216,46 +216,48 @@ async function TransferContent({ params, searchParams }: Props) {
         ) : null}
       </div>
 
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("inventory.column.item")}</th>
-            <th className="text-start">{tr("inventory.column.sku")}</th>
-            <th className="text-end">{tr("inventory.transfers.line.sent")}</th>
-            {received ? (
-              <>
-                <th className="text-end">{tr("inventory.transfers.line.received")}</th>
-                <th className="text-end">{tr("inventory.transfers.line.short")}</th>
-                <th className="text-start">{tr("inventory.transfers.line.reason")}</th>
-              </>
-            ) : null}
-          </tr>
-        </thead>
-        <tbody>
-          {transfer.lines.map((line) => (
-            <tr key={`${line.ref.productId}|${line.ref.variantId ?? ""}`} className="border-t border-border">
-              <td className="py-2">{labelOf(line)}</td>
-              <td dir="ltr" className="text-start">
-                {line.sku}
-              </td>
-              <td dir="ltr" className="text-end">
-                {line.qtySent}
-              </td>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("inventory.column.item")}</th>
+              <th className="text-start">{tr("inventory.column.sku")}</th>
+              <th className="text-end">{tr("inventory.transfers.line.sent")}</th>
               {received ? (
                 <>
-                  <td dir="ltr" className="text-end">
-                    {line.qtyReceived}
-                  </td>
-                  <td dir="ltr" className="text-end">
-                    {shortOf(line) || "—"}
-                  </td>
-                  <td>{line.shortfallReason ? tr(`inventory.reason.${line.shortfallReason}` as const) : "—"}</td>
+                  <th className="text-end">{tr("inventory.transfers.line.received")}</th>
+                  <th className="text-end">{tr("inventory.transfers.line.short")}</th>
+                  <th className="text-start">{tr("inventory.transfers.line.reason")}</th>
                 </>
               ) : null}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {transfer.lines.map((line) => (
+              <tr key={`${line.ref.productId}|${line.ref.variantId ?? ""}`}>
+                <td>{labelOf(line)}</td>
+                <td dir="ltr" className="text-start">
+                  {line.sku}
+                </td>
+                <td dir="ltr" className="text-end">
+                  {line.qtySent}
+                </td>
+                {received ? (
+                  <>
+                    <td dir="ltr" className="text-end">
+                      {line.qtyReceived}
+                    </td>
+                    <td dir="ltr" className="text-end">
+                      {shortOf(line) || "—"}
+                    </td>
+                    <td>{line.shortfallReason ? tr(`inventory.reason.${line.shortfallReason}` as const) : "—"}</td>
+                  </>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {canReceive ? (
         <ReceiveTransferForm

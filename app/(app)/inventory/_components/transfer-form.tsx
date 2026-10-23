@@ -129,13 +129,9 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
         {tr("inventory.branch")}: <strong>{fromBranch.name}</strong>
       </p>
 
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("inventory.transfer.to")}</span>
-        <select
-          value={toBranchId}
-          onChange={(e) => setToBranchId(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        >
+        <select value={toBranchId} onChange={(e) => setToBranchId(e.target.value)} className="input">
           {destinations.map((branch) => (
             <option key={branch.id} value={branch.id}>
               {branch.name}
@@ -169,9 +165,9 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
               }
             }}
             dir="ltr"
-            className="flex-1 rounded-md border border-border bg-background px-3 py-2"
+            className="input flex-1"
           />
-          <button type="button" onClick={() => void find()} className="rounded-md border border-border px-4 py-2">
+          <button type="button" onClick={() => void find()} className="btn">
             {tr("inventory.search.submit")}
           </button>
         </div>
@@ -186,7 +182,7 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
               </span>
               <span className="flex items-center gap-2">
                 <span className="text-muted">{tr("inventory.transfer.lineOnHand", { onHand: row.qty })}</span>
-                <button type="button" onClick={() => add(row)} className="rounded-md border border-border px-3 py-1">
+                <button type="button" onClick={() => add(row)} className="btn btn-sm">
                   {tr("inventory.transfer.addItem")}
                 </button>
               </span>
@@ -195,69 +191,62 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
         </ul>
       </div>
 
-      <table className="w-full text-start">
-        <tbody>
-          {lines.map((line, index) => {
-            const isOver = over.some((o) => keyOf(o.ref) === keyOf(line.ref));
-            return (
-              <tr key={keyOf(line.ref)} className="border-t border-border">
-                <td className="py-2">
-                  {line.name}{" "}
-                  <span dir="ltr" className="text-muted">
-                    {line.sku}
-                  </span>
-                </td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="numeric"
-                    aria-label={tr("inventory.adjust.qty")}
-                    value={line.qty}
-                    onChange={(e) => setQty(index, e.target.value)}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-                <td className="text-muted">{tr("inventory.transfer.lineOnHand", { onHand: line.onHand })}</td>
-                <td>{isOver ? <span className="text-red-700">{tr("inventory.transfer.overSource")}</span> : null}</td>
-                <td>
-                  <button
-                    type="button"
-                    onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
-                    className="rounded-md border border-border px-2 py-1"
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="table-wrap">
+        <table className="table">
+          <tbody>
+            {lines.map((line, index) => {
+              const isOver = over.some((o) => keyOf(o.ref) === keyOf(line.ref));
+              return (
+                <tr key={keyOf(line.ref)}>
+                  <td>
+                    {line.name}{" "}
+                    <span dir="ltr" className="text-muted">
+                      {line.sku}
+                    </span>
+                  </td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="numeric"
+                      aria-label={tr("inventory.adjust.qty")}
+                      value={line.qty}
+                      onChange={(e) => setQty(index, e.target.value)}
+                      className="input min-h-9 w-24 px-2 py-1"
+                    />
+                  </td>
+                  <td className="text-muted">{tr("inventory.transfer.lineOnHand", { onHand: line.onHand })}</td>
+                  <td>{isOver ? <span className="text-danger">{tr("inventory.transfer.overSource")}</span> : null}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
+                      className="btn btn-sm"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("inventory.transfer.note")}</span>
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={500}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} className="input" />
       </label>
 
       {message ? (
         <p
           role={message.kind === "error" ? "alert" : "status"}
-          className={message.kind === "error" ? "text-red-700" : ""}
+          className={message.kind === "error" ? "text-danger" : ""}
         >
           {message.text}
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={!canSubmit} className="btn btn-primary self-start">
         {mode === "transit" ? tr("inventory.transfer.send") : tr("inventory.transfer.submit")}
       </button>
     </form>

@@ -24,7 +24,7 @@ type Props = {
   onRecordChanged: (product: ProductDetail) => void;
 };
 
-const inputClass = "rounded-md border border-border px-3 py-2 disabled:opacity-70";
+const inputClass = "input";
 
 /**
  * Variants: name, Arabic name, SKU, optional price/cost override (blank =
@@ -62,7 +62,7 @@ export function VariantRows(props: Props) {
   const invalid = (path: string) => (errors[path] ? true : undefined);
   const err = (path: string) =>
     errors[path] ? (
-      <span id={`pf-${path}-error`} className="text-sm text-red-700">
+      <span id={`pf-${path}-error`} className="text-sm text-danger">
         {errors[path]}
       </span>
     ) : null;
@@ -74,12 +74,7 @@ export function VariantRows(props: Props) {
           {tr("catalog.form.variants")}
         </h2>
         {readOnly ? null : (
-          <button
-            type="button"
-            onClick={onAdd}
-            disabled={disabled}
-            className="rounded-md border border-border px-3 py-1 text-sm"
-          >
+          <button type="button" onClick={onAdd} disabled={disabled} className="btn btn-sm">
             {tr("catalog.form.variantAdd")}
           </button>
         )}
@@ -88,24 +83,20 @@ export function VariantRows(props: Props) {
         {state.variants.length === 0 ? tr("catalog.form.variantsEmpty") : tr("catalog.form.variantsHint")}
       </p>
       {message ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="notice notice-error">
           {message}
         </p>
       ) : null}
 
       {state.variants.map((row, index) => (
-        <fieldset
-          key={row.key}
-          disabled={readOnly}
-          className="grid grid-cols-1 gap-3 rounded-md border border-border p-3 sm:grid-cols-2"
-        >
+        <fieldset key={row.key} disabled={readOnly} className="card grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
           <legend className="flex items-center gap-2 px-1 text-sm">
             <span>
               {tr("catalog.form.variantName")} #{index + 1}
             </span>
             {row.id ? <StatusBadge locale={locale} active={row.isActive} /> : null}
           </legend>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("catalog.form.variantName")}</span>
             <input
               id={`pf-${field(index, "name")}`}
@@ -117,7 +108,7 @@ export function VariantRows(props: Props) {
             />
             {err(field(index, "name"))}
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("catalog.form.nameAr")}</span>
             <input
               id={`pf-${field(index, "nameAr")}`}
@@ -131,7 +122,7 @@ export function VariantRows(props: Props) {
             />
             {err(field(index, "nameAr"))}
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("catalog.form.sku")}</span>
             <input
               id={`pf-${field(index, "sku")}`}
@@ -146,7 +137,7 @@ export function VariantRows(props: Props) {
             />
             {err(field(index, "sku"))}
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>
               {tr("catalog.form.price")} ({currency})
             </span>
@@ -164,7 +155,7 @@ export function VariantRows(props: Props) {
             {err(field(index, "priceMinor"))}
           </label>
           {canSeeCost ? (
-            <label className="flex flex-col gap-1">
+            <label className="field">
               <span>
                 {tr("catalog.form.cost")} ({currency})
               </span>
@@ -201,7 +192,7 @@ export function VariantRows(props: Props) {
                   type="button"
                   onClick={() => toggleArchived(row)}
                   disabled={pending || disabled}
-                  className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-60"
+                  className="btn btn-sm"
                 >
                   {row.isActive ? tr("catalog.archive.action") : tr("catalog.restore.action")}
                 </button>
@@ -209,7 +200,7 @@ export function VariantRows(props: Props) {
                 <button
                   type="button"
                   onClick={() => onChange(state.variants.filter((_, i) => i !== index))}
-                  className="rounded-md border border-border px-3 py-1 text-sm"
+                  className="btn btn-sm"
                 >
                   {tr("catalog.form.variantRemove")}
                 </button>
