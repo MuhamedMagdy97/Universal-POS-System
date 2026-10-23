@@ -309,10 +309,10 @@ function sumValues(rows: readonly { valueMinor: number }[]): number {
 }
 
 const STATUS_TONE: Record<InvoiceRow["status"], string> = {
-  OPEN: "border-accent text-accent",
-  PAID: "border-success text-success",
-  OVERDUE: "border-danger text-danger",
-  VOID: "border-border text-muted line-through",
+  OPEN: "badge-accent",
+  PAID: "badge-success",
+  OVERDUE: "badge-danger",
+  VOID: "line-through",
 };
 
 /** The supplier's invoices and credit notes, newest first (I10, I16). */
@@ -396,10 +396,7 @@ function InvoicesTable(props: {
                     {doc.kind === "INVOICE" ? money(doc.openMinor) : "—"}
                   </td>
                   <td>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_TONE[doc.status]}`}
-                      data-testid="invoice-status"
-                    >
+                    <span className={`badge ${STATUS_TONE[doc.status]}`} data-testid="invoice-status">
                       {doc.kind === "INVOICE" || doc.status === "VOID"
                         ? tr(`purchasing.invoice.status.${doc.status}`)
                         : tr("purchasing.invoice.status.CREDITED")}

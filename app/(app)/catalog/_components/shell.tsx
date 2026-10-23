@@ -36,11 +36,7 @@ export function PermissionDenied({ locale }: { locale: Locale }) {
 export function StatusBadge({ locale, active }: { locale: Locale; active: boolean }) {
   const tr = translator(locale);
   return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs ${
-        active ? "bg-success-soft text-success" : "bg-surface-sunken text-muted"
-      }`}
-    >
+    <span className={`badge ${active ? "badge-success" : ""}`}>
       {active ? tr("catalog.status.active") : tr("catalog.status.archived")}
     </span>
   );

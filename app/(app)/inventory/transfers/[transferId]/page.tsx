@@ -73,7 +73,7 @@ async function TransferContent({ params, searchParams }: Props) {
         <h1 className="text-2xl font-semibold">
           <bdi>{transfer.reference}</bdi>
         </h1>
-        <span data-testid="transfer-status" className="rounded-full bg-surface-sunken px-2 py-0.5 text-sm text-muted">
+        <span data-testid="transfer-status" className="badge">
           {tr(`inventory.transfers.status.${transfer.status}` as const)}
         </span>
       </div>

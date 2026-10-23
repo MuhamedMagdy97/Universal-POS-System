@@ -98,9 +98,7 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
                     {row.unitsSent}
                   </td>
                   <td>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${row.status === "SENT" ? "bg-warning-soft text-warning" : "bg-surface-sunken text-muted"}`}
-                    >
+                    <span className={`badge ${row.status === "SENT" ? "badge-warning" : ""}`}>
                       {tr(`inventory.transfers.status.${row.status}` as const)}
                     </span>
                   </td>

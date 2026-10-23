@@ -83,15 +83,15 @@ export function statusKey(status: PoStatus): `purchasing.status.${PoStatus}` {
 export function statusTone(status: PoStatus): string {
   switch (status) {
     case "DRAFT":
-      return "border-border text-muted";
+      return "";
     case "ORDERED":
-      return "border-blue-600 text-blue-700";
+      return "badge-accent";
     case "PARTIALLY_RECEIVED":
-      return "border-amber-600 text-amber-700";
+      return "badge-warning";
     case "RECEIVED":
-      return "border-green-700 text-green-700";
+      return "badge-success";
     default:
-      return "border-border text-muted line-through";
+      return "line-through";
   }
 }
 

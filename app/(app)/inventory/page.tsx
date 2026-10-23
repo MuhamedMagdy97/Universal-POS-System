@@ -164,19 +164,13 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                   <tr key={`${row.productId}|${row.variantId ?? ""}`} className="border-b border-border align-top">
                     <td>
                       {label}
-                      {row.archived ? (
-                        <span className="ms-2 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-                          {tr("inventory.badge.archived")}
-                        </span>
-                      ) : null}
+                      {row.archived ? <span className="badge ms-2">{tr("inventory.badge.archived")}</span> : null}
                     </td>
                     <td dir="ltr">{row.sku}</td>
                     <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
                       {row.qty}
                       {row.qty < 0 ? (
-                        <span className="ms-2 rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">
-                          {tr("inventory.badge.oversold")}
-                        </span>
+                        <span className="badge badge-danger ms-2">{tr("inventory.badge.oversold")}</span>
                       ) : null}
                     </td>
                     <td dir="ltr" data-testid="incoming">
@@ -185,9 +179,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                     <td dir="ltr">
                       {row.reorderPoint ?? "—"}
                       {isLowStock(row.qty, row.reorderPoint) ? (
-                        <span className="ms-2 rounded-full bg-warning-soft px-2 py-0.5 text-xs text-warning">
-                          {tr("inventory.badge.low")}
-                        </span>
+                        <span className="badge badge-warning ms-2">{tr("inventory.badge.low")}</span>
                       ) : null}
                     </td>
                     <td>{row.updatedAt ? dateFormat.format(row.updatedAt) : "—"}</td>

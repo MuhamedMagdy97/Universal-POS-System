@@ -40,6 +40,7 @@ import {
 } from "../_lib/till";
 import { reach, searchSnapshot, unreachable, type OfflineBlock } from "../_lib/offline";
 import { useOfflineTill } from "../_lib/use-offline";
+import { Icon } from "@/app/_ui/icons";
 
 type Props = {
   locale: Locale;
@@ -443,13 +444,13 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
       <OfflineBar
         locale={locale}
         off={off}
         canEnrol={offline.allowed && offline.canEnrol && !offline.registerHasDevice}
       />
-      <section aria-labelledby="cart-title" className="flex flex-col gap-4">
+      <section aria-labelledby="cart-title" className="card flex flex-col gap-4">
         {lastSaleId && cart.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <PrintReceiptButton
@@ -477,9 +478,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
               }
             }}
             dir="ltr"
-            className="input flex-1"
+            className="input min-h-12 flex-1 text-base"
           />
-          <button type="button" onClick={() => void find()} className="btn">
+          <button type="button" onClick={() => void find()} className="btn min-h-12">
+            <Icon name="search" className="size-4" />
             {tr("pos.search.submit")}
           </button>
         </div>
@@ -501,9 +503,12 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
           results.length === 0 ? (
             <p className="text-muted">{tr("pos.search.none")}</p>
           ) : (
-            <ul aria-label={tr("pos.search.label")} className="flex flex-col gap-1">
+            <ul
+              aria-label={tr("pos.search.label")}
+              className="flex flex-col divide-y divide-border rounded-lg border border-border"
+            >
               {results.map((item) => (
-                <li key={lineKey(item)} className="flex items-center justify-between gap-2">
+                <li key={lineKey(item)} className="flex min-h-14 items-center justify-between gap-2 px-3 py-1.5">
                   <span>
                     {displayName(item, locale)}{" "}
                     <span dir="ltr" className="text-muted">
@@ -517,9 +522,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
                       type="button"
                       onClick={() => add(item)}
                       aria-label={tr("pos.search.add", { name: displayName(item, locale) })}
-                      className="btn btn-sm"
+                      className="btn btn-primary min-h-12 min-w-12"
                     >
-                      +
+                      <Icon name="plus" />
                     </button>
                   </span>
                 </li>
@@ -641,7 +646,11 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
         ) : null}
       </section>
 
-      <form onSubmit={charge} aria-label={tr("pos.pay.method")} className="flex flex-col gap-4">
+      <form
+        onSubmit={charge}
+        aria-label={tr("pos.pay.method")}
+        className="card flex flex-col gap-4 lg:sticky lg:top-20"
+      >
         {preview.ok ? (
           <dl className="grid grid-cols-2 gap-1">
             {preview.discountMinor > 0 ? (

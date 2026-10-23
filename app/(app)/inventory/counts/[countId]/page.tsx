@@ -54,7 +54,7 @@ async function CountContent({ params }: { params: Params }) {
           {tr("inventory.count.back")}
         </Link>
         <h1 className="text-2xl font-semibold">{tr("inventory.count.detailTitle")}</h1>
-        <span className="rounded-full border border-border px-2 py-0.5 text-sm" data-testid="count-status">
+        <span className="badge" data-testid="count-status">
           {tr(`inventory.count.status.${count.status}` as const)}
         </span>
       </div>

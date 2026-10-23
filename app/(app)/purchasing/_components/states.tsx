@@ -13,9 +13,5 @@ export function Denied({ locale }: { locale: Locale }) {
 }
 
 export function StatusBadge({ locale, status }: { locale: Locale; status: PoStatus }) {
-  return (
-    <span className={`inline-block rounded-full border px-2 py-0.5 text-xs ${statusTone(status)}`}>
-      {translator(locale)(statusKey(status))}
-    </span>
-  );
+  return <span className={`badge ${statusTone(status)}`}>{translator(locale)(statusKey(status))}</span>;
 }

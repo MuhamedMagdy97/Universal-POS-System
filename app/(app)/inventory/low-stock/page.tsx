@@ -87,11 +87,7 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
                       <Link href={historyHref} className="underline-offset-4 hover:underline">
                         {label}
                       </Link>
-                      {row.archived ? (
-                        <span className="ms-2 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-                          {tr("inventory.badge.archived")}
-                        </span>
-                      ) : null}
+                      {row.archived ? <span className="badge ms-2">{tr("inventory.badge.archived")}</span> : null}
                     </td>
                     <td dir="ltr">{row.sku}</td>
                     <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
