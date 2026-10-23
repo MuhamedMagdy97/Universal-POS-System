@@ -1417,6 +1417,8 @@ export const ar: Messages = {
   "login.error.invalid": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
   "login.error.rateLimited": "محاولات كثيرة. انتظر دقيقة ثم حاول مرة أخرى.",
   "app.signOut": "تسجيل الخروج",
+  "app.menu": "القائمة",
+  "app.closeMenu": "إغلاق القائمة",
   "app.loadingOrg": "جارٍ تحميل المتجر…",
   // Customers (docs/planning/customers/customers-spec.md)
   "customers.nav": "العملاء",

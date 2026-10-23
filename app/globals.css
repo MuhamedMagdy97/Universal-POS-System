@@ -1,42 +1,153 @@
 @import "tailwindcss";
 
+/* ── Design tokens (ui-refresh design-system-spec DS2) ─────────────────────────────
+   Semantic roles, each with a dark value. `--accent` is the one colour sub-project B sets per
+   business type; everything else stays neutral. `--background` aliases `--page` for older code. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
+  --page: #f6f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #f1f3f5;
+  --foreground: #111827;
+  --muted: #5b6472;
+  --border: #e3e6ea;
+  --border-strong: #cfd4da;
+  --accent: #1d5fd1;
+  --accent-foreground: #ffffff;
+  --accent-soft: #e8f0fd;
+  --success: #15803d;
+  --success-soft: #e7f6ec;
+  --warning: #b45309;
+  --warning-soft: #fdf3e4;
+  --danger: #b91c1c;
+  --danger-soft: #fdecec;
+  --background: var(--page);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #9ca3af;
-    --border: #27272a;
+    --page: #0d0f12;
+    --surface: #15181d;
+    --surface-sunken: #1c2026;
+    --foreground: #e8eaed;
+    --muted: #9aa3ae;
+    --border: #262b32;
+    --border-strong: #353b44;
+    --accent: #5b9cf5;
+    --accent-foreground: #0b1220;
+    --accent-soft: #14233a;
+    --success: #4ade80;
+    --success-soft: #10291a;
+    --warning: #fbbf24;
+    --warning-soft: #2e230b;
+    --danger: #f87171;
+    --danger-soft: #2e1414;
   }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  /* DS5: IBM Plex Sans Arabic (next/font in app/layout.tsx), then the old system stack. */
+  --font-sans: var(--font-plex), system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", Arial, sans-serif;
 }
 
 /* RTL-ready: components use logical properties (margin-inline, padding-inline,
    border-inline-start, text-align: start) so dir="rtl" mirrors without overrides. */
 body {
-  background: var(--background);
+  background: var(--page);
   color: var(--foreground);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Tahoma,
-    "Noto Sans Arabic",
-    Arial,
-    sans-serif;
+  font-family: var(--font-sans);
   text-align: start;
+}
+
+/* ── Component classes (DS7) ─────────────────────────────────────────────────────
+   Shared looks for controls, cards, tables, badges and notices. Screens use these instead of
+   repeating Tailwind strings; touch targets are at least 40 px (48 px on the till). */
+@layer components {
+  .btn {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-accent-foreground hover:bg-accent hover:brightness-110;
+  }
+  .btn-danger {
+    @apply border-danger bg-danger text-white hover:bg-danger hover:brightness-110;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent hover:bg-surface-sunken;
+  }
+  .btn-sm {
+    @apply min-h-8 px-3 py-1;
+  }
+  .input {
+    @apply min-h-10 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30 disabled:opacity-60;
+  }
+  .card {
+    @apply rounded-xl border border-border bg-surface p-5;
+  }
+  .table-wrap {
+    @apply overflow-x-auto rounded-xl border border-border bg-surface;
+  }
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table th {
+    @apply border-b border-border bg-surface-sunken px-3 py-2.5 text-start text-xs font-medium whitespace-nowrap text-muted;
+  }
+  .table td {
+    @apply border-b border-border px-3 py-2.5;
+  }
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium whitespace-nowrap text-muted;
+  }
+  .badge-accent {
+    @apply bg-accent-soft text-accent;
+  }
+  .badge-success {
+    @apply bg-success-soft text-success;
+  }
+  .badge-warning {
+    @apply bg-warning-soft text-warning;
+  }
+  .badge-danger {
+    @apply bg-danger-soft text-danger;
+  }
+  .notice {
+    @apply rounded-lg border border-border bg-surface-sunken px-4 py-3 text-sm;
+  }
+  .notice-error {
+    @apply border-danger/30 bg-danger-soft text-danger;
+  }
+  .notice-success {
+    @apply border-success/30 bg-success-soft text-success;
+  }
+  .notice-info {
+    @apply border-accent/30 bg-accent-soft text-accent;
+  }
+  .field {
+    @apply flex flex-col gap-1.5 text-sm font-medium;
+  }
+  .field-hint {
+    @apply text-xs font-normal text-muted;
+  }
 }
 
 /* ── Printing (T10) ──────────────────────────────────────────────────────────
@@ -60,6 +171,8 @@ body {
 
 @media print {
   :root {
+    --page: #ffffff;
+    --surface: #ffffff;
     --background: #ffffff;
     --foreground: #000000;
     --muted: #000000;

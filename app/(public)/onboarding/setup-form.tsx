@@ -9,8 +9,6 @@ import { orgErrorKey } from "../../(app)/settings/_lib/errors";
 import { plain } from "../../(app)/inventory/_lib/form";
 import { createShopAction } from "./actions";
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-
 /** One-page shop setup (O2). Only General retail can be picked; country sets currency, VAT and timezone. */
 export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccount: boolean }) {
   const tr = translator(locale);
@@ -48,7 +46,7 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
+    <form onSubmit={submit} className="card flex flex-col gap-5">
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 font-medium">{tr("onboarding.businessType")}</legend>
         {BUSINESS_PRESETS.map((preset) => {
@@ -56,7 +54,7 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
           return (
             <label
               key={preset.id}
-              className="flex items-center gap-3 rounded-md border border-border px-4 py-3 has-[:disabled]:opacity-60"
+              className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-border-strong px-4 py-3 transition-colors hover:bg-surface-sunken has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
             >
               <input
                 type="radio"
@@ -66,62 +64,58 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
                 disabled={!included}
               />
               <span className="flex-1">{preset.label[locale]}</span>
-              {included ? null : (
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm text-gray-700">
-                  {tr("onboarding.comingSoon")}
-                </span>
-              )}
+              {included ? null : <span className="badge">{tr("onboarding.comingSoon")}</span>}
             </label>
           );
         })}
       </fieldset>
 
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("onboarding.shopName")}</span>
-        <input name="shopName" required maxLength={120} className={INPUT} />
+        <input name="shopName" required maxLength={120} className="input" />
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("onboarding.country")}</span>
         <select
           name="country"
           value={country}
           onChange={(e) => setCountry(e.target.value as "EG" | "SA")}
-          className={INPUT}
+          className="input"
         >
           <option value="EG">{tr("onboarding.country.EG")}</option>
           <option value="SA">{tr("onboarding.country.SA")}</option>
         </select>
-        <span className="text-sm text-muted">
+        <span className="field-hint">
           {tr("onboarding.market", {
             currency: MARKET_PRESETS[country].currency,
             vat: MARKET_PRESETS[country].vatRateBp / 100,
           })}
         </span>
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("onboarding.branchName")}</span>
         <input
           name="branchName"
           required
           maxLength={60}
           defaultValue={tr("onboarding.branchDefault")}
-          className={INPUT}
+          className="input"
         />
-        <span className="text-sm text-muted">{tr("onboarding.tillNote")}</span>
+        <span className="field-hint">{tr("onboarding.tillNote")}</span>
       </label>
 
       {needsAccount ? (
         <fieldset className="flex flex-col gap-4">
           <legend className="mb-1 font-medium">{tr("onboarding.account")}</legend>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("onboarding.ownerName")}</span>
-            <input name="ownerName" required maxLength={120} autoComplete="name" className={INPUT} />
+            <input name="ownerName" required maxLength={120} autoComplete="name" className="input" />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("onboarding.email")}</span>
-            <input name="email" type="email" required dir="ltr" autoComplete="email" className={INPUT} />
+            <input name="email" type="email" required dir="ltr" autoComplete="email" className="input" />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("onboarding.password", { min: PASSWORD_MIN })}</span>
             <input
               name="password"
@@ -130,10 +124,10 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
               minLength={PASSWORD_MIN}
               maxLength={PASSWORD_MAX}
               autoComplete="new-password"
-              className={INPUT}
+              className="input"
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("onboarding.confirm")}</span>
             <input
               name="confirm"
@@ -142,7 +136,7 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
               minLength={PASSWORD_MIN}
               maxLength={PASSWORD_MAX}
               autoComplete="new-password"
-              className={INPUT}
+              className="input"
             />
           </label>
         </fieldset>
@@ -151,15 +145,11 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
       )}
 
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary w-full">
         {pending ? tr("onboarding.creating") : tr("onboarding.create")}
       </button>
     </form>

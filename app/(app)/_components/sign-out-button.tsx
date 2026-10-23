@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Icon } from "@/app/_ui/icons";
 import { authClient } from "@/lib/auth/auth-client";
 import { t } from "@/lib/i18n";
 import { useClientLocale } from "@/lib/i18n/client";
@@ -16,8 +17,9 @@ export function SignOutButton() {
   }
 
   return (
-    <button type="button" onClick={signOut} className="rounded-md px-3 py-1 text-sm underline-offset-4 hover:underline">
-      {t(locale, "app.signOut")}
+    <button type="button" onClick={signOut} className="btn btn-ghost btn-sm">
+      <Icon name="signOut" className="size-4" />
+      <span className="max-md:sr-only">{t(locale, "app.signOut")}</span>
     </button>
   );
 }
