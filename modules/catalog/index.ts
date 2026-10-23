@@ -57,6 +57,7 @@ export { addBarcode, removeBarcode } from "./barcodes";
 export {
   lookupCode,
   searchSellable,
+  listSellable,
   getSellableItems,
   getItemsForHistory,
   assertStockable,

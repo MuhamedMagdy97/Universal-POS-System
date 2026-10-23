@@ -222,6 +222,47 @@ export async function searchSellable(
   return out.slice(0, query.limit);
 }
 
+/**
+ * Every sellable item with its barcodes, for the till's offline snapshot (offline-till-spec OF7). A product-level
+ * barcode of a product with variants is listed on each variant, as `searchSellable` would find them all.
+ */
+export async function listSellable(ctx: TenantContext): Promise<(SellableSummary & { barcodes: string[] })[]> {
+  await requirePermission(ctx, "products.read");
+  const orgId = ctx.orgId;
+  // ponytail: one unpaged read of the whole active catalog; page it if a shop outgrows a few thousand items.
+  const [products, barcodes] = await Promise.all([
+    db().product.findMany({
+      where: { orgId, isActive: true },
+      select: {
+        ...PRODUCT_SELECT,
+        variants: { where: { isActive: true }, select: VARIANT_SELECT, orderBy: VARIANT_ORDER },
+      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    }),
+    db().barcode.findMany({ where: { orgId }, select: { code: true, productId: true, variantId: true } }),
+  ]);
+  const codes = new Map<string, string[]>();
+  for (const barcode of barcodes) {
+    const key = `${barcode.productId}:${barcode.variantId ?? ""}`;
+    codes.set(key, [...(codes.get(key) ?? []), barcode.code]);
+  }
+  return products.flatMap((product) =>
+    (product.hasVariants ? product.variants : [null]).flatMap((variant) =>
+      itemRefViolation(product, variant, { requireActive: true })
+        ? []
+        : [
+            {
+              ...toSellableSummary(product, variant),
+              barcodes: [
+                ...(codes.get(`${product.id}:${variant?.id ?? ""}`) ?? []),
+                ...(variant ? (codes.get(`${product.id}:`) ?? []) : []),
+              ],
+            },
+          ],
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Tx-aware functions for other modules (no permission check; see file header)
 // ---------------------------------------------------------------------------

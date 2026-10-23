@@ -19,6 +19,9 @@ export type TillSettings = {
   customers: { read: boolean; create: boolean };
 };
 
+/** Offline selling at this till (offline-till-spec OF5, OF16): shop allows it, the user may enrol, a device exists. */
+export type TillOffline = { allowed: boolean; canEnrol: boolean; registerHasDevice: boolean };
+
 /** The customer on the sale; null = walk-in (customers-spec CU7). */
 export type TillCustomer = { id: string; name: string; phone: string; taxNumber: string | null };
 

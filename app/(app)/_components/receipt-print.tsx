@@ -49,6 +49,11 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
         {doc.zatca && doc.kind === "SALE" ? null : tr(`receipt.title.${doc.kind}`)}
         {doc.copy ? ` · ${tr("receipt.copy")}` : ""}
       </p>
+      {doc.offline ? (
+        <p className="receipt-center" data-testid="receipt-offline">
+          {tr("receipt.offline")}
+        </p>
+      ) : null}
       <p>{tr("receipt.sale", { number: doc.saleNumber })}</p>
       <p dir="ltr" className="receipt-start">
         {receiptTime(doc.at, doc.timeZone, locale)}

@@ -2,12 +2,13 @@
 
 import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { translator, type Locale } from "@/lib/i18n";
+import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, toMajorString } from "@/lib/money";
-import type { SaleDetail } from "@/modules/sales";
+import type { ReceiptDoc, SaleDetail } from "@/modules/sales";
 import type { Discount, PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
-import { PrintReceiptButton } from "../../_components/receipt-print";
+import { PrintReceiptButton, ReceiptSlip } from "../../_components/receipt-print";
+import { usePrinter } from "../../_components/printing";
 import { createSaleAction, tillStockAction } from "../actions";
 import { CustomerPicker } from "./customer-picker";
 import {
@@ -35,13 +36,18 @@ import {
   type TillCustomer,
   type TillItem,
   type TillSettings,
+  type TillOffline,
 } from "../_lib/till";
+import { reach, searchSnapshot, unreachable, type OfflineBlock } from "../_lib/offline";
+import { useOfflineTill } from "../_lib/use-offline";
 
 type Props = {
   locale: Locale;
   branchId: string;
   registerId: string;
+  userId: string;
   settings: TillSettings;
+  offline: TillOffline;
 };
 
 const METHODS: { value: PayMethod; label: "pos.pay.cash" | "pos.pay.card" | "pos.pay.wallet" }[] = [
@@ -59,7 +65,7 @@ type DiscountDraft = { target: string | "SALE"; kind: Discount["kind"]; raw: str
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
  */
-export function Till({ locale, branchId, registerId, settings }: Props) {
+export function Till({ locale, branchId, registerId, userId, settings, offline }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -93,6 +99,11 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
+  // Offline till (offline-till-spec slice 2): the device's state, and the slip of a sale rung up offline.
+  const off = useOfflineTill({ branchId, registerId, userId, allowed: offline.allowed });
+  const [offlineReceipt, setOfflineReceipt] = useState<ReceiptDoc | null>(null);
+  // Sell offline straight away while the server is known to be away and this device may (OF6).
+  const sellingOffline = off.offline && off.block === null;
   const limitLabel = settings.discount.limitBp === null ? null : `${settings.discount.limitBp / 100}%`;
 
   const preview = previewCart(cart, settings, saleDiscount);
@@ -126,7 +137,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
 
   /** Loads on-hand for these items; a failure just leaves the stock out. */
   async function loadStock(items: readonly TillItem[]) {
-    if (items.length === 0) return;
+    if (items.length === 0 || off.offline) return;
     const result = await safeAction(() =>
       tillStockAction({
         branchId,
@@ -239,13 +250,23 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     if (!q) return;
     const params = new URLSearchParams({ q, limit: "10" });
     let items: TillItem[];
-    try {
-      const response = await fetch(`/api/catalog/search?${params}`, { headers: { accept: "application/json" } });
-      if (!response.ok) throw new Error(`search failed: ${response.status}`);
-      items = (await response.json()) as TillItem[];
-    } catch {
-      setError(tr("pos.error.generic"));
-      return;
+    if (sellingOffline && off.snapshot) {
+      // Offline: the snapshot's items and prices (OF7).
+      items = searchSnapshot(off.snapshot.items, q);
+    } else {
+      try {
+        const response = await fetch(`/api/catalog/search?${params}`, { headers: { accept: "application/json" } });
+        if (!response.ok) throw new Error(`search failed: ${response.status}`);
+        items = (await response.json()) as TillItem[];
+      } catch (err) {
+        // A network failure (fetch throws TypeError) with a usable snapshot: search it instead.
+        if (!(err instanceof TypeError) || !off.snapshot || off.block !== null) {
+          setError(tr("pos.error.generic"));
+          return;
+        }
+        off.markUnreachable();
+        items = searchSnapshot(off.snapshot.items, q);
+      }
     }
     // A scan that finds exactly one item goes straight into the cart.
     if (items.length === 1) add(items[0]);
@@ -268,6 +289,7 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     setCustomer(null);
     if (receipt) setLastSaleId(receipt.id);
     setReceipt(null);
+    setOfflineReceipt(null);
     setError(null);
     setSaleKey(crypto.randomUUID());
     focusSearch();
@@ -278,25 +300,40 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
     if (!ready || !plan) return;
     setPending(true);
     setError(null);
-    const result = await safeAction(() =>
-      createSaleAction(
-        {
-          branchId,
-          registerId,
-          lines: cart.map((line) => ({
-            ref: { productId: line.productId, variantId: line.variantId },
-            qty: line.qty,
-            ...(line.discount ? { discount: line.discount } : {}),
-          })),
-          ...(saleDiscount ? { discount: saleDiscount } : {}),
-          ...(customer ? { customerId: customer.id } : {}),
-          payments: plan.payments,
-        },
-        saleKey,
-      ),
-    );
+    const body = {
+      branchId,
+      registerId,
+      lines: cart.map((line) => ({
+        ref: { productId: line.productId, variantId: line.variantId },
+        qty: line.qty,
+        ...(line.discount ? { discount: line.discount } : {}),
+      })),
+      ...(saleDiscount ? { discount: saleDiscount } : {}),
+      ...(customer ? { customerId: customer.id } : {}),
+      payments: plan.payments,
+    };
+    const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
+    if (unreachable(sent) && off.device) {
+      // OF6: no server. The sale goes to the queue under the same key, so if the online attempt did land, its
+      // replay is refused as a conflict (listed for a manager) instead of selling twice.
+      try {
+        const sold = await off.sellOffline({ key: saleKey, body, cart, saleDiscount, plan });
+        setPending(false);
+        if (sold.ok) setOfflineReceipt(sold.receipt);
+        else setError(plain(locale, OFFLINE_BLOCK[sold.block]));
+      } catch {
+        setPending(false);
+        setError(tr("pos.error.generic"));
+      }
+      return;
+    }
+    const result =
+      sent === "UNREACHABLE"
+        ? { ok: false as const, error: { code: "INTERNAL" as const, message: "", details: null } }
+        : sent;
     setPending(false);
     if (result.ok) {
+      void off.contact();
       setReceipt(result.data);
       // The shift's expected cash changed: refresh the server data the close screen reads.
       router.refresh();
@@ -314,6 +351,10 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
       setError(plain(locale, key));
     }
     if (key === "pos.error.shiftNotOpen") router.refresh();
+  }
+
+  if (offlineReceipt) {
+    return <OfflineReceipt locale={locale} doc={offlineReceipt} queued={off.queue.length} onNewSale={newSale} />;
   }
 
   if (receipt) {
@@ -411,6 +452,11 @@ export function Till({ locale, branchId, registerId, settings }: Props) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <OfflineBar
+        locale={locale}
+        off={off}
+        canEnrol={offline.allowed && offline.canEnrol && !offline.registerHasDevice}
+      />
       <section aria-labelledby="cart-title" className="flex flex-col gap-4">
         {lastSaleId && cart.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -930,5 +976,144 @@ function StockNote({
     >
       {translator(locale)("pos.stock.onHand", { qty: String(onHand) })}
     </span>
+  );
+}
+
+const OFFLINE_BLOCK: Record<OfflineBlock, MessageKey> = {
+  NOT_ENABLED: "pos.offline.block.NOT_ENABLED",
+  NO_DEVICE: "pos.offline.block.NO_DEVICE",
+  NO_SHIFT: "pos.offline.block.NO_SHIFT",
+  OTHER_USER: "pos.offline.block.OTHER_USER",
+  STALE_SNAPSHOT: "pos.offline.block.STALE_SNAPSHOT",
+  CONTACT_LIMIT: "pos.offline.block.CONTACT_LIMIT",
+  QUEUE_FULL: "pos.offline.block.QUEUE_FULL",
+  SESSION_EXPIRED: "pos.offline.block.SESSION_EXPIRED",
+  CUSTOMER: "pos.offline.block.CUSTOMER",
+};
+
+/**
+ * The offline state above the till (OF6, OF13, OF16): the red "Offline — N sales waiting" bar, sales still to
+ * sync, refused ones (red, never removed here), and the Owner's button to set this browser up for offline sales.
+ */
+function OfflineBar({
+  locale,
+  off,
+  canEnrol,
+}: {
+  locale: Locale;
+  off: ReturnType<typeof useOfflineTill>;
+  canEnrol: boolean;
+}) {
+  const tr = translator(locale);
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrolFailed, setEnrolFailed] = useState(false);
+  const pending = off.queue.filter((entry) => entry.status === "PENDING").length;
+  const rejected = off.queue.filter((entry) => entry.status === "REJECTED");
+  const showEnrol = canEnrol && !off.device;
+  if (!off.offline && pending === 0 && rejected.length === 0 && !showEnrol && !off.device) return null;
+  return (
+    <div className="flex flex-col gap-2 lg:col-span-2" data-testid="offline-bar">
+      {off.offline ? (
+        <p role="status" className="rounded-md bg-red-700 px-3 py-2 font-semibold text-white">
+          {tr("pos.offline.bar", { count: String(pending) })}
+          {off.block ? ` — ${plain(locale, OFFLINE_BLOCK[off.block])}` : ""}
+        </p>
+      ) : pending > 0 ? (
+        <p role="status" className="text-sm">
+          {tr("pos.offline.waiting", { count: String(pending) })}
+        </p>
+      ) : off.device && off.block === null ? (
+        <p className="text-sm text-muted" data-testid="offline-ready">
+          {tr("pos.offline.ready", { code: off.device.offlineCode })}
+        </p>
+      ) : null}
+      {off.needsSignIn ? (
+        <p role="alert" className="text-red-700">
+          {tr("pos.offline.signIn")}
+        </p>
+      ) : null}
+      {rejected.length > 0 ? (
+        <ul className="flex flex-col gap-1" data-testid="offline-rejected">
+          {rejected.map((entry) => (
+            <li key={entry.key} role="alert" className="text-red-700">
+              {tr(entry.error?.code === "IDEMPOTENCY_CONFLICT" ? "pos.offline.rejectedTwice" : "pos.offline.rejected", {
+                number: entry.number,
+              })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {showEnrol ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={enrolling}
+            onClick={async () => {
+              setEnrolling(true);
+              setEnrolFailed(!(await off.enrol()));
+              setEnrolling(false);
+            }}
+            className="rounded-md border border-border px-3 py-1 text-sm disabled:opacity-50"
+          >
+            {tr("pos.offline.enrol")}
+          </button>
+          {enrolFailed ? (
+            <span role="alert" className="text-red-700">
+              {tr("pos.offline.enrolFailed")}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The slip of a sale rung up offline, built on the device (OF9); printed from here, it never reaches the server first. */
+function OfflineReceipt({
+  locale,
+  doc,
+  queued,
+  onNewSale,
+}: {
+  locale: Locale;
+  doc: ReceiptDoc;
+  queued: number;
+  onNewSale: () => void;
+}) {
+  const tr = translator(locale);
+  const { print, portal } = usePrinter();
+  return (
+    <section
+      aria-labelledby="receipt-title"
+      className="flex max-w-md flex-col gap-3 rounded-md border border-border p-4"
+    >
+      <h2 id="receipt-title" className="text-xl font-semibold">
+        {tr("pos.receipt.title", { number: doc.saleNumber })}
+      </h2>
+      <p role="status" className="font-semibold text-red-700" data-testid="offline-receipt-note">
+        {tr("pos.offline.receiptNote", { count: String(queued) })}
+      </p>
+      <div className="rounded-md border border-border py-2">
+        <ReceiptSlip doc={doc} locale={locale} />
+      </div>
+      <div className="flex gap-2 print:hidden">
+        <button
+          type="button"
+          onClick={() => print(<ReceiptSlip doc={doc} locale={locale} />)}
+          className="rounded-md border border-border px-4 py-2"
+        >
+          {tr("pos.receipt.print")}
+        </button>
+        <button
+          type="button"
+          onClick={onNewSale}
+          autoFocus
+          className="rounded-md bg-foreground px-4 py-2 text-background"
+        >
+          {tr("pos.receipt.newSale")}
+        </button>
+      </div>
+      {portal}
+    </section>
   );
 }
