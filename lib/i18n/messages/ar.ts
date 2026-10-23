@@ -582,7 +582,7 @@ export const ar: Messages = {
   "returns.nav": "المرتجعات",
   "returns.title": "المرتجعات",
   "returns.search.label": "رقم الإيصال",
-  "returns.search.placeholder": "مثال: 000123",
+  "returns.search.placeholder": "مثال: 000123 أو T1-000045",
   "returns.search.submit": "بحث عن البيع",
   "returns.search.hint": "أدخل رقم البيع المطبوع على الإيصال.",
   "returns.notFound": "لا يوجد بيع بهذا الرقم.",

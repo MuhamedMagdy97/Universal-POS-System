@@ -79,7 +79,6 @@ async function ReturnsContent({ searchParams }: { searchParams: SearchParams }) 
             defaultValue={number ?? ""}
             placeholder={tr("returns.search.placeholder")}
             dir="ltr"
-            inputMode="numeric"
             autoFocus={sale === null}
             className="w-48 rounded-md border border-border bg-background px-3 py-2"
           />
