@@ -1297,7 +1297,6 @@ export const ar: Messages = {
   "onboarding.title": "إعداد متجرك",
   "onboarding.intro": "أنشئ متجرك وحساب المالك. ستحصل على فرع واحد وصندوق واحد جاهزين لإضافة المنتجات والبيع.",
   "onboarding.businessType": "نوع النشاط",
-  "onboarding.comingSoon": "قريبًا",
   "onboarding.shopName": "اسم المتجر",
   "onboarding.country": "الدولة",
   "onboarding.country.EG": "مصر",

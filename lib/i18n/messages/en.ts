@@ -1313,7 +1313,6 @@ export const en = {
   "onboarding.intro":
     "Create your shop and your owner account. You get one branch and one till, ready to add products and sell.",
   "onboarding.businessType": "Type of business",
-  "onboarding.comingSoon": "Coming soon",
   "onboarding.shopName": "Shop name",
   "onboarding.country": "Country",
   "onboarding.country.EG": "Egypt",
