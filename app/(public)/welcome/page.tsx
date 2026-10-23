@@ -17,11 +17,11 @@ async function WelcomeContent() {
     <>
       <h1 className="text-2xl font-semibold">{tr("welcome.title")}</h1>
       <p className="text-muted">{tr("welcome.intro")}</p>
-      <div className="flex gap-3">
-        <Link href="/login" className="rounded-md bg-foreground px-4 py-2 text-background">
+      <div className="flex flex-wrap gap-3">
+        <Link href="/login" className="btn btn-primary">
           {tr("welcome.signIn")}
         </Link>
-        <Link href="/onboarding" className="rounded-md border border-border px-4 py-2">
+        <Link href="/onboarding" className="btn">
           {tr("welcome.setup")}
         </Link>
       </div>

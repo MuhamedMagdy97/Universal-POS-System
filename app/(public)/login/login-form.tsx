@@ -37,37 +37,21 @@ export function LoginForm({ locale }: { locale: Locale }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1">
+    <form onSubmit={onSubmit} className="card flex flex-col gap-4">
+      <label className="field">
         <span>{tr("login.email")}</span>
-        <input
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          className="rounded-md border border-border px-3 py-2"
-        />
+        <input name="email" type="email" required autoComplete="email" className="input" />
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("login.password")}</span>
-        <input
-          name="password"
-          type="password"
-          required
-          autoComplete="current-password"
-          className="rounded-md border border-border px-3 py-2"
-        />
+        <input name="password" type="password" required autoComplete="current-password" className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-600">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary w-full">
         {pending ? tr("login.pending") : tr("login.submit")}
       </button>
     </form>

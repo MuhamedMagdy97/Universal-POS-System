@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
@@ -9,6 +8,8 @@ import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
+import { PageHeader } from "@/app/_ui/page-header";
+import { StatTile } from "@/app/_ui/stat-tile";
 import { formatMinor } from "@/lib/money";
 import { countLowStock } from "@/modules/inventory";
 import { inventorySourceOf } from "@/modules/integrations/inventory-sys/source";
@@ -20,7 +21,7 @@ import { branchesInScope, getDashboardTiles, type DashboardTiles } from "@/modul
  */
 export default function DashboardPage() {
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-6">
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <DashboardContent />
       </Suspense>
@@ -62,41 +63,28 @@ async function DashboardContent() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">{tr("dashboard.title")}</h1>
-      <p>{tr("dashboard.greeting", { name: session.user.name })}</p>
+      <PageHeader title={tr("dashboard.title")} subtitle={tr("dashboard.greeting", { name: session.user.name })} />
       {tiles ? (
-        <>
+        <section className="flex flex-col gap-3">
           <h2 className="text-lg font-medium">{tr("dashboard.today")}</h2>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {items.map((item) => (
-              <li key={item.label}>
-                <Link
-                  href={item.href}
-                  className="flex flex-col gap-1 rounded-md border border-border p-4 hover:bg-foreground/5"
-                >
-                  <span className="text-sm text-muted">{item.label}</span>
-                  <span dir="ltr" className="text-start text-xl font-semibold tabular-nums">
-                    {item.value}
-                  </span>
-                </Link>
+              <li key={item.label} className="grid">
+                <StatTile label={item.label} value={item.value} href={item.href} />
               </li>
             ))}
           </ul>
-        </>
+        </section>
       ) : null}
       {lowStock ? (
-        <Link
-          href={`/inventory/low-stock?branch=${lowStock.branch.id}`}
-          className="flex w-fit min-w-48 flex-col gap-1 rounded-md border border-border p-4 hover:bg-foreground/5"
-        >
-          <span className="text-sm text-muted">{tr("dashboard.tile.lowStock", { branch: lowStock.branch.name })}</span>
-          <span
-            dir="ltr"
-            className={`text-start text-xl font-semibold tabular-nums ${lowStock.count > 0 ? "text-amber-700" : ""}`}
-          >
-            {lowStock.count}
-          </span>
-        </Link>
+        <div className="grid w-fit min-w-56">
+          <StatTile
+            label={tr("dashboard.tile.lowStock", { branch: lowStock.branch.name })}
+            value={String(lowStock.count)}
+            href={`/inventory/low-stock?branch=${lowStock.branch.id}`}
+            tone={lowStock.count > 0 ? "warning" : "neutral"}
+          />
+        </div>
       ) : null}
     </>
   );
