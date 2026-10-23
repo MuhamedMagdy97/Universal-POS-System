@@ -173,8 +173,29 @@ Refusals:
 - "Add a reason for the difference before closing." — cash moved while you counted; the expected cash was refreshed.
   Check it and add a reason.
 - "This shift is already closed. Reloading…"
+- "2 offline sales on this till are not synced yet…" — reconnect and wait for the bar to clear, then close.
+- "Register T1 reported 3 unsynced sales at 14:02." — another device still holds sales for this till. Close only if
+  you must, with a note saying why; they are added to the shift report as late sales when they arrive.
 - "You don't have permission to close shifts."
+
+## Selling offline
+
+Only on a till the owner set up for it (you see **Offline ready · series T1** [جاهز للبيع دون اتصال] above the cart).
+If the internet or the server drops, the till carries on:
+
+- A red bar says **Offline — 2 sales waiting** [غير متصل]. Search, scan, discount and take cash, card or wallet as
+  usual. No customers offline (walk-in only), no refunds, voids, pay-ins or closing.
+- Each sale gets a number like **T1-000045** and its slip says **Offline sale** [بيع دون اتصال]. That is the sale's
+  number for good, also on Returns.
+- Reloading the page or restarting the browser is fine: the till and its waiting sales come back.
+- When the connection is back the sales send themselves (within 30 seconds) and the bar clears. Leave the browser
+  open until it does.
+- The till stops selling offline after 12 hours without the server, at 300 waiting sales, or when your sign-in ends.
+  It tells you why; reconnect to carry on.
+- A sale in red ("Sale T1-000045 could not be saved — call a manager") stays on screen. Call a manager; do not clear
+  the browser.
+- **Close shift** waits until every offline sale has been sent.
 
 ## What isn't there
 
-No offline mode (the till needs the internet), no automatic promotions or coupons, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).
+No automatic promotions or coupons, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).

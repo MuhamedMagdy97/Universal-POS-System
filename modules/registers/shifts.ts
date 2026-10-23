@@ -124,6 +124,26 @@ export async function closeShift(
       throw salesConflict("SHIFT_ALREADY_CLOSED", "This shift is already closed");
     }
 
+    // OF14: the register's offline device last said it holds unsynced sales. The till itself refuses to close until
+    // its queue is empty; a close from anywhere else goes ahead only with a typed note.
+    const unsynced = await tx.registerDevice.findFirst({
+      where: { orgId: ctx.orgId, registerId: shift.registerId, revokedAt: null, reportedQueued: { gt: 0 } },
+      select: {
+        reportedQueued: true,
+        reportedOldestAt: true,
+        reportedAt: true,
+        register: { select: { offlineCode: true } },
+      },
+    });
+    if (unsynced && parsed.unsyncedNote === null) {
+      throw salesConflict("OFFLINE_SALES_UNSYNCED", "The register's offline device reported unsynced sales", {
+        offlineCode: unsynced.register.offlineCode,
+        queued: unsynced.reportedQueued,
+        oldestAt: unsynced.reportedOldestAt?.toISOString() ?? null,
+        reportedAt: unsynced.reportedAt?.toISOString() ?? null,
+      });
+    }
+
     const { expectedCashMinor } = await cashBreakdown(tx, ctx.orgId, shift.id, shift.openingFloatMinor);
     const discrepancyMinor = parsed.countedCashMinor - expectedCashMinor;
     if (discrepancyMinor !== 0 && parsed.discrepancyNote === null) {
@@ -159,6 +179,7 @@ export async function closeShift(
         expectedCashMinor,
         countedCashMinor: parsed.countedCashMinor,
         discrepancyMinor,
+        ...(unsynced ? { unsyncedOffline: { queued: unsynced.reportedQueued, note: parsed.unsyncedNote } } : {}),
       },
     });
     return shiftCloseSummary(closed);

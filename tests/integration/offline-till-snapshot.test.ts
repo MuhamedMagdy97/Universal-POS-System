@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
 import * as inventory from "@/modules/inventory";
-import { enrolOfflineDevice, updateOfflineSettings } from "@/modules/org";
-import { openShift } from "@/modules/registers";
+import { enrolOfflineDevice, reportOfflineQueue, revokeOfflineDevice, updateOfflineSettings } from "@/modules/org";
+import { closeShift, openShift } from "@/modules/registers";
 import { createSale, getReceipt, getTillSnapshot } from "@/modules/sales";
 import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
 import type { CartLine } from "@/app/(app)/pos/_lib/till";
@@ -129,5 +129,49 @@ describe("a sale built on the device", () => {
       payments: built.receipt.payments,
       changeMinor: built.receipt.changeMinor,
     });
+  });
+});
+
+describe("unsynced offline sales at shift close (OF14)", () => {
+  it("stores the enrolled device's report, and refuses a forged or revoked one", async () => {
+    const register = await db.register.create({ data: { orgId, branchId, name: "Till R" } });
+    const device = await enrolOfflineDevice(owner, register.id);
+    const report = {
+      registerId: register.id,
+      deviceId: device.deviceId,
+      deviceSecret: device.deviceSecret,
+      queued: 3,
+      oldestAt: new Date(Date.now() - 60_000).toISOString(),
+    };
+    await reportOfflineQueue(cashier, report);
+    const row = await db.registerDevice.findUniqueOrThrow({ where: { id: device.deviceId } });
+    expect(row).toMatchObject({ reportedQueued: 3, reportedOldestAt: new Date(report.oldestAt) });
+    expect(row.reportedAt).not.toBeNull();
+
+    await expectAppError(reportOfflineQueue(cashier, { ...report, deviceSecret: "x".repeat(43) }), 403);
+    await expectAppError(reportOfflineQueue(cashier, { ...report, registerId }), 403);
+    await revokeOfflineDevice(owner, register.id);
+    await expectAppError(reportOfflineQueue(cashier, report), 403, "DEVICE_REVOKED");
+  });
+
+  it("asks for a note to close while the device reports unsynced sales, and records it", async () => {
+    const register = await db.register.create({ data: { orgId, branchId, name: "Till C" } });
+    const device = await enrolOfflineDevice(owner, register.id);
+    const shift = await openShift(cashier, { branchId, registerId: register.id, openingFloatMinor: 0 });
+    const report = { registerId: register.id, deviceId: device.deviceId, deviceSecret: device.deviceSecret };
+    await reportOfflineQueue(cashier, { ...report, queued: 2, oldestAt: new Date().toISOString() });
+
+    await expectAppError(closeShift(owner, shift.id, { countedCashMinor: 0 }), 409, "OFFLINE_SALES_UNSYNCED");
+    const closed = await closeShift(owner, shift.id, { countedCashMinor: 0, unsyncedNote: "Till 3 is offline" });
+    expect(closed.status).toBe("CLOSED");
+    const audit = await db.auditEvent.findFirstOrThrow({
+      where: { orgId, action: "shift.closed", entityId: shift.id },
+    });
+    expect(audit.metadata).toMatchObject({ unsyncedOffline: { queued: 2, note: "Till 3 is offline" } });
+
+    // Once the device reports an empty queue, the next close needs no note.
+    await reportOfflineQueue(cashier, { ...report, queued: 0, oldestAt: null });
+    const next = await openShift(cashier, { branchId, registerId: register.id, openingFloatMinor: 0 });
+    expect((await closeShift(owner, next.id, { countedCashMinor: 0 })).status).toBe("CLOSED");
   });
 });

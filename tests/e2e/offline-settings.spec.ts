@@ -130,6 +130,10 @@ test.describe("offline till", () => {
       await expect(page.getByTestId("offline-bar")).toContainText("Offline — 3 sales waiting");
       expect(await onHand(ORG, MAIN, productId)).toBe(5);
 
+      // The till does not close over its own unsynced sales (OF14).
+      await page.getByRole("button", { name: en["pos.close.open"] }).click();
+      await expect(page.getByTestId("close-offline-queued")).toContainText("3 offline sales on this till");
+
       await context.setOffline(false);
       await expect(page.getByTestId("offline-ready")).toBeVisible({ timeout: 45_000 });
       const sales = await e2eQuery<{ number: string; totalMinor: number; flags: string[]; open: boolean }>(

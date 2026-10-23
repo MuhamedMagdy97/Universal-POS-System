@@ -126,7 +126,14 @@
 - 2026-10-22 batch 6: stock CSV import for opening stock and adjustments per branch (PR #61,
   [spec](stock-import/stock-import-spec.md)); purchase returns against a direct receipt (PR #62,
   [spec](purchase-returns/direct-receipt-returns-spec.md)); offline till slice 1, server only and hidden (PR #63,
-  [as built](offline-till/slice1-as-built.md)). Next: offline till slices 2–4, in order.
+  [as built](offline-till/slice1-as-built.md)).
+
+- 2026-10-23 batch 7, offline till finished: returns lookup by offline number (PR #66); "Offline sales to review" list
+  and late offline sales on the shift report (PR #67, [as built](offline-till/slice4-review-as-built.md)); till
+  snapshot, IndexedDB queue, offline slip and replay (PR #68, [as built](offline-till/slice2-as-built.md)); service
+  worker for a reload offline (PR #69, [as built](offline-till/slice3-as-built.md)); shift-close guard, device
+  report, offline drill and docs (PR #70, [as built](offline-till/slice4-as-built.md)). Offline selling is live behind
+  the Owner's shop setting. Still blocked on the owner: Egypt ETA e-receipts and ZATCA Phase 2.
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
