@@ -6,7 +6,7 @@ import { setInventorySource } from "@/modules/integrations/inventory-sys";
 import * as inventory from "@/modules/inventory";
 import { enrolOfflineDevice, getOfflineSettings, revokeOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { closeShift, getZReport, openShift } from "@/modules/registers";
-import { createSale, requestHashOf } from "@/modules/sales";
+import { createSale, getSaleForReturns, requestHashOf } from "@/modules/sales";
 import { priceSale, type Discount } from "@/modules/sales/totals";
 import { createMember, createProduct, createTenant, expectAppError, expectReconciled, testDb } from "./helpers";
 
@@ -195,6 +195,16 @@ describe("offline sales", () => {
     expect(audit.actorUserId).toBe(manager.userId);
     expect(audit.metadata).toMatchObject({ offline: { deviceId: device.deviceId, cashierId: cashier.userId } });
     expect(JSON.stringify(audit.metadata)).not.toContain(device.deviceSecret);
+  });
+
+  it("is found on the returns screen by its offline number, however it is typed", async () => {
+    const product = await stocked(5);
+    const body = offlineBody({ items: [{ productId: product.id, qty: 1, priceMinor: 1000 }] });
+    const { sale } = await createSale(cashier, body, KEY());
+    const typed = body.offline.number.replace(/-0+/, "-").toLowerCase();
+    for (const number of [body.offline.number, typed]) {
+      expect((await getSaleForReturns(manager, number)).id).toBe(sale.id);
+    }
   });
 
   it("replays the same key and body as one sale, and refuses the key with another body", async () => {
