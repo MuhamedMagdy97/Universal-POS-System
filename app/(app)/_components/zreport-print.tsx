@@ -45,6 +45,25 @@ export function ZReportSlip({ report, locale }: { report: ZReport; locale: Local
           ))}
         </tbody>
       </table>
+      {report.lateOfflineSales > 0 ? (
+        // Offline sales replayed after the close (offline-till-spec OF13), beside the stored figures above.
+        <table className="receipt-rule" data-testid="zreport-late">
+          <tbody>
+            <tr>
+              <td>{tr("zreport.lateOffline", { count: report.lateOfflineSales })}</td>
+              <td dir="ltr" className="receipt-end">
+                {money(report.lateOfflineCashMinor)}
+              </td>
+            </tr>
+            <tr className="receipt-strong">
+              <td>{plain(locale, "reports.col.correctedExpectedCash")}</td>
+              <td dir="ltr" className="receipt-end">
+                {money(report.correctedExpectedCashMinor)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      ) : null}
       {report.discrepancyNote ? (
         <p className="receipt-rule">{tr("zreport.note", { note: report.discrepancyNote })}</p>
       ) : null}

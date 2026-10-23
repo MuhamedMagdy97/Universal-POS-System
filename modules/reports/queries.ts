@@ -501,12 +501,17 @@ export type ShiftsRow = {
   countedCashMinor: number | null;
   discrepancyMinor: number | null;
   discrepancyNote: string | null;
+  lateOfflineSales: number;
+  lateOfflineCashMinor: number;
+  correctedExpectedCashMinor: number;
 };
 
 /**
  * Z-report per shift opened in range (§11.3). The cash terms are the shift close's formula
  * (registers `cashBreakdown`) in one set-based query; a closed shift reports its stored expected
- * cash, an open one the live figure. Tests check both against the registers module.
+ * cash, an open one the live figure. Tests check both against the registers module. Offline sales replayed after
+ * the close (LATE_FOR_CLOSED_SHIFT, offline-till-spec OF13) are left out of the cash sales and shown beside the
+ * stored close with the corrected expected cash (as registers `getZReport`).
  */
 export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
   const rows = await getDb().$queryRaw<
@@ -524,6 +529,8 @@ export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
       discrepancyMinor: number | null;
       discrepancyNote: string | null;
       cashSales: Big;
+      lateCash: Big;
+      lateSales: Big;
       payIn: Big;
       payOut: Big;
       drops: Big;
@@ -534,10 +541,10 @@ export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
            sh."openedAt", ou."name" AS "openedBy", sh."closedAt", cu."name" AS "closedBy",
            sh."openingFloatMinor", sh."expectedCashMinor", sh."countedCashMinor", sh."discrepancyMinor",
            sh."discrepancyNote",
-           (SELECT SUM(p."amountMinor") FROM "Payment" p
-              JOIN "Sale" s ON s."orgId" = p."orgId" AND s."id" = p."saleId"
+           sc."cashSales", sc."lateCash",
+           (SELECT COUNT(*) FROM "Sale" s
              WHERE s."orgId" = sh."orgId" AND s."shiftId" = sh."id" AND s."status" = 'COMPLETED'
-               AND p."method" = 'CASH') AS "cashSales",
+               AND 'LATE_FOR_CLOSED_SHIFT' = ANY(s."offlineFlags")) AS "lateSales",
            cm."payIn", cm."payOut", cm."drops",
            (SELECT SUM(r."totalMinor") FROM "Refund" r
              WHERE r."orgId" = sh."orgId" AND r."shiftId" = sh."id" AND r."method" = 'CASH') AS "cashRefunds"
@@ -545,6 +552,12 @@ export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
     JOIN "Register" rg ON rg."orgId" = sh."orgId" AND rg."id" = sh."registerId"
     JOIN "User" ou ON ou."id" = sh."openedById"
     LEFT JOIN "User" cu ON cu."id" = sh."closedById"
+    LEFT JOIN LATERAL (
+      SELECT SUM(p."amountMinor") FILTER (WHERE NOT 'LATE_FOR_CLOSED_SHIFT' = ANY(s."offlineFlags")) AS "cashSales",
+             SUM(p."amountMinor") FILTER (WHERE 'LATE_FOR_CLOSED_SHIFT' = ANY(s."offlineFlags")) AS "lateCash"
+      FROM "Payment" p JOIN "Sale" s ON s."orgId" = p."orgId" AND s."id" = p."saleId"
+      WHERE s."orgId" = sh."orgId" AND s."shiftId" = sh."id" AND s."status" = 'COMPLETED' AND p."method" = 'CASH'
+    ) sc ON TRUE
     LEFT JOIN LATERAL (
       SELECT SUM(m."amountMinor") FILTER (WHERE m."type" = 'PAY_IN') AS "payIn",
              SUM(m."amountMinor") FILTER (WHERE m."type" = 'PAY_OUT') AS "payOut",
@@ -559,7 +572,9 @@ export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
     const payOutMinor = num(row.payOut);
     const dropMinor = num(row.drops);
     const cashRefundsMinor = num(row.cashRefunds);
+    const lateOfflineCashMinor = num(row.lateCash);
     const live = row.openingFloatMinor + cashSalesMinor + payInMinor - payOutMinor - dropMinor - cashRefundsMinor;
+    const expectedCashMinor = row.expectedCashMinor ?? live;
     return {
       shiftId: row.shiftId,
       registerName: row.registerName,
@@ -574,10 +589,13 @@ export async function shifts(scope: ReportScope): Promise<ShiftsRow[]> {
       payOutMinor,
       dropMinor,
       cashRefundsMinor,
-      expectedCashMinor: row.expectedCashMinor ?? live,
+      expectedCashMinor,
       countedCashMinor: row.countedCashMinor,
       discrepancyMinor: row.discrepancyMinor,
       discrepancyNote: row.discrepancyNote,
+      lateOfflineSales: num(row.lateSales),
+      lateOfflineCashMinor,
+      correctedExpectedCashMinor: expectedCashMinor + lateOfflineCashMinor,
     };
   });
 }
