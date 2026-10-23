@@ -60,6 +60,7 @@ export const AUDIT_ACTIONS = [
   "register.offline.revoked",
   "settings.offline.updated",
   "sale.offline.flagged",
+  "sale.offline.reviewed",
   "account.password_changed",
 ] as const;
 

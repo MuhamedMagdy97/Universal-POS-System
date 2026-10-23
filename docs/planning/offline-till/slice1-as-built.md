@@ -62,8 +62,8 @@ Nothing changed at the till: offline stays hidden there until slice 3.
 
 ## Known gaps for later slices
 
-- Returns lookup by number (`normalizeSaleNumber`) accepts only the 6-digit org series, so `T1-000045` cannot be found
-  on the returns screen yet.
+- ~~Returns lookup by number (`normalizeSaleNumber`) accepts only the 6-digit org series, so `T1-000045` cannot be
+  found on the returns screen yet.~~ Fixed: it also reads the offline series, any case, padding optional (`t1-45`).
 - The shift report shows late sales inside the cash terms, but the stored expected cash is not recomputed and there is
   no "late offline sales" line yet (slice 4). No "Offline sales to review" list yet (slice 4); the flags and audit rows
   carry what it needs.

@@ -29,6 +29,8 @@ export const PERMISSIONS = [
   "integrations.manage",
   // Offline till (offline-till-spec OF5, OF16): allow offline sales, enrol and revoke till devices. Owner only.
   "offline.manage",
+  // Offline till (offline-till-spec OF13): the "Offline sales to review" list. Owner, Admin and Manager.
+  "sales.review",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -51,6 +53,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchases.receive",
     "reports.view",
     ...CUSTOMERS,
+    "sales.review",
   ]),
   // products.read lets managers and cashiers search and scan at the POS (catalog Q1).
   // Cost fields stay hidden from them: they require products.update.
@@ -69,6 +72,7 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
     "purchases.receive",
     "reports.view",
     ...CUSTOMERS,
+    "sales.review",
   ]),
   // discounts.apply: cashiers discount up to the shop's maxCashierDiscountBp (discounts-spec DC7, DC8).
   CASHIER: new Set<Permission>([

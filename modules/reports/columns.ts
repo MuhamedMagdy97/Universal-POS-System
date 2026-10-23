@@ -110,6 +110,10 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("expectedCashMinor", "reports.col.expectedCash", "money"),
     c("countedCashMinor", "reports.col.countedCash", "money"),
     c("discrepancyMinor", "reports.col.discrepancy", "money"),
+    // Offline sales replayed after the close, beside the stored figures (offline-till-spec OF13).
+    c("lateOfflineSales", "reports.col.lateOfflineSales", "int"),
+    c("lateOfflineCashMinor", "reports.col.lateOfflineCash", "money"),
+    c("correctedExpectedCashMinor", "reports.col.correctedExpectedCash", "money"),
     c("discrepancyNote", "reports.col.note", "text"),
   ],
   "refunds-voids": [

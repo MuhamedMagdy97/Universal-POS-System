@@ -16,6 +16,13 @@ export {
   type ReturnRefund,
 } from "./returns-view";
 export {
+  listOfflineReview,
+  markOfflineSaleReviewed,
+  REVIEW_PAGE_SIZE,
+  type OfflineReviewPage,
+  type OfflineReviewRow,
+} from "./review";
+export {
   SaleInput,
   IdempotencyKey,
   OpenShiftInput,
