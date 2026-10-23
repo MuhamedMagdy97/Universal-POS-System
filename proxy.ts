@@ -8,7 +8,8 @@ import { getSessionCookie } from "better-auth/cookies";
  * This only checks that a cookie is present; the real session, tenant and
  * permission checks run server-side in lib/auth/tenant.ts.
  */
-const PUBLIC_PAGES = new Set(["/", "/welcome", "/onboarding", "/login"]);
+// /sw.js is the till's service worker (offline till slice 3): a static file the browser re-checks on its own.
+const PUBLIC_PAGES = new Set(["/", "/welcome", "/onboarding", "/login", "/sw.js"]);
 // /api/internal/ checks its own secret header (the scheduler has no session).
 const PUBLIC_API_PREFIXES = ["/api/auth/", "/api/health", "/api/internal/"];
 
@@ -33,6 +34,8 @@ export function contentSecurityPolicy(nonce: string, isDev = process.env.NODE_EN
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // The till's service worker (public/sw.js); 'strict-dynamic' would otherwise rule it out.
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

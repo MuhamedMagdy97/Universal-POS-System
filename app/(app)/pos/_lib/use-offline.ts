@@ -156,6 +156,32 @@ export function useOfflineTill({
     };
   }, [active, device, refresh, sync]);
 
+  // Slice 3: an enrolled device keeps the till's page and files in a service worker, so a reload offline still
+  // opens it. The page's own first load happens before the worker controls it, so it tells the worker what to keep.
+  useEffect(() => {
+    if (!device || !("serviceWorker" in navigator)) return;
+    void (async () => {
+      const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/pos" });
+      // `serviceWorker.ready` waits on a worker controlling this page, which a first install never is: watch the
+      // new worker instead.
+      const worker = registration.installing ?? registration.waiting ?? registration.active;
+      if (!worker) return;
+      if (worker.state !== "activated") {
+        await new Promise<void>((resolve) =>
+          worker.addEventListener("statechange", () => worker.state === "activated" && resolve()),
+        );
+      }
+      worker.postMessage({
+        type: "precache",
+        page: location.href,
+        files: performance
+          .getEntriesByType("resource")
+          .map((entry) => entry.name)
+          .filter((name) => new URL(name).pathname.startsWith("/_next/static/")),
+      });
+    })().catch(() => undefined);
+  }, [device]);
+
   const block = offlineBlock({
     snapshot,
     device,
