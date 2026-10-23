@@ -53,7 +53,7 @@ export function PostingsList({
         <p className="text-sm text-muted">{tr("settings.inventory.postingsList.empty")}</p>
       ) : (
         <div className="table-wrap">
-          <table data-testid="inventory-postings-list" className="w-full text-sm">
+          <table data-testid="inventory-postings-list" className="table">
             <thead>
               <tr className="text-start">
                 <th>{tr("settings.inventory.postingsList.kind")}</th>

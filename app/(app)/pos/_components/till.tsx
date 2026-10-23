@@ -444,7 +444,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
+    <div className="till grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-start" data-testid="till">
       <OfflineBar
         locale={locale}
         off={off}
@@ -640,7 +640,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
           />
         ) : null}
         {cart.length > 0 ? (
-          <button type="button" onClick={newSale} className="self-start text-sm underline-offset-4 hover:underline">
+          <button type="button" onClick={newSale} className="btn btn-ghost self-start">
             {tr("pos.cart.clear")}
           </button>
         ) : null}
@@ -649,7 +649,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline }
       <form
         onSubmit={charge}
         aria-label={tr("pos.pay.method")}
-        className="card flex flex-col gap-4 lg:sticky lg:top-20"
+        className="card flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto"
       >
         {preview.ok ? (
           <dl className="grid grid-cols-2 gap-1">
@@ -1001,7 +1001,7 @@ function OfflineBar({
   return (
     <div className="flex flex-col gap-2 lg:col-span-2" data-testid="offline-bar">
       {off.offline ? (
-        <p role="status" className="rounded-lg bg-danger px-3 py-2 font-semibold text-white">
+        <p role="status" className="rounded-lg bg-danger px-3 py-2 font-semibold text-danger-foreground">
           {tr("pos.offline.bar", { count: String(pending) })}
           {off.block ? ` — ${plain(locale, OFFLINE_BLOCK[off.block])}` : ""}
         </p>

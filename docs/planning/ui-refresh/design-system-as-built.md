@@ -20,6 +20,18 @@ Built 2026-10-24 against [design-system-spec.md](design-system-spec.md) and
   use badge tones; the till has its search, results and cart in a card and the payment form in a sticky card, with
   48 px targets.
 
+## After the final review
+
+- `--danger-foreground` (white in light mode, near-black in dark mode) for text on a danger fill, so danger buttons and
+  the till's offline banner keep 4.5:1 in dark mode.
+- `btn-sm` and row buttons are 40 px tall; inside the till (`.till`) every button and input is 48 px.
+- The phone menu moves focus to its close button, makes the page behind it `inert`, gives focus back to the menu
+  button when closed by hand, and closes on any link click (also a link to the page already shown).
+- The till's payment card scrolls inside itself when it is taller than the screen, so Charge stays reachable.
+- An on-screen receipt slip is black on white in dark mode too.
+- `tests/unit/ui-tables.test.ts` fails if a screen table lacks the `table` class; `tests/e2e/ui-quality.spec.ts` checks
+  dark-mode contrast, touch targets, the phone menu focus and the short-screen till.
+
 ## Deviations from the spec
 
 | Spec | As built | Why |
