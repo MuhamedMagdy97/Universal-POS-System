@@ -128,20 +128,16 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
         event.preventDefault();
         onClose();
       }}
-      className="w-full max-w-md rounded-md border border-border bg-background p-6 text-foreground backdrop:bg-black/40"
+      className="card w-full max-w-md text-foreground backdrop:bg-black/40"
     >
       <form onSubmit={submit} className="flex flex-col gap-3">
         <h2 id={titleId} className="text-lg font-semibold">
           {tr("inventory.adjust.title")}: {itemLabel}
         </h2>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("inventory.adjust.reason")}</span>
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value as AdjustmentReasonValue)}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select value={reason} onChange={(e) => setReason(e.target.value as AdjustmentReasonValue)} className="input">
             {adjustReasonsFor(archived).map((value) => (
               <option key={value} value={value}>
                 {reasonLabel(value)}
@@ -169,7 +165,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
               aria-label={`${tr("inventory.adjust.sign.plus")} / ${tr("inventory.adjust.sign.minus")}`}
               value={sign}
               onChange={(e) => setSign(e.target.value as "+" | "-")}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             >
               <option value="+">{tr("inventory.adjust.sign.plus")}</option>
               <option value="-">{tr("inventory.adjust.sign.minus")}</option>
@@ -182,19 +178,19 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
               inputMode="numeric"
               value={qty}
               onChange={(e) => setQty(e.target.value)}
-              className="rounded-md border border-border bg-background px-3 py-2"
+              className="input"
             />
           </label>
         </div>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("inventory.adjust.note")}</span>
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={500}
             required={needsNote(reason)}
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="input"
           />
         </label>
 
@@ -203,20 +199,16 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
         </p>
 
         {error ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {error}
           </p>
         ) : null}
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2">
+          <button type="button" onClick={onClose} className="btn">
             {tr("inventory.adjust.cancel")}
           </button>
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-          >
+          <button type="submit" disabled={pending} className="btn btn-primary">
             {tr("inventory.adjust.submit")}
           </button>
         </div>

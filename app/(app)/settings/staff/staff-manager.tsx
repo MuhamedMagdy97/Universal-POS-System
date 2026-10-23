@@ -13,9 +13,6 @@ type Branch = { id: string; name: string; isActive: boolean };
 type Draft = { name: string; email: string; password: string; role: StaffRole; all: boolean; branchIds: string[] };
 type Mode = { kind: "add" } | { kind: "edit"; row: StaffRow } | { kind: "password"; row: StaffRow } | null;
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-const SMALL = "rounded-md border border-border px-2 py-1 text-sm disabled:opacity-50";
-
 /** Staff list with add, change role and branches, deactivate/reactivate and a new temporary password (O3, O4). */
 export function StaffManager({
   locale,
@@ -106,7 +103,7 @@ export function StaffManager({
   }
 
   const password = (
-    <label className="flex flex-col gap-1">
+    <label className="field">
       <span>{tr("staff.tempPassword", { min: PASSWORD_MIN })}</span>
       <input
         type="text"
@@ -117,19 +114,19 @@ export function StaffManager({
         autoComplete="off"
         value={draft.password}
         onChange={(e) => setDraft((d) => ({ ...d, password: e.target.value }))}
-        className={INPUT}
+        className="input"
       />
     </label>
   );
 
   const roleAndBranches = (
     <>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("staff.role")}</span>
         <select
           value={draft.role}
           onChange={(e) => setDraft((d) => ({ ...d, role: e.target.value as StaffRole }))}
-          className={INPUT}
+          className="input"
         >
           {roles.map((role) => (
             <option key={role} value={role}>
@@ -172,20 +169,20 @@ export function StaffManager({
   );
 
   const form = mode ? (
-    <form onSubmit={submit} className="flex max-w-lg flex-col gap-3 rounded-md border border-border p-4">
+    <form onSubmit={submit} className="card flex max-w-lg flex-col gap-3 p-4">
       {mode.kind === "add" ? (
         <>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("staff.name")}</span>
             <input
               required
               maxLength={120}
               value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              className={INPUT}
+              className="input"
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("staff.email")}</span>
             <input
               type="email"
@@ -194,7 +191,7 @@ export function StaffManager({
               autoComplete="off"
               value={draft.email}
               onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
-              className={INPUT}
+              className="input"
             />
           </label>
           {password}
@@ -206,14 +203,10 @@ export function StaffManager({
       {mode.kind === "edit" ? roleAndBranches : null}
       {mode.kind === "password" ? password : null}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary">
           {mode.kind === "add" ? tr("staff.add") : tr("staff.save")}
         </button>
-        <button type="button" onClick={() => setMode(null)} className="rounded-md border border-border px-4 py-2">
+        <button type="button" onClick={() => setMode(null)} className="btn">
           {tr("staff.cancel")}
         </button>
       </div>
@@ -223,11 +216,7 @@ export function StaffManager({
   return (
     <div className="flex flex-col gap-4">
       {mode === null ? (
-        <button
-          type="button"
-          onClick={() => open({ kind: "add" })}
-          className="self-start rounded-md bg-foreground px-4 py-2 text-background"
-        >
+        <button type="button" onClick={() => open({ kind: "add" })} className="btn btn-primary self-start">
           {tr("staff.add")}
         </button>
       ) : null}
@@ -235,74 +224,76 @@ export function StaffManager({
       {message ? (
         <p
           role={message.tone === "error" ? "alert" : "status"}
-          className={message.tone === "error" ? "text-red-700" : "text-green-800"}
+          className={message.tone === "error" ? "text-danger" : "text-success"}
         >
           {message.text}
         </p>
       ) : null}
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("staff.name")}</th>
-            <th className="text-start">{tr("staff.email")}</th>
-            <th className="text-start">{tr("staff.role")}</th>
-            <th className="text-start">{tr("staff.branches")}</th>
-            <th className="text-start">{tr("staff.status")}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {staff.map((row) => {
-            const editable = !row.isSelf && canManageRole(actorRole, row.role);
-            const editing = mode && mode.kind !== "add" && mode.row.membershipId === row.membershipId;
-            return (
-              <tr key={row.membershipId} className="border-t border-border align-top">
-                <td className="py-2">
-                  {row.name}
-                  {row.isSelf ? <span className="text-muted"> ({tr("staff.you")})</span> : null}
-                </td>
-                <td dir="ltr" className="text-start">
-                  {row.email}
-                </td>
-                <td>{tr(`staff.role.${row.role}`)}</td>
-                <td>
-                  {row.allBranches
-                    ? tr("staff.allBranches")
-                    : row.branchIds.map((id) => branchName.get(id) ?? "").join(locale === "ar" ? "، " : ", ")}
-                </td>
-                <td>{row.isActive ? tr("staff.active") : tr("staff.inactive")}</td>
-                <td className="py-2">
-                  {editing ? (
-                    form
-                  ) : editable ? (
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <button type="button" className={SMALL} onClick={() => open({ kind: "edit", row })}>
-                        {tr("staff.edit")}
-                      </button>
-                      <button type="button" className={SMALL} onClick={() => open({ kind: "password", row })}>
-                        {tr("staff.resetPassword")}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={pending}
-                        className={SMALL}
-                        onClick={() =>
-                          void run(
-                            () => updateStaffAction(row.membershipId, { isActive: !row.isActive }),
-                            row.isActive ? tr("staff.deactivated") : tr("staff.reactivated"),
-                          )
-                        }
-                      >
-                        {row.isActive ? tr("staff.deactivate") : tr("staff.reactivate")}
-                      </button>
-                    </div>
-                  ) : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("staff.name")}</th>
+              <th className="text-start">{tr("staff.email")}</th>
+              <th className="text-start">{tr("staff.role")}</th>
+              <th className="text-start">{tr("staff.branches")}</th>
+              <th className="text-start">{tr("staff.status")}</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {staff.map((row) => {
+              const editable = !row.isSelf && canManageRole(actorRole, row.role);
+              const editing = mode && mode.kind !== "add" && mode.row.membershipId === row.membershipId;
+              return (
+                <tr key={row.membershipId} className="border-t border-border align-top">
+                  <td>
+                    {row.name}
+                    {row.isSelf ? <span className="text-muted"> ({tr("staff.you")})</span> : null}
+                  </td>
+                  <td dir="ltr" className="text-start">
+                    {row.email}
+                  </td>
+                  <td>{tr(`staff.role.${row.role}`)}</td>
+                  <td>
+                    {row.allBranches
+                      ? tr("staff.allBranches")
+                      : row.branchIds.map((id) => branchName.get(id) ?? "").join(locale === "ar" ? "، " : ", ")}
+                  </td>
+                  <td>{row.isActive ? tr("staff.active") : tr("staff.inactive")}</td>
+                  <td>
+                    {editing ? (
+                      form
+                    ) : editable ? (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button type="button" className="btn btn-sm" onClick={() => open({ kind: "edit", row })}>
+                          {tr("staff.edit")}
+                        </button>
+                        <button type="button" className="btn btn-sm" onClick={() => open({ kind: "password", row })}>
+                          {tr("staff.resetPassword")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          className="btn btn-sm"
+                          onClick={() =>
+                            void run(
+                              () => updateStaffAction(row.membershipId, { isActive: !row.isActive }),
+                              row.isActive ? tr("staff.deactivated") : tr("staff.reactivated"),
+                            )
+                          }
+                        >
+                          {row.isActive ? tr("staff.deactivate") : tr("staff.reactivate")}
+                        </button>
+                      </div>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

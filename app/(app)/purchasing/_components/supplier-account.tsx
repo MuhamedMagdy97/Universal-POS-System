@@ -10,8 +10,6 @@ import { recordPaymentAction, reversePaymentAction } from "../actions";
 import { AllocationEditor, allocationLines, suggestAllocation, type AllocationValues } from "./supplier-invoices";
 import { errorKey, parseCost, plain, safeAction } from "../_lib/purchasing";
 
-const INPUT = "rounded-md border border-border bg-background px-3 py-2";
-
 type FormProps = {
   locale: Locale;
   currency: CurrencyCode;
@@ -83,11 +81,11 @@ export function PaymentForm({ locale, currency, supplierId, today, pos, openInvo
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border border-border p-4">
+    <form onSubmit={submit} className="card flex flex-col gap-3 p-4">
       <h2 className="text-lg font-semibold">{tr("purchasing.payment.record")}</h2>
       <p className="text-sm text-muted">{tr("purchasing.payment.hint")}</p>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.payment.amount")}</span>
           <input
             dir="ltr"
@@ -95,12 +93,12 @@ export function PaymentForm({ locale, currency, supplierId, today, pos, openInvo
             required
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className={`w-36 ${INPUT}`}
+            className="input w-36"
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.payment.method")}</span>
-          <select value={method} onChange={(e) => setMethod(e.target.value as SupplierPaymentMethod)} className={INPUT}>
+          <select value={method} onChange={(e) => setMethod(e.target.value as SupplierPaymentMethod)} className="input">
             {SUPPLIER_PAYMENT_METHODS.map((value) => (
               <option key={value} value={value}>
                 {tr(`purchasing.method.${value}`)}
@@ -108,7 +106,7 @@ export function PaymentForm({ locale, currency, supplierId, today, pos, openInvo
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.payment.date")}</span>
           <input
             type="date"
@@ -117,23 +115,23 @@ export function PaymentForm({ locale, currency, supplierId, today, pos, openInvo
             max={today}
             value={paidOn}
             onChange={(e) => setPaidOn(e.target.value)}
-            className={INPUT}
+            className="input"
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.payment.reference")}</span>
           <input
             dir="ltr"
             maxLength={80}
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            className={INPUT}
+            className="input"
           />
         </label>
         {pos.length > 0 ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.payment.po")}</span>
-            <select value={purchaseOrderId} onChange={(e) => setPurchaseOrderId(e.target.value)} className={INPUT}>
+            <select value={purchaseOrderId} onChange={(e) => setPurchaseOrderId(e.target.value)} className="input">
               <option value="">{tr("purchasing.payment.poNone")}</option>
               {pos.map((po) => (
                 <option key={po.id} value={po.id}>
@@ -151,20 +149,16 @@ export function PaymentForm({ locale, currency, supplierId, today, pos, openInvo
         values={allocationValues}
         onChange={setAllocations}
       />
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("purchasing.payment.note")}</span>
-        <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} className={INPUT} />
+        <input maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary self-start">
         {tr("purchasing.payment.submit")}
       </button>
     </form>
@@ -201,7 +195,7 @@ export function ReversePayment({ locale, supplierId, paymentId, label }: Reverse
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`${tr("purchasing.payment.reverse")} ${label}`}
-        className="rounded-md border border-border px-2 py-0.5 text-xs"
+        className="btn btn-sm"
       >
         {tr("purchasing.payment.reverse")}
       </button>
@@ -216,17 +210,13 @@ export function ReversePayment({ locale, supplierId, paymentId, label }: Reverse
         placeholder={tr("purchasing.payment.reverseReason")}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+        className="input min-h-9 px-2 py-1 text-sm"
       />
-      <button
-        type="submit"
-        disabled={pending || reason.trim() === ""}
-        className="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || reason.trim() === ""} className="btn btn-primary btn-sm">
         {tr("purchasing.payment.reverseSubmit")}
       </button>
       {error ? (
-        <span role="alert" className="text-sm text-red-700">
+        <span role="alert" className="text-sm text-danger">
           {error}
         </span>
       ) : null}

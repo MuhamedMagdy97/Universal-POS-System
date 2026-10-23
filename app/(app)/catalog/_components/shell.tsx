@@ -9,7 +9,7 @@ export function CatalogSubnav({ locale, current }: { locale: Locale; current: "p
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`rounded-md px-3 py-1 text-sm ${active ? "bg-foreground text-background" : "border border-border"}`}
+      className={`btn btn-sm ${active ? "btn-primary" : ""}`}
     >
       {label}
     </Link>
@@ -26,7 +26,7 @@ export function CatalogSubnav({ locale, current }: { locale: Locale; current: "p
 export function PermissionDenied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("catalog.state.forbidden")}</h1>
       <p className="text-muted">{tr("catalog.state.forbiddenBody")}</p>
     </section>
@@ -36,11 +36,7 @@ export function PermissionDenied({ locale }: { locale: Locale }) {
 export function StatusBadge({ locale, active }: { locale: Locale; active: boolean }) {
   const tr = translator(locale);
   return (
-    <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs ${
-        active ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"
-      }`}
-    >
+    <span className={`badge ${active ? "badge-success" : ""}`}>
       {active ? tr("catalog.status.active") : tr("catalog.status.archived")}
     </span>
   );

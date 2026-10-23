@@ -33,7 +33,7 @@ function one(value: string | string[] | undefined): string | undefined {
 function Denied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("returns.state.forbidden")}</h1>
       <p className="text-muted">{tr("returns.state.forbiddenBody")}</p>
     </section>
@@ -72,7 +72,7 @@ async function ReturnsContent({ searchParams }: { searchParams: SearchParams }) 
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-semibold">{tr("returns.title")}</h1>
       <form method="get" className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("returns.search.label")}</span>
           <input
             name="number"
@@ -80,16 +80,16 @@ async function ReturnsContent({ searchParams }: { searchParams: SearchParams }) 
             placeholder={tr("returns.search.placeholder")}
             dir="ltr"
             autoFocus={sale === null}
-            className="w-48 rounded-md border border-border bg-background px-3 py-2"
+            className="input w-48"
           />
         </label>
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("returns.search.submit")}
         </button>
       </form>
       <p className="text-sm text-muted">{tr("returns.search.hint")}</p>
       {missing ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("returns.notFound")}
         </p>
       ) : null}

@@ -25,7 +25,7 @@ function one(value: string | string[] | undefined): string | undefined {
 function Denied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("pos.state.forbidden")}</h1>
       <p className="text-muted">{tr("pos.state.forbiddenBody")}</p>
     </section>
@@ -39,7 +39,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
   const tr = translator(page.locale);
   if (page.kind === "notFound") {
     return (
-      <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+      <section role="alert" className="card flex flex-col gap-2">
         <h1 className="text-xl font-semibold">{tr("pos.state.notFound")}</h1>
         <RegisterPicker locale={page.locale} branches={page.branches} branchId="" registers={[]} registerId={null} />
       </section>
@@ -82,7 +82,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
       {!register ? (
         <p className="text-muted">{tr("pos.noRegisters")}</p>
       ) : !shift ? (
-        <section className="flex flex-col gap-3 rounded-md border border-border p-6">
+        <section className="card flex flex-col gap-3">
           <h2 className="text-xl font-semibold">{tr("pos.shift.closedTitle")}</h2>
           {canOpenShift ? (
             <>

@@ -135,6 +135,11 @@
   report, offline drill and docs (PR #70, [as built](offline-till/slice4-as-built.md)). Offline selling is live behind
   the Owner's shop setting. Still blocked on the owner: Egypt ETA e-receipts and ZATCA Phase 2.
 
+- 2026-10-24 UI refresh: owner approved five sub-projects ([overview](ui-refresh/README.md)). A, design system and
+  app shell, BUILT (PRs #72 and #73, [as built](ui-refresh/design-system-as-built.md)): tokens with dark mode, IBM
+  Plex Sans Arabic, component classes, inline icons, a sidebar shell mirrored in Arabic, every screen restyled.
+  Next: B, business profiles.
+
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive
 changes made.

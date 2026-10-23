@@ -7,9 +7,9 @@ import { translator } from "@/lib/i18n";
 export default function InventoryError({ reset }: { error: Error; reset: () => void }) {
   const tr = translator(useClientLocale());
   return (
-    <section role="alert" className="flex flex-col items-start gap-3 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col items-start gap-3">
       <p>{tr("inventory.state.error")}</p>
-      <button type="button" onClick={reset} className="rounded-md border border-border px-4 py-2">
+      <button type="button" onClick={reset} className="btn">
         {tr("inventory.state.retry")}
       </button>
     </section>

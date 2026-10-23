@@ -78,7 +78,7 @@ export function CashMovement({ locale, shiftId, currency, canCloseShift }: Props
             setSaved(false);
             setOpen(true);
           }}
-          className="rounded-md border border-border px-4 py-2"
+          className="btn"
         >
           {tr("pos.cash.open")}
         </button>
@@ -92,7 +92,7 @@ export function CashMovement({ locale, shiftId, currency, canCloseShift }: Props
       onKeyDown={(e) => {
         if (e.key === "Escape" && !pending) reset();
       }}
-      className="flex max-w-md flex-col gap-4 rounded-md border border-border p-4"
+      className="card flex max-w-md flex-col gap-4 p-4"
     >
       <h2 id="cash-title" className="text-xl font-semibold">
         {tr("pos.cash.title")}
@@ -107,7 +107,7 @@ export function CashMovement({ locale, shiftId, currency, canCloseShift }: Props
             </label>
           ))}
         </fieldset>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>
             {tr("pos.cash.amount")} ({currency})
           </span>
@@ -118,40 +118,26 @@ export function CashMovement({ locale, shiftId, currency, canCloseShift }: Props
             onChange={(e) => setAmountRaw(e.target.value)}
             aria-invalid={amountInvalid}
             autoFocus
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="input"
           />
         </label>
-        {amountInvalid ? <p className="text-red-700">{tr("pos.cash.invalidAmount")}</p> : null}
-        <label className="flex flex-col gap-1">
+        {amountInvalid ? <p className="text-danger">{tr("pos.cash.invalidAmount")}</p> : null}
+        <label className="field">
           <span>{tr("pos.cash.reason")}</span>
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={200}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} className="input" />
         </label>
 
         {error ? (
-          <p role="alert" className="text-red-700">
+          <p role="alert" className="notice notice-error">
             {plain(locale, error)}
           </p>
         ) : null}
 
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={!draft || pending}
-            className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-          >
+          <button type="submit" disabled={!draft || pending} className="btn btn-primary">
             {pending ? tr("pos.cash.saving") : tr("pos.cash.submit")}
           </button>
-          <button
-            type="button"
-            onClick={reset}
-            disabled={pending}
-            className="rounded-md border border-border px-4 py-2"
-          >
+          <button type="button" onClick={reset} disabled={pending} className="btn">
             {tr("pos.cash.cancel")}
           </button>
         </div>

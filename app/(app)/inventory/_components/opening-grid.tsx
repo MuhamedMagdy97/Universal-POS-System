@@ -59,53 +59,51 @@ export function OpeningGrid({ locale, branchId, rows, truncated }: Props) {
       {rows.length === 0 ? (
         <p>{tr("inventory.opening.empty")}</p>
       ) : (
-        <table className="w-full text-start">
-          <tbody>
-            {rows.map((row) => {
-              const key = keyOf(row.ref);
-              const bad = invalid.has(key);
-              return (
-                <tr key={key} className="border-t border-border">
-                  <td className="py-2">
-                    {row.name}
-                    {row.variantName ? ` — ${row.variantName}` : ""}{" "}
-                    <span dir="ltr" className="text-muted">
-                      {row.sku}
-                    </span>
-                  </td>
-                  <td>
-                    <input
-                      dir="ltr"
-                      inputMode="numeric"
-                      aria-label={`${row.name} ${tr("inventory.adjust.qty")}`}
-                      aria-invalid={bad || undefined}
-                      value={values[key] ?? ""}
-                      onChange={(e) => setValues((current) => ({ ...current, [key]: e.target.value }))}
-                      className={`w-28 rounded-md border bg-background px-2 py-1 ${bad ? "border-red-700" : "border-border"}`}
-                    />
-                  </td>
-                  {bad ? <td className="text-red-700">{tr("inventory.opening.taken")}</td> : <td />}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table className="table">
+            <tbody>
+              {rows.map((row) => {
+                const key = keyOf(row.ref);
+                const bad = invalid.has(key);
+                return (
+                  <tr key={key}>
+                    <td>
+                      {row.name}
+                      {row.variantName ? ` — ${row.variantName}` : ""}{" "}
+                      <span dir="ltr" className="text-muted">
+                        {row.sku}
+                      </span>
+                    </td>
+                    <td>
+                      <input
+                        dir="ltr"
+                        inputMode="numeric"
+                        aria-label={`${row.name} ${tr("inventory.adjust.qty")}`}
+                        aria-invalid={bad || undefined}
+                        value={values[key] ?? ""}
+                        onChange={(e) => setValues((current) => ({ ...current, [key]: e.target.value }))}
+                        className={`input min-h-9 w-28 px-2 py-1 ${bad ? "border-danger" : ""}`}
+                      />
+                    </td>
+                    {bad ? <td className="text-danger">{tr("inventory.opening.taken")}</td> : <td />}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
       {truncated ? <p className="text-muted">{tr("inventory.opening.truncated", { count: rows.length })}</p> : null}
       {message ? (
         <p
           role={message.kind === "error" ? "alert" : "status"}
-          className={message.kind === "error" ? "text-red-700" : ""}
+          className={message.kind === "error" ? "text-danger" : ""}
         >
           {message.text}
         </p>
       ) : null}
       {rows.length > 0 ? (
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-        >
+        <button type="submit" disabled={pending} className="btn btn-primary self-start">
           {tr("inventory.opening.save")}
         </button>
       ) : null}

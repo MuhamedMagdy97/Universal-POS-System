@@ -30,7 +30,7 @@ export default function OfflineReviewPage({ searchParams }: { searchParams: Sear
 function Denied({ locale }: { locale: Locale }) {
   const tr = translator(locale);
   return (
-    <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+    <section role="alert" className="card flex flex-col gap-2">
       <h1 className="text-xl font-semibold">{tr("review.state.forbidden")}</h1>
       <p className="text-muted">{tr("review.state.forbiddenBody")}</p>
     </section>
@@ -146,31 +146,19 @@ async function ReviewContent({ searchParams }: { searchParams: SearchParams }) {
       {page.rows.length === 0 ? <p className="text-muted">{tr("review.empty")}</p> : null}
 
       {page.rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="border-b border-border">
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.sale")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.register")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.cashier")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.soldAt")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.receivedAt")}
-                </th>
-                <th scope="col" className="px-2 py-2 text-end font-medium">
+              <tr>
+                <th scope="col">{tr("review.col.sale")}</th>
+                <th scope="col">{tr("review.col.register")}</th>
+                <th scope="col">{tr("review.col.cashier")}</th>
+                <th scope="col">{tr("review.col.soldAt")}</th>
+                <th scope="col">{tr("review.col.receivedAt")}</th>
+                <th scope="col" className="text-end">
                   {tr("review.col.total")}
                 </th>
-                <th scope="col" className="px-2 py-2 text-start font-medium">
-                  {tr("review.col.flags")}
-                </th>
+                <th scope="col">{tr("review.col.flags")}</th>
                 <th scope="col" className="px-2 py-2">
                   <span className="sr-only">{tr("review.mark")}</span>
                 </th>
@@ -179,26 +167,26 @@ async function ReviewContent({ searchParams }: { searchParams: SearchParams }) {
             <tbody>
               {page.rows.map((row) => (
                 <tr key={row.saleId} className="border-b border-border align-top" data-testid="review-row">
-                  <td dir="ltr" className="px-2 py-2 whitespace-nowrap">
+                  <td dir="ltr" className="whitespace-nowrap">
                     {row.number}
                     {row.status === "VOIDED" ? (
                       <span className="block text-xs text-muted">{tr("review.voided")}</span>
                     ) : null}
                   </td>
-                  <td className="px-2 py-2">
+                  <td>
                     {row.branchName} · {row.registerName}
                   </td>
-                  <td className="px-2 py-2">{row.cashierName ?? "—"}</td>
-                  <td dir="ltr" className="px-2 py-2 whitespace-nowrap">
+                  <td>{row.cashierName ?? "—"}</td>
+                  <td dir="ltr" className="whitespace-nowrap">
                     {formatLocalDateTime(row.soldAt, zone)}
                   </td>
-                  <td dir="ltr" className="px-2 py-2 whitespace-nowrap">
+                  <td dir="ltr" className="whitespace-nowrap">
                     {formatLocalDateTime(row.receivedAt, zone)}
                   </td>
                   <td dir="ltr" className="px-2 py-2 text-end whitespace-nowrap">
                     {formatMoney(row.totalMinor, row.currency as CurrencyCode, locale)}
                   </td>
-                  <td className="px-2 py-2">
+                  <td>
                     <ul className="flex flex-col gap-1">
                       {row.flags.map(({ flag, details }) => (
                         <li key={flag}>
@@ -214,10 +202,10 @@ async function ReviewContent({ searchParams }: { searchParams: SearchParams }) {
                       ))}
                     </ul>
                   </td>
-                  <td className="px-2 py-2">
+                  <td>
                     <form action={markReviewedAction}>
                       <input type="hidden" name="saleId" value={row.saleId} />
-                      <button type="submit" className="rounded-md border border-border px-3 py-1 whitespace-nowrap">
+                      <button type="submit" className="btn btn-sm whitespace-nowrap">
                         {tr("review.mark")}
                       </button>
                     </form>
@@ -231,15 +219,12 @@ async function ReviewContent({ searchParams }: { searchParams: SearchParams }) {
 
       <div className="flex gap-3">
         {cursor ? (
-          <Link href="/reports/offline-review" className="rounded-md border border-border px-3 py-2">
+          <Link href="/reports/offline-review" className="btn">
             {tr("audit.page.newest")}
           </Link>
         ) : null}
         {page.nextCursor ? (
-          <Link
-            href={`/reports/offline-review?${new URLSearchParams({ cursor: page.nextCursor })}`}
-            className="rounded-md border border-border px-3 py-2"
-          >
+          <Link href={`/reports/offline-review?${new URLSearchParams({ cursor: page.nextCursor })}`} className="btn">
             {tr("audit.page.older")}
           </Link>
         ) : null}

@@ -69,16 +69,16 @@ export function ProductsToolbar({ locale, q, categoryId, vatCategory, status, ca
           autoFocus
           autoComplete="off"
           placeholder={tr("catalog.products.searchPlaceholder")}
-          className="rounded-md border border-border px-3 py-2"
+          className="input"
         />
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span className="text-sm">{tr("catalog.products.filter.category")}</span>
         <select
           name="categoryId"
           defaultValue={categoryId}
           onChange={() => formRef.current?.requestSubmit()}
-          className="rounded-md border border-border px-3 py-2"
+          className="input"
         >
           <option value="">{tr("catalog.products.filter.all")}</option>
           {categories.map((c) => (
@@ -88,13 +88,13 @@ export function ProductsToolbar({ locale, q, categoryId, vatCategory, status, ca
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span className="text-sm">{tr("catalog.products.filter.vatCategory")}</span>
         <select
           name="vatCategory"
           defaultValue={vatCategory}
           onChange={() => formRef.current?.requestSubmit()}
-          className="rounded-md border border-border px-3 py-2"
+          className="input"
         >
           <option value="">{tr("catalog.products.filter.all")}</option>
           {VAT_CATEGORY_VALUES.map((v) => (
@@ -104,20 +104,15 @@ export function ProductsToolbar({ locale, q, categoryId, vatCategory, status, ca
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span className="text-sm">{tr("catalog.products.filter.status")}</span>
-        <select
-          name="status"
-          defaultValue={status}
-          onChange={() => formRef.current?.requestSubmit()}
-          className="rounded-md border border-border px-3 py-2"
-        >
+        <select name="status" defaultValue={status} onChange={() => formRef.current?.requestSubmit()} className="input">
           <option value="active">{tr("catalog.status.active")}</option>
           <option value="archived">{tr("catalog.status.archived")}</option>
           <option value="all">{tr("catalog.products.filter.all")}</option>
         </select>
       </label>
-      <button type="submit" className="rounded-md border border-border px-4 py-2">
+      <button type="submit" className="btn">
         {tr("catalog.products.filter.apply")}
       </button>
       <p id="catalog-shortcuts" className="w-full text-xs text-muted">

@@ -7,9 +7,9 @@ import { useClientLocale } from "@/lib/i18n/client";
 export function CatalogError({ retry }: { retry: () => void }) {
   const tr = translator(useClientLocale());
   return (
-    <section role="alert" className="flex flex-col items-start gap-3 rounded-md border border-red-300 p-6">
+    <section role="alert" className="flex flex-col items-start gap-3 rounded-lg border border-danger p-6">
       <p>{tr("catalog.state.error")}</p>
-      <button type="button" onClick={() => retry()} className="rounded-md border border-border px-4 py-2">
+      <button type="button" onClick={() => retry()} className="btn">
         {tr("catalog.state.retry")}
       </button>
     </section>

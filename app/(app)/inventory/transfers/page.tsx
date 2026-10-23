@@ -46,10 +46,7 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{tr("inventory.transfers.title")}</h1>
         {can.transfer ? (
-          <Link
-            href={`/inventory/transfer?branch=${branch.id}`}
-            className="ms-auto rounded-md bg-foreground px-3 py-2 text-background"
-          >
+          <Link href={`/inventory/transfer?branch=${branch.id}`} className="btn btn-primary ms-auto">
             {tr("inventory.action.newTransfer")}
           </Link>
         ) : null}
@@ -62,7 +59,7 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
             key={value}
             href={`/inventory/transfers?branch=${branch.id}&dir=${value}`}
             aria-current={value === direction ? "page" : undefined}
-            className={`rounded-md px-3 py-1 text-sm ${value === direction ? "bg-foreground text-background" : "border border-border"}`}
+            className={`btn btn-sm ${value === direction ? "btn-primary" : ""}`}
           >
             {tr(`inventory.transfers.${value}` as const)}
           </Link>
@@ -72,11 +69,11 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
       {rows.length === 0 ? (
         <p className="text-muted">{tr("inventory.transfers.empty")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-start">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
-              <tr className="border-b border-border text-muted">
-                <th className="py-2 text-start">{tr("inventory.transfers.column.reference")}</th>
+              <tr>
+                <th>{tr("inventory.transfers.column.reference")}</th>
                 <th className="text-start">
                   {direction === "outgoing"
                     ? tr("inventory.transfers.column.to")
@@ -89,8 +86,8 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-b border-border">
-                  <td className="py-2">
+                <tr key={row.id}>
+                  <td>
                     <Link href={`/inventory/transfers/${row.id}`} className="underline-offset-4 hover:underline">
                       <bdi>{row.reference}</bdi>
                     </Link>
@@ -101,9 +98,7 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
                     {row.unitsSent}
                   </td>
                   <td>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${row.status === "SENT" ? "bg-amber-100 text-amber-800" : "bg-gray-200 text-gray-700"}`}
-                    >
+                    <span className={`badge ${row.status === "SENT" ? "badge-warning" : ""}`}>
                       {tr(`inventory.transfers.status.${row.status}` as const)}
                     </span>
                   </td>

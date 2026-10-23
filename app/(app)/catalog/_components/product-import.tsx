@@ -79,19 +79,19 @@ export function ProductImport({ locale }: { locale: Locale }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted">{tr("catalog.import.help")}</p>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span className="text-sm">{tr("catalog.import.file")}</span>
         <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={pending} />
       </label>
 
       {pending ? <p aria-live="polite">{tr("catalog.import.checking")}</p> : null}
       {error ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
       {created !== null ? (
-        <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-border p-4">
+        <div role="status" className="card flex flex-wrap items-center gap-3 p-4">
           <span>{tr("catalog.import.done", { count: created })}</span>
           <Link href="/catalog/products" className="underline">
             {tr("catalog.import.viewProducts")}
@@ -105,40 +105,35 @@ export function ProductImport({ locale }: { locale: Locale }) {
             {tr("catalog.import.summary", { valid: preview.validCount, errors: preview.errorCount })}
           </p>
           {preview.errorCount > 0 ? (
-            <p className="text-sm text-red-700">{tr("catalog.import.fixErrors")}</p>
+            <p className="text-sm text-danger">{tr("catalog.import.fixErrors")}</p>
           ) : (
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={pending}
-              className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-60"
-            >
+            <button type="button" onClick={onConfirm} disabled={pending} className="btn btn-primary self-start">
               {tr("catalog.import.confirm", { count: preview.validCount })}
             </button>
           )}
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
+          <div className="table-wrap">
+            <table className="table">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="px-2 py-2 text-start font-medium">{tr("catalog.import.column.row")}</th>
-                  <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.name")}</th>
-                  <th className="px-2 py-2 text-start font-medium">{tr("catalog.products.column.sku")}</th>
-                  <th className="px-2 py-2 text-start font-medium">{tr("catalog.import.column.problems")}</th>
+                <tr>
+                  <th>{tr("catalog.import.column.row")}</th>
+                  <th>{tr("catalog.products.column.name")}</th>
+                  <th>{tr("catalog.products.column.sku")}</th>
+                  <th>{tr("catalog.import.column.problems")}</th>
                 </tr>
               </thead>
               <tbody>
                 {preview.rows.map((row) => (
-                  <tr key={row.line} className="border-b border-border">
-                    <td className="px-2 py-2 tabular-nums">{row.line}</td>
-                    <td className="px-2 py-2">{row.name}</td>
-                    <td className="px-2 py-2" dir="ltr">
+                  <tr key={row.line}>
+                    <td className="tabular-nums">{row.line}</td>
+                    <td>{row.name}</td>
+                    <td dir="ltr">
                       <bdi className="font-mono">{row.sku}</bdi>
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       {row.errors.length === 0 ? (
-                        <span className="text-green-800">{tr("catalog.import.rowOk")}</span>
+                        <span className="text-success">{tr("catalog.import.rowOk")}</span>
                       ) : (
-                        <ul className="text-red-700">
+                        <ul className="text-danger">
                           {row.errors.map((e, i) => {
                             const message = tr(`catalog.import.error.${e.code}`);
                             return (

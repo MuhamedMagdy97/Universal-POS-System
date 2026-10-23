@@ -79,17 +79,17 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
         <h1 className="text-2xl font-semibold">{tr("purchasing.title")}</h1>
         <span className="ms-auto flex gap-2">
           {can.manage ? (
-            <Link href="/purchasing/suppliers" className="rounded-md border border-border px-3 py-2">
+            <Link href="/purchasing/suppliers" className="btn">
               {tr("purchasing.suppliers")}
             </Link>
           ) : null}
           {can.receive ? (
-            <Link href="/purchasing/receive" className="rounded-md border border-border px-3 py-2">
+            <Link href="/purchasing/receive" className="btn">
               {tr("purchasing.direct.new")}
             </Link>
           ) : null}
           {can.manage ? (
-            <Link href="/purchasing/new" className="rounded-md bg-foreground px-3 py-2 text-background">
+            <Link href="/purchasing/new" className="btn btn-primary">
               {tr("purchasing.new")}
             </Link>
           ) : null}
@@ -99,13 +99,9 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
       {one(params.received) ? <p role="status">{tr("purchasing.direct.done")}</p> : null}
 
       <form method="get" action="/purchasing" className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.filter.status")}</span>
-          <select
-            name="status"
-            defaultValue={status}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select name="status" defaultValue={status} className="input">
             {PO_STATUS_FILTERS.map((value) => (
               <option key={value} value={value}>
                 {tr(`purchasing.status.${value}`)}
@@ -114,13 +110,9 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
           </select>
         </label>
         {branches.length > 1 ? (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             <span>{tr("purchasing.filter.branch")}</span>
-            <select
-              name="branch"
-              defaultValue={branch ?? ""}
-              className="rounded-md border border-border bg-background px-3 py-2"
-            >
+            <select name="branch" defaultValue={branch ?? ""} className="input">
               <option value="">{tr("purchasing.filter.allBranches")}</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -130,13 +122,9 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
             </select>
           </label>
         ) : null}
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.filter.supplier")}</span>
-          <select
-            name="supplier"
-            defaultValue={supplier ?? ""}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select name="supplier" defaultValue={supplier ?? ""} className="input">
             <option value="">{tr("purchasing.filter.allSuppliers")}</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
@@ -145,16 +133,11 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("purchasing.filter.search")}</span>
-          <input
-            name="q"
-            defaultValue={q ?? ""}
-            dir="ltr"
-            className="w-40 rounded-md border border-border bg-background px-3 py-2"
-          />
+          <input name="q" defaultValue={q ?? ""} dir="ltr" className="input w-40" />
         </label>
-        <button type="submit" className="rounded-md border border-border px-4 py-2">
+        <button type="submit" className="btn">
           {tr("purchasing.filter.submit")}
         </button>
       </form>
@@ -162,42 +145,44 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
       {!result || result.rows.length === 0 ? (
         <p className="text-muted">{tr("purchasing.empty")}</p>
       ) : (
-        <table className="w-full text-start">
-          <thead>
-            <tr className="text-sm text-muted">
-              <th className="py-2 text-start">{tr("purchasing.col.number")}</th>
-              <th className="text-start">{tr("purchasing.col.supplier")}</th>
-              {branches.length > 1 ? <th className="text-start">{tr("purchasing.col.branch")}</th> : null}
-              <th className="text-start">{tr("purchasing.col.status")}</th>
-              <th className="text-end">{tr("purchasing.col.units")}</th>
-              <th className="text-end">{tr("purchasing.col.total")}</th>
-              <th className="text-end">{tr("purchasing.col.date")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.rows.map((row) => (
-              <tr key={row.id} className="border-t border-border">
-                <td className="py-2">
-                  <Link href={`/purchasing/${row.id}`} dir="ltr" className="underline-offset-4 hover:underline">
-                    {row.number}
-                  </Link>
-                </td>
-                <td>{row.supplier.name}</td>
-                {branches.length > 1 ? <td>{row.branch.name}</td> : null}
-                <td>
-                  <StatusBadge locale={locale} status={row.status} />
-                </td>
-                <td className="text-end" dir="ltr">
-                  {row.totals.orderedUnits} / {row.totals.receivedUnits}
-                </td>
-                <td className="text-end">{formatMinor(row.totals.totalMinor, result.currency, locale)}</td>
-                <td className="text-end text-sm text-muted" dir="ltr">
-                  {shopDateTime(row.orderedAt ?? row.createdAt, zone)}
-                </td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr className="text-sm text-muted">
+                <th>{tr("purchasing.col.number")}</th>
+                <th className="text-start">{tr("purchasing.col.supplier")}</th>
+                {branches.length > 1 ? <th className="text-start">{tr("purchasing.col.branch")}</th> : null}
+                <th className="text-start">{tr("purchasing.col.status")}</th>
+                <th className="text-end">{tr("purchasing.col.units")}</th>
+                <th className="text-end">{tr("purchasing.col.total")}</th>
+                <th className="text-end">{tr("purchasing.col.date")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {result.rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <Link href={`/purchasing/${row.id}`} dir="ltr" className="underline-offset-4 hover:underline">
+                      {row.number}
+                    </Link>
+                  </td>
+                  <td>{row.supplier.name}</td>
+                  {branches.length > 1 ? <td>{row.branch.name}</td> : null}
+                  <td>
+                    <StatusBadge locale={locale} status={row.status} />
+                  </td>
+                  <td className="text-end" dir="ltr">
+                    {row.totals.orderedUnits} / {row.totals.receivedUnits}
+                  </td>
+                  <td className="text-end">{formatMinor(row.totals.totalMinor, result.currency, locale)}</td>
+                  <td className="text-end text-sm text-muted" dir="ltr">
+                    {shopDateTime(row.orderedAt ?? row.createdAt, zone)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {nextHref ? (
         <Link href={nextHref} className="self-start underline-offset-4 hover:underline">
@@ -212,38 +197,40 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
         {direct.rows.length === 0 ? (
           <p className="text-muted">{tr("purchasing.direct.none")}</p>
         ) : (
-          <table className="w-full text-start">
-            <thead>
-              <tr className="text-sm text-muted">
-                <th className="py-2 text-start">{tr("purchasing.col.number")}</th>
-                <th className="text-start">{tr("purchasing.col.supplier")}</th>
-                {branches.length > 1 ? <th className="text-start">{tr("purchasing.col.branch")}</th> : null}
-                <th className="text-end">{tr("purchasing.direct.units")}</th>
-                <th className="text-end">{tr("purchasing.direct.value")}</th>
-                <th className="text-end">{tr("purchasing.col.date")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {direct.rows.map((row) => (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="py-2" dir="ltr">
-                    <Link href={`/purchasing/receipts/${row.id}`} className="underline-offset-4 hover:underline">
-                      {row.number}
-                    </Link>
-                  </td>
-                  <td>{row.supplier.name}</td>
-                  {branches.length > 1 ? <td>{row.branch.name}</td> : null}
-                  <td className="text-end" dir="ltr">
-                    {row.units}
-                  </td>
-                  <td className="text-end">{formatMinor(row.valueMinor, direct.currency, locale)}</td>
-                  <td className="text-end text-sm text-muted" dir="ltr">
-                    {shopDateTime(row.receivedAt, zone)}
-                  </td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr className="text-sm text-muted">
+                  <th>{tr("purchasing.col.number")}</th>
+                  <th className="text-start">{tr("purchasing.col.supplier")}</th>
+                  {branches.length > 1 ? <th className="text-start">{tr("purchasing.col.branch")}</th> : null}
+                  <th className="text-end">{tr("purchasing.direct.units")}</th>
+                  <th className="text-end">{tr("purchasing.direct.value")}</th>
+                  <th className="text-end">{tr("purchasing.col.date")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {direct.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td dir="ltr">
+                      <Link href={`/purchasing/receipts/${row.id}`} className="underline-offset-4 hover:underline">
+                        {row.number}
+                      </Link>
+                    </td>
+                    <td>{row.supplier.name}</td>
+                    {branches.length > 1 ? <td>{row.branch.name}</td> : null}
+                    <td className="text-end" dir="ltr">
+                      {row.units}
+                    </td>
+                    <td className="text-end">{formatMinor(row.valueMinor, direct.currency, locale)}</td>
+                    <td className="text-end text-sm text-muted" dir="ltr">
+                      {shopDateTime(row.receivedAt, zone)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

@@ -19,6 +19,7 @@
   --warning: #b45309;
   --warning-soft: #fdf3e4;
   --danger: #b91c1c;
+  --danger-foreground: #ffffff;
   --danger-soft: #fdecec;
   --background: var(--page);
 }
@@ -40,6 +41,7 @@
     --warning: #fbbf24;
     --warning-soft: #2e230b;
     --danger: #f87171;
+    --danger-foreground: #1f0707;
     --danger-soft: #2e1414;
   }
 }
@@ -61,6 +63,7 @@
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-danger-soft: var(--danger-soft);
   /* DS5: IBM Plex Sans Arabic (next/font in app/layout.tsx), then the old system stack. */
   --font-sans: var(--font-plex), system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", Arial, sans-serif;
@@ -86,16 +89,16 @@ body {
     @apply border-accent bg-accent text-accent-foreground hover:bg-accent hover:brightness-110;
   }
   .btn-danger {
-    @apply border-danger bg-danger text-white hover:bg-danger hover:brightness-110;
+    @apply border-danger bg-danger text-danger-foreground hover:bg-danger hover:brightness-110;
   }
   .btn-ghost {
     @apply border-transparent bg-transparent hover:bg-surface-sunken;
   }
   .btn-sm {
-    @apply min-h-8 px-3 py-1;
+    @apply px-3 py-1.5;
   }
   .input {
-    @apply min-h-10 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-foreground placeholder:text-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30 disabled:opacity-60;
+    @apply min-h-10 w-full rounded-lg border border-border-strong bg-surface px-3 py-2 font-normal text-foreground placeholder:text-muted focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30 disabled:opacity-60;
   }
   .card {
     @apply rounded-xl border border-border bg-surface p-5;
@@ -114,6 +117,14 @@ body {
   }
   .table tbody tr:last-child td {
     @apply border-b-0;
+  }
+  /* Row actions stay compact (still 40 px tall) so a row is one line where it fits. */
+  .table td .btn {
+    @apply px-3 py-1.5;
+  }
+  /* The till (DS11): 48 px targets for touch screens. */
+  .till :is(.btn, .input) {
+    @apply min-h-12;
   }
   .badge {
     @apply inline-flex items-center rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium whitespace-nowrap text-muted;
@@ -188,6 +199,7 @@ body {
 
 .print-receipt {
   page: receipt;
+  background: #fff;
   width: 72mm;
   margin-inline: auto;
   padding: 3mm 0;

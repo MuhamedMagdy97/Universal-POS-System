@@ -57,7 +57,7 @@ export function SuppliersManager({ locale, suppliers }: { locale: Locale; suppli
   }
 
   const field = (key: keyof Draft, label: string, dir?: "ltr") => (
-    <label className="flex flex-col gap-1">
+    <label className="field">
       <span>{label}</span>
       <input
         value={draft[key]}
@@ -65,21 +65,21 @@ export function SuppliersManager({ locale, suppliers }: { locale: Locale; suppli
         required={key === "name"}
         maxLength={key === "name" ? 120 : key === "email" ? 254 : 40}
         onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-        className="rounded-md border border-border bg-background px-3 py-2"
+        className="input"
       />
     </label>
   );
 
   const form = (
-    <form onSubmit={save} className="flex flex-wrap items-end gap-3 rounded-md border border-border p-4">
+    <form onSubmit={save} className="card flex flex-wrap items-end gap-3 p-4">
       {field("name", tr("purchasing.supplier.name"))}
       {field("phone", tr("purchasing.supplier.phone"), "ltr")}
       {field("email", tr("purchasing.supplier.email"), "ltr")}
       {field("taxNumber", tr("purchasing.supplier.taxNumber"), "ltr")}
-      <button type="submit" disabled={pending} className="rounded-md bg-foreground px-4 py-2 text-background">
+      <button type="submit" disabled={pending} className="btn btn-primary">
         {tr("purchasing.supplier.save")}
       </button>
-      <button type="button" onClick={() => setEditing(null)} className="rounded-md border border-border px-4 py-2">
+      <button type="button" onClick={() => setEditing(null)} className="btn">
         {tr("purchasing.supplier.cancel")}
       </button>
     </form>
@@ -88,77 +88,61 @@ export function SuppliersManager({ locale, suppliers }: { locale: Locale; suppli
   return (
     <div className="flex flex-col gap-4">
       {editing === null ? (
-        <button
-          type="button"
-          onClick={() => start("new")}
-          className="self-start rounded-md bg-foreground px-4 py-2 text-background"
-        >
+        <button type="button" onClick={() => start("new")} className="btn btn-primary self-start">
           {tr("purchasing.supplier.add")}
         </button>
       ) : null}
       {editing === "new" ? form : null}
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
       {suppliers.length === 0 ? (
         <p className="text-muted">{tr("purchasing.supplier.none")}</p>
       ) : (
-        <table className="w-full text-start">
-          <thead>
-            <tr className="text-sm text-muted">
-              <th className="py-2 text-start">{tr("purchasing.supplier.name")}</th>
-              <th className="text-start">{tr("purchasing.supplier.phone")}</th>
-              <th className="text-start">{tr("purchasing.supplier.email")}</th>
-              <th className="text-start">{tr("purchasing.supplier.taxNumber")}</th>
-              <th className="text-start">{tr("purchasing.supplier.status")}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.map((row) =>
-              editing === row.id ? (
-                <tr key={row.id} className="border-t border-border">
-                  <td colSpan={6} className="py-2">
-                    {form}
-                  </td>
-                </tr>
-              ) : (
-                <tr key={row.id} className="border-t border-border">
-                  <td className="py-2">{row.name}</td>
-                  <td dir="ltr">{row.phone}</td>
-                  <td dir="ltr">{row.email}</td>
-                  <td dir="ltr">{row.taxNumber}</td>
-                  <td>{row.isActive ? tr("purchasing.supplier.active") : tr("purchasing.supplier.archived")}</td>
-                  <td className="flex justify-end gap-2 py-2">
-                    <Link
-                      href={`/purchasing/suppliers/${row.id}`}
-                      className="rounded-md border border-border px-2 py-1 text-sm"
-                    >
-                      {tr("purchasing.supplier.account")}
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => start(row)}
-                      className="rounded-md border border-border px-2 py-1 text-sm"
-                    >
-                      {tr("purchasing.supplier.edit")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => void toggle(row)}
-                      className="rounded-md border border-border px-2 py-1 text-sm"
-                    >
-                      {row.isActive ? tr("purchasing.supplier.archive") : tr("purchasing.supplier.restore")}
-                    </button>
-                  </td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr className="text-sm text-muted">
+                <th>{tr("purchasing.supplier.name")}</th>
+                <th className="text-start">{tr("purchasing.supplier.phone")}</th>
+                <th className="text-start">{tr("purchasing.supplier.email")}</th>
+                <th className="text-start">{tr("purchasing.supplier.taxNumber")}</th>
+                <th className="text-start">{tr("purchasing.supplier.status")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {suppliers.map((row) =>
+                editing === row.id ? (
+                  <tr key={row.id}>
+                    <td colSpan={6}>{form}</td>
+                  </tr>
+                ) : (
+                  <tr key={row.id}>
+                    <td>{row.name}</td>
+                    <td dir="ltr">{row.phone}</td>
+                    <td dir="ltr">{row.email}</td>
+                    <td dir="ltr">{row.taxNumber}</td>
+                    <td>{row.isActive ? tr("purchasing.supplier.active") : tr("purchasing.supplier.archived")}</td>
+                    <td className="flex justify-end gap-2 py-2">
+                      <Link href={`/purchasing/suppliers/${row.id}`} className="btn btn-sm">
+                        {tr("purchasing.supplier.account")}
+                      </Link>
+                      <button type="button" onClick={() => start(row)} className="btn btn-sm">
+                        {tr("purchasing.supplier.edit")}
+                      </button>
+                      <button type="button" disabled={pending} onClick={() => void toggle(row)} className="btn btn-sm">
+                        {row.isActive ? tr("purchasing.supplier.archive") : tr("purchasing.supplier.restore")}
+                      </button>
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

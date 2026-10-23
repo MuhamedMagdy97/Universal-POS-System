@@ -47,7 +47,7 @@ export function NewCountForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border border-border p-4">
+    <form onSubmit={submit} className="card flex flex-col gap-3 p-4">
       <h2 className="text-lg font-medium">{tr("inventory.count.new")}</h2>
       <fieldset className="flex flex-wrap gap-4">
         <legend className="mb-1">{tr("inventory.count.scope.label")}</legend>
@@ -66,13 +66,9 @@ export function NewCountForm({
         ))}
       </fieldset>
       {scope === "CATEGORY" ? (
-        <label className="flex flex-col gap-1">
+        <label className="field">
           <span>{tr("inventory.count.category")}</span>
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2"
-          >
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="input">
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -81,25 +77,16 @@ export function NewCountForm({
           </select>
         </label>
       ) : null}
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("inventory.count.note")}</span>
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          maxLength={500}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending} className="btn btn-primary self-start">
         {tr("inventory.count.create")}
       </button>
     </form>

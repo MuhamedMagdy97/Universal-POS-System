@@ -51,7 +51,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
   return (
     <form onSubmit={save} className="flex max-w-lg flex-col gap-3">
       {FIELDS.map((field) => (
-        <label key={field.key} className="flex flex-col gap-1">
+        <label key={field.key} className="field">
           <span>{plain(locale, field.label)}</span>
           <input
             name={field.key}
@@ -61,7 +61,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
             placeholder={field.key === "legalName" ? initial.name : undefined}
             aria-describedby={saudi && field.key === "taxNumber" ? "vat-hint" : undefined}
             onChange={(e) => setValues((current) => ({ ...current, [field.key]: e.target.value }))}
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="input"
           />
           {saudi && field.key === "taxNumber" ? (
             <span id="vat-hint" className="text-sm text-muted">
@@ -70,7 +70,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
           ) : null}
         </label>
       ))}
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("settings.discount.limit")}</span>
         <input
           name="maxCashierDiscount"
@@ -80,7 +80,7 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
           aria-invalid={limitBp === null}
           aria-describedby="discount-limit-hint"
           onChange={(e) => setLimitRaw(e.target.value)}
-          className="w-32 rounded-md border border-border bg-background px-3 py-2"
+          className="input w-32"
         />
         <span id="discount-limit-hint" className="text-sm text-muted">
           {tr("settings.discount.limitHint")}
@@ -103,25 +103,21 @@ export function ReceiptSettingsForm({ locale, initial }: { locale: Locale; initi
         </span>
       </label>
       {status === "saved" ? (
-        <p role="status" className="text-green-800">
+        <p role="status" className="notice notice-success">
           {tr("settings.receipt.saved")}
         </p>
       ) : null}
       {status === "vat" ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("settings.receipt.vatInvalid")}
         </p>
       ) : null}
       {status === "error" ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {tr("settings.receipt.error")}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending || limitBp === null}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || limitBp === null} className="btn btn-primary self-start">
         {pending ? tr("settings.receipt.saving") : tr("settings.receipt.save")}
       </button>
     </form>

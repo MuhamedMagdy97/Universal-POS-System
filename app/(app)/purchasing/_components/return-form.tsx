@@ -70,55 +70,57 @@ export function ReturnForm({ locale, currency, source, lines }: Props) {
       <p className="text-muted">
         {tr(source.kind === "po" ? "purchasing.return.hint" : "purchasing.receiptReturn.hint")}
       </p>
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-end">{tr("purchasing.line.returnable")}</th>
-            <th className="text-end">{tr("purchasing.line.cost")}</th>
-            <th className="text-start">{tr("purchasing.return.qty")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => {
-            const row = rows[index];
-            const qty = parseQty(row.qty);
-            return (
-              <tr key={line.lineId} className="border-t border-border">
-                <td className="py-2">
-                  {line.name}{" "}
-                  <span dir="ltr" className="text-muted">
-                    {line.sku}
-                  </span>
-                </td>
-                <td className="text-end" dir="ltr">
-                  {line.returnable}
-                </td>
-                <td className="text-end">{formatMinor(line.unitCostMinor, currency, locale)}</td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="numeric"
-                    aria-label={`${tr("purchasing.return.qty")} ${line.sku}`}
-                    aria-invalid={qty === null || qty > line.returnable}
-                    value={row.qty}
-                    onChange={(e) =>
-                      setRows((current) => current.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)))
-                    }
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <label className="flex flex-col gap-1">
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("purchasing.line.item")}</th>
+              <th className="text-end">{tr("purchasing.line.returnable")}</th>
+              <th className="text-end">{tr("purchasing.line.cost")}</th>
+              <th className="text-start">{tr("purchasing.return.qty")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => {
+              const row = rows[index];
+              const qty = parseQty(row.qty);
+              return (
+                <tr key={line.lineId}>
+                  <td>
+                    {line.name}{" "}
+                    <span dir="ltr" className="text-muted">
+                      {line.sku}
+                    </span>
+                  </td>
+                  <td className="text-end" dir="ltr">
+                    {line.returnable}
+                  </td>
+                  <td className="text-end">{formatMinor(line.unitCostMinor, currency, locale)}</td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="numeric"
+                      aria-label={`${tr("purchasing.return.qty")} ${line.sku}`}
+                      aria-invalid={qty === null || qty > line.returnable}
+                      value={row.qty}
+                      onChange={(e) =>
+                        setRows((current) => current.map((r, i) => (i === index ? { ...r, qty: e.target.value } : r)))
+                      }
+                      className="input min-h-9 w-24 px-2 py-1"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <label className="field">
         <span>{tr("purchasing.return.reason")}</span>
         <select
           value={reason}
           onChange={(e) => setReason(e.target.value as PurchaseReturnReason)}
-          className="self-start rounded-md border border-border bg-background px-3 py-2"
+          className="input self-start"
         >
           {PURCHASE_RETURN_REASONS.map((value) => (
             <option key={value} value={value}>
@@ -127,25 +129,16 @@ export function ReturnForm({ locale, currency, source, lines }: Props) {
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-1">
+      <label className="field">
         <span>{tr("purchasing.return.note")}</span>
-        <input
-          value={note}
-          maxLength={500}
-          onChange={(e) => setNote(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        />
+        <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending || !parsed || units === 0}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || !parsed || units === 0} className="btn btn-primary self-start">
         {tr("purchasing.return.submit", { units })}
       </button>
     </form>

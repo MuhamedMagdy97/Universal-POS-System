@@ -76,41 +76,39 @@ export function OfflineSettingsForm({
         <h2 id="offline-tills" className="text-lg font-medium">
           {tr("settings.offline.tills")}
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-start text-sm">
+        <div className="table-wrap">
+          <table className="table">
             <thead>
               <tr className="border-b border-border text-start">
-                <th className="py-2 pe-3 text-start font-medium">{tr("settings.offline.till")}</th>
-                <th className="py-2 pe-3 text-start font-medium">{tr("settings.offline.series")}</th>
-                <th className="py-2 pe-3 text-start font-medium">{tr("settings.offline.lastNumber")}</th>
-                <th className="py-2 pe-3 text-start font-medium">{tr("settings.offline.device")}</th>
+                <th>{tr("settings.offline.till")}</th>
+                <th>{tr("settings.offline.series")}</th>
+                <th>{tr("settings.offline.lastNumber")}</th>
+                <th>{tr("settings.offline.device")}</th>
                 <th className="py-2" />
               </tr>
             </thead>
             <tbody>
               {settings.registers.map((register) => (
-                <tr key={register.id} className="border-b border-border">
-                  <td className="py-2 pe-3">
+                <tr key={register.id}>
+                  <td>
                     {register.branchName} · {register.name}
                   </td>
-                  <td className="py-2 pe-3" dir="ltr">
-                    {register.offlineCode ?? "—"}
-                  </td>
-                  <td className="py-2 pe-3" dir="ltr">
+                  <td dir="ltr">{register.offlineCode ?? "—"}</td>
+                  <td dir="ltr">
                     {register.offlineCode && register.lastOfflineSaleNo > 0
                       ? `${register.offlineCode}-${String(register.lastOfflineSaleNo).padStart(6, "0")}`
                       : "—"}
                   </td>
-                  <td className="py-2 pe-3">
+                  <td>
                     {register.enrolledLocal
                       ? tr("settings.offline.device.enrolled", { date: register.enrolledLocal })
                       : tr("settings.offline.device.none")}
                   </td>
-                  <td className="py-2">
+                  <td>
                     {canManage && register.device ? (
                       <button
                         type="button"
-                        className="rounded-md border border-border px-3 py-1 disabled:opacity-50"
+                        className="btn btn-sm"
                         disabled={pending}
                         onClick={() => setRevoking(register)}
                       >
@@ -128,7 +126,7 @@ export function OfflineSettingsForm({
       {notice ? (
         <p
           role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-red-700" : "text-green-800"}
+          className={notice.tone === "error" ? "text-danger" : "text-success"}
         >
           {plain(locale, notice.key)}
         </p>

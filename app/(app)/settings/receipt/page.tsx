@@ -31,7 +31,7 @@ async function ReceiptSettingsContent() {
   }
   if (!ctx || !hasPermission(ctx.role, "settings.manage")) {
     return (
-      <section role="alert" className="flex flex-col gap-2 rounded-md border border-border p-6">
+      <section role="alert" className="card flex flex-col gap-2">
         <h1 className="text-xl font-semibold">{tr("settings.state.forbidden")}</h1>
         <p className="text-muted">{tr("settings.state.forbiddenBody")}</p>
       </section>
@@ -43,7 +43,7 @@ async function ReceiptSettingsContent() {
       <h1 className="text-2xl font-semibold">{tr("settings.receipt.title")}</h1>
       <p className="text-muted">{tr("settings.receipt.intro")}</p>
       {settings.countryCode === "SA" && !isSaudiVatNumber(settings.taxNumber ?? "") ? (
-        <p role="alert" data-testid="zatca-warning" className="rounded-md border border-amber-600 p-3 text-amber-900">
+        <p role="alert" data-testid="zatca-warning" className="rounded-lg border border-warning p-3 text-warning">
           {tr("settings.receipt.zatcaWarning")}
         </p>
       ) : null}

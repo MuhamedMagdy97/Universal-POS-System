@@ -52,6 +52,13 @@ test.describe("admin", () => {
     await noPageScroll(page);
   });
 
+  test("reports fit a phone", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto("/reports?report=sales-summary&range=today");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await noPageScroll(page);
+  });
+
   test("a long shop name does not scroll the page", async ({ page }) => {
     await page.goto("/dashboard");
     await page

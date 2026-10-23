@@ -16,8 +16,8 @@ import { inventoryErrorKey } from "../_lib/inventory";
 
 type Notice = { tone: "ok" | "error"; key: MessageKey } | null;
 
-const input = "rounded-md border border-border bg-background px-3 py-2";
-const button = "self-start rounded-md border border-border px-4 py-2 disabled:opacity-50";
+const input = "input";
+const button = "btn self-start";
 
 /**
  * Link form, connection test, the source toggle, the branch → warehouse map and "Sync now". The API
@@ -88,7 +88,7 @@ export function InventorySettings({
         {!status.encryptionReady ? <p role="alert">{tr("settings.inventory.encryptionMissing")}</p> : null}
         {canManage && status.encryptionReady ? (
           <form onSubmit={save} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1">
+            <label className="field">
               <span>{tr("settings.inventory.baseUrl")}</span>
               <input
                 name="baseUrl"
@@ -101,7 +101,7 @@ export function InventorySettings({
                 className={input}
               />
             </label>
-            <label className="flex flex-col gap-1">
+            <label className="field">
               <span>{tr("settings.inventory.apiKey")}</span>
               <input
                 name="apiKey"
@@ -120,11 +120,7 @@ export function InventorySettings({
               </span>
             </label>
             <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-              >
+              <button type="submit" disabled={pending} className="btn btn-primary">
                 {pending ? tr("settings.inventory.working") : tr("settings.inventory.save")}
               </button>
               {link ? (
@@ -235,7 +231,7 @@ export function InventorySettings({
             </p>
           ) : null}
           {status.postings.stale > 0 ? (
-            <p data-testid="inventory-postings-stale" role="alert" className="text-sm text-red-700">
+            <p data-testid="inventory-postings-stale" role="alert" className="notice notice-error">
               {tr("settings.inventory.postings.stale", { stale: status.postings.stale })}
             </p>
           ) : null}
@@ -253,7 +249,7 @@ export function InventorySettings({
       {notice ? (
         <p
           role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-red-700" : "text-green-800"}
+          className={notice.tone === "error" ? "text-danger" : "text-success"}
         >
           {plain(locale, notice.key)}
         </p>

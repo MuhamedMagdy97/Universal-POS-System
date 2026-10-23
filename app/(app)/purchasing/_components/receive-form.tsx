@@ -74,83 +74,76 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="flex gap-2">
-        <button type="button" onClick={() => fill(true)} className="rounded-md border border-border px-3 py-1">
+        <button type="button" onClick={() => fill(true)} className="btn btn-sm">
           {tr("purchasing.receive.all")}
         </button>
-        <button type="button" onClick={() => fill(false)} className="rounded-md border border-border px-3 py-1">
+        <button type="button" onClick={() => fill(false)} className="btn btn-sm">
           {tr("purchasing.receive.none")}
         </button>
       </div>
-      <table className="w-full text-start">
-        <thead>
-          <tr className="text-sm text-muted">
-            <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-            <th className="text-end">{tr("purchasing.line.outstanding")}</th>
-            <th className="text-start">{tr("purchasing.receive.qty")}</th>
-            <th className="text-start">{tr("purchasing.line.cost")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => {
-            const row = rows[index];
-            const qty = parseQty(row.qty);
-            return (
-              <tr key={line.poItemId} className="border-t border-border">
-                <td className="py-2">
-                  {line.name}{" "}
-                  <span dir="ltr" className="text-muted">
-                    {line.sku}
-                  </span>
-                </td>
-                <td className="text-end" dir="ltr">
-                  {line.outstanding}
-                </td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="numeric"
-                    aria-label={`${tr("purchasing.receive.qty")} ${line.sku}`}
-                    aria-invalid={qty === null || qty > line.outstanding}
-                    value={row.qty}
-                    onChange={(e) => update(index, { qty: e.target.value })}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-                <td>
-                  <input
-                    dir="ltr"
-                    inputMode="decimal"
-                    aria-label={`${tr("purchasing.line.cost")} ${line.sku}`}
-                    aria-invalid={parseCost(row.cost, currency) === null}
-                    value={row.cost}
-                    onChange={(e) => update(index, { cost: e.target.value })}
-                    className="w-28 rounded-md border border-border bg-background px-2 py-1"
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <label className="flex flex-col gap-1">
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr className="text-sm text-muted">
+              <th>{tr("purchasing.line.item")}</th>
+              <th className="text-end">{tr("purchasing.line.outstanding")}</th>
+              <th className="text-start">{tr("purchasing.receive.qty")}</th>
+              <th className="text-start">{tr("purchasing.line.cost")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => {
+              const row = rows[index];
+              const qty = parseQty(row.qty);
+              return (
+                <tr key={line.poItemId}>
+                  <td>
+                    {line.name}{" "}
+                    <span dir="ltr" className="text-muted">
+                      {line.sku}
+                    </span>
+                  </td>
+                  <td className="text-end" dir="ltr">
+                    {line.outstanding}
+                  </td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="numeric"
+                      aria-label={`${tr("purchasing.receive.qty")} ${line.sku}`}
+                      aria-invalid={qty === null || qty > line.outstanding}
+                      value={row.qty}
+                      onChange={(e) => update(index, { qty: e.target.value })}
+                      className="input min-h-9 w-24 px-2 py-1"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      dir="ltr"
+                      inputMode="decimal"
+                      aria-label={`${tr("purchasing.line.cost")} ${line.sku}`}
+                      aria-invalid={parseCost(row.cost, currency) === null}
+                      value={row.cost}
+                      onChange={(e) => update(index, { cost: e.target.value })}
+                      className="input min-h-9 w-28 px-2 py-1"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <label className="field">
         <span>{tr("purchasing.receive.note")}</span>
-        <input
-          value={note}
-          maxLength={500}
-          onChange={(e) => setNote(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2"
-        />
+        <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="input" />
       </label>
       {error ? (
-        <p role="alert" className="text-red-700">
+        <p role="alert" className="notice notice-error">
           {error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending || !parsed || units === 0}
-        className="self-start rounded-md bg-foreground px-4 py-2 text-background disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || !parsed || units === 0} className="btn btn-primary self-start">
         {tr("purchasing.receive.submit", { units })}
       </button>
     </form>

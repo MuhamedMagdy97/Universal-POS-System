@@ -150,10 +150,10 @@ test.describe("cashier", () => {
     // + and - on the selected line; above the stock the note turns red but nothing is blocked here.
     await page.keyboard.press("+");
     await expect(qty).toHaveValue("2");
-    await expect(page.getByTestId("till-stock")).toHaveClass(/text-red-700/);
+    await expect(page.getByTestId("till-stock")).toHaveClass(/text-danger/);
     await page.keyboard.press("-");
     await expect(qty).toHaveValue("1");
-    await expect(page.getByTestId("till-stock")).not.toHaveClass(/text-red-700/);
+    await expect(page.getByTestId("till-stock")).not.toHaveClass(/text-danger/);
 
     // F4 goes to the cash box, F8 fills the exact amount.
     await page.keyboard.press("F4");

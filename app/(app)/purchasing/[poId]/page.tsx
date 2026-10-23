@@ -198,7 +198,7 @@ async function PoContent({ params, searchParams }: Props) {
         can={can}
       />
       {returnable ? (
-        <Link href={`/purchasing/${po.id}/return`} className="self-start rounded-md border border-border px-3 py-2">
+        <Link href={`/purchasing/${po.id}/return`} className="btn self-start">
           {tr("purchasing.action.return")}
         </Link>
       ) : null}
@@ -225,48 +225,50 @@ async function PoContent({ params, searchParams }: Props) {
           }}
         />
       ) : (
-        <table className="w-full text-start">
-          <thead>
-            <tr className="text-sm text-muted">
-              <th className="py-2 text-start">{tr("purchasing.line.item")}</th>
-              <th className="text-end">{tr("purchasing.line.ordered")}</th>
-              <th className="text-end">{tr("purchasing.line.received")}</th>
-              <th className="text-end">{tr("purchasing.line.outstanding")}</th>
-              <th className="text-end">{tr("purchasing.line.returned")}</th>
-              <th className="text-end">{tr("purchasing.line.cost")}</th>
-              <th className="text-end">{tr("purchasing.line.total")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {po.lines.map((line) => (
-              <tr key={line.id} className="border-t border-border">
-                <td className="py-2">
-                  {nameOf(line)}{" "}
-                  <span dir="ltr" className="text-muted">
-                    {line.sku}
-                  </span>
-                </td>
-                <td className="text-end">{line.qtyOrdered}</td>
-                <td className="text-end">{line.qtyReceived}</td>
-                <td className="text-end">{line.outstanding}</td>
-                <td className="text-end">{line.qtyReturned}</td>
-                <td className="text-end">{formatMinor(line.unitCostMinor, po.currency, locale)}</td>
-                <td className="text-end">{formatMinor(line.lineTotalMinor, po.currency, locale)}</td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr className="text-sm text-muted">
+                <th>{tr("purchasing.line.item")}</th>
+                <th className="text-end">{tr("purchasing.line.ordered")}</th>
+                <th className="text-end">{tr("purchasing.line.received")}</th>
+                <th className="text-end">{tr("purchasing.line.outstanding")}</th>
+                <th className="text-end">{tr("purchasing.line.returned")}</th>
+                <th className="text-end">{tr("purchasing.line.cost")}</th>
+                <th className="text-end">{tr("purchasing.line.total")}</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-border font-semibold">
-              <td className="py-2">{tr("purchasing.po.total")}</td>
-              <td className="text-end">{po.totals.orderedUnits}</td>
-              <td className="text-end">{po.totals.receivedUnits}</td>
-              <td className="text-end">{outstandingUnits}</td>
-              <td className="text-end">{returnedUnits}</td>
-              <td />
-              <td className="text-end">{formatMinor(po.totals.totalMinor, po.currency, locale)}</td>
-            </tr>
-          </tfoot>
-        </table>
+            </thead>
+            <tbody>
+              {po.lines.map((line) => (
+                <tr key={line.id}>
+                  <td>
+                    {nameOf(line)}{" "}
+                    <span dir="ltr" className="text-muted">
+                      {line.sku}
+                    </span>
+                  </td>
+                  <td className="text-end">{line.qtyOrdered}</td>
+                  <td className="text-end">{line.qtyReceived}</td>
+                  <td className="text-end">{line.outstanding}</td>
+                  <td className="text-end">{line.qtyReturned}</td>
+                  <td className="text-end">{formatMinor(line.unitCostMinor, po.currency, locale)}</td>
+                  <td className="text-end">{formatMinor(line.lineTotalMinor, po.currency, locale)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-border font-semibold">
+                <td>{tr("purchasing.po.total")}</td>
+                <td className="text-end">{po.totals.orderedUnits}</td>
+                <td className="text-end">{po.totals.receivedUnits}</td>
+                <td className="text-end">{outstandingUnits}</td>
+                <td className="text-end">{returnedUnits}</td>
+                <td />
+                <td className="text-end">{formatMinor(po.totals.totalMinor, po.currency, locale)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
 
       <h2 className="text-lg font-semibold">{tr("purchasing.receipts")}</h2>
