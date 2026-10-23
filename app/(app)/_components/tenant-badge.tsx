@@ -37,9 +37,12 @@ export async function TenantBadge() {
   if (data === "no-access") return <span className="text-muted">No access to this organization</span>;
 
   return (
-    <span className="text-sm">
-      <span className="font-medium">{data.orgName}</span>
-      <span className="text-muted"> · {data.branchName ?? "No branch selected"}</span>
+    <span
+      className="flex min-w-0 items-baseline gap-1.5 text-sm"
+      title={`${data.orgName ?? ""} · ${data.branchName ?? ""}`}
+    >
+      <span className="truncate font-medium">{data.orgName}</span>
+      <span className="truncate text-muted max-sm:hidden">· {data.branchName ?? "No branch selected"}</span>
     </span>
   );
 }

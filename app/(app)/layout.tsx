@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
-import Link from "next/link";
 import { TenantBadge } from "./_components/tenant-badge";
 import { LocaleToggle } from "./_components/locale-toggle";
 import { SignOutButton } from "./_components/sign-out-button";
 import { LoadingOrg } from "./_components/loading-org";
 import { AccountLink } from "./_components/account-link";
+import { AppShell } from "./_components/app-shell";
+import { DashboardNavLink } from "./_components/dashboard-nav-link";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
@@ -16,52 +17,45 @@ import { PurchasingNavLink } from "./_components/purchasing-nav-link";
 import { SettingsNavLink } from "./_components/settings-nav-link";
 
 /**
- * Authenticated app shell. Static chrome prerenders; anything that reads the
- * session streams in behind <Suspense> (required with Cache Components).
+ * Authenticated app shell (design-system-spec DS8): sidebar navigation and a top bar. Static
+ * chrome prerenders; anything that reads the session streams in behind <Suspense> (required with
+ * Cache Components). Each nav link checks its own permission.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
+  const links = [
+    DashboardNavLink,
+    PosNavLink,
+    ReturnsNavLink,
+    CustomersNavLink,
+    CatalogNavLink,
+    InventoryNavLink,
+    PurchasingNavLink,
+    ReportsNavLink,
+    SettingsNavLink,
+  ];
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex flex-wrap items-center gap-4 border-b border-border px-4 py-2">
-        <Link href="/dashboard" className="font-semibold">
-          Universal POS
-        </Link>
-        <Suspense fallback={<LoadingOrg />}>
-          <TenantBadge />
+    <AppShell
+      nav={links.map((NavLink, i) => (
+        <Suspense key={i} fallback={null}>
+          <NavLink />
         </Suspense>
-        <nav aria-label="Main" className="flex items-center gap-3">
-          <Suspense fallback={null}>
-            <PosNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <ReturnsNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <CustomersNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <CatalogNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <InventoryNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <PurchasingNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <ReportsNavLink />
-          </Suspense>
-          <Suspense fallback={null}>
-            <SettingsNavLink />
-          </Suspense>
-        </nav>
-        <div className="ms-auto flex items-center gap-3">
-          <LocaleToggle />
-          <AccountLink />
-          <SignOutButton />
-        </div>
-      </header>
-      <main className="flex-1 px-4 py-6">{children}</main>
-    </div>
+      ))}
+      topBar={
+        <>
+          <div className="min-w-0 flex-1">
+            <Suspense fallback={<LoadingOrg />}>
+              <TenantBadge />
+            </Suspense>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <LocaleToggle />
+            <AccountLink />
+            <SignOutButton />
+          </div>
+        </>
+      }
+    >
+      {children}
+    </AppShell>
   );
 }

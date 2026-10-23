@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Icon } from "@/app/_ui/icons";
 import { setClientLocale, useClientLocale } from "@/lib/i18n/client";
 
 /**
@@ -21,8 +22,9 @@ export function LocaleToggle() {
       type="button"
       onClick={toggle}
       aria-label={locale === "en" ? "Switch to Arabic" : "Switch to English"}
-      className="rounded-md border border-border px-3 py-1 text-sm"
+      className="btn btn-ghost btn-sm"
     >
+      <Icon name="language" className="size-4" />
       {locale === "en" ? "عربي" : "English"}
     </button>
   );

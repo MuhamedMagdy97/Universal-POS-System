@@ -1434,6 +1434,8 @@ export const en = {
   "login.error.invalid": "Email or password is incorrect.",
   "login.error.rateLimited": "Too many attempts. Wait a minute and try again.",
   "app.signOut": "Sign out",
+  "app.menu": "Menu",
+  "app.closeMenu": "Close menu",
   "app.loadingOrg": "Loading organization…",
   // Customers (docs/planning/customers/customers-spec.md)
   "customers.nav": "Customers",
