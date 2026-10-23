@@ -122,6 +122,16 @@ archived ones too. Cashiers pick and add customers at the till (see [cashier.md]
   **Archive** [أرشفة] hides the customer from the till; their history stays. **Restore** [استعادة] brings them back.
 - Customers are never deleted. Keep only what the shop needs: there are no marketing fields.
 
+## Offline sales to review
+
+**Offline review** [مراجعة البيع دون اتصال] lists offline sales that changed something when they arrived: price changed
+since the till's copy, item archived, stock went negative, discount over today's limit, arrived after the shift
+closed (with its cash effect), clock problems, totals differ. Each row shows the sale, the till, the cashier and the
+details. Fix what needs fixing (a stock adjustment or count, a word with the cashier), then **Mark reviewed**
+[تمت المراجعة]. A late sale also shows on the shift's report as **late offline sales** beside the original count.
+
+A sale shown red on a till ("could not be saved") never reached the server: record it by hand from its slip.
+
 ## Reports
 
 **Reports** [التقارير]: pick a **Report**, a **Branch** (or **All my branches** [كل فروعي]), dates or a quick range

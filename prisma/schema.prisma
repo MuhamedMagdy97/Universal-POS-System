@@ -449,14 +449,18 @@ model Register {
 // The browser enrolled to sell offline on a register (offline-till-spec OF16). `id` is the deviceId; only the
 // secret's SHA-256 is stored. At most one device per register is not revoked (partial unique index in SQL).
 model RegisterDevice {
-  id           String    @id @default(uuid()) @db.Uuid
-  orgId        String    @db.Uuid
-  registerId   String    @db.Uuid
-  secretHash   String
-  enrolledById String    @db.Uuid
-  enrolledAt   DateTime  @default(now())
-  revokedAt    DateTime?
-  revokedById  String?   @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  orgId            String    @db.Uuid
+  registerId       String    @db.Uuid
+  secretHash       String
+  enrolledById     String    @db.Uuid
+  enrolledAt       DateTime  @default(now())
+  revokedAt        DateTime?
+  revokedById      String?   @db.Uuid
+  // What the device last said it holds unsynced (offline-till-spec OF14): a close from elsewhere warns on it.
+  reportedQueued   Int       @default(0)
+  reportedOldestAt DateTime?
+  reportedAt       DateTime?
 
   org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
   register Register     @relation(fields: [orgId, registerId], references: [orgId, id], onDelete: Restrict)

@@ -57,7 +57,7 @@ export async function requireOfflineDevice(
   tx: Tx,
   orgId: string,
   registerId: string,
-  offline: OfflineSaleInput,
+  offline: Pick<OfflineSaleInput, "deviceId" | "deviceSecret">,
 ): Promise<void> {
   const [device] = await tx.$queryRaw<{ registerId: string; secretHash: string; revoked: boolean }[]>`
     SELECT "registerId", "secretHash", "revokedAt" IS NOT NULL AS "revoked" FROM "RegisterDevice"

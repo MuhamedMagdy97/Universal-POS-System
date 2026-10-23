@@ -5,12 +5,13 @@
  *   node scripts/failure-drill.mjs retry    # lost response: same key twice, then same key + other body
  *   node scripts/failure-drill.mjs crash    # hard-kill the server mid-burst, restart, retry every request
  *   node scripts/failure-drill.mjs db-drop  # block the database, then let it back in, server never restarted
+ *   node scripts/failure-drill.mjs offline  # replay 50 queued offline sales, hard-kill mid-replay, restart, replay all
  *
- * `crash` starts and kills its own server; the others expect one already running on DRILL_PORT.
+ * `crash` and `offline` start and kill their own server; the others expect one already running on DRILL_PORT.
  * Reads DATABASE_URL from .env and refuses pos_dev / pos_test / pos_e2e.
  */
 import { spawn, execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { config } from "dotenv";
 import pg from "pg";
 
@@ -146,7 +147,8 @@ async function checkConsistency(keys) {
   );
   const [numbers] = await sql(
     `SELECT count(*)::int AS sale_number_gaps FROM (
-       SELECT "number"::int - lag("number"::int) OVER (PARTITION BY "orgId" ORDER BY "number") AS step FROM "Sale") s
+       SELECT "number"::int - lag("number"::int) OVER (PARTITION BY "orgId" ORDER BY "number") AS step FROM "Sale"
+        WHERE "number" ~ '^[0-9]+$') s
       WHERE step <> 1`,
   );
   return { ...counts, ...reconcile, ...numbers };
@@ -321,7 +323,136 @@ async function dbDrop() {
   say(`consistency: ${JSON.stringify(await checkConsistency([key]))}`);
 }
 
-const scenarios = { retry, crash, "db-drop": dbDrop };
+/**
+ * Offline till (offline-till-spec §3 drill): a device holds 50 sales rung up offline and replays them oldest first,
+ * as the till does; the server is hard-killed mid-replay, restarted, and the whole queue replayed again with the
+ * same keys. Every key must end with exactly one sale, numbered in the register's series without gaps.
+ */
+async function offline() {
+  const QUEUED = Number(process.env.DRILL_QUEUED ?? 50);
+  const KILL_AFTER_MS = Number(process.env.DRILL_KILL_AFTER_MS ?? 1500);
+  server = startServer();
+  await waitForHealth(200);
+  await signIn();
+  await ensureShift();
+  const items = await products();
+
+  // An enrolled device, as the till's "Use this till offline" leaves it.
+  const secret = randomUUID() + randomUUID();
+  const secretHash = createHash("sha256").update(secret).digest("hex");
+  const [org] = await sql(
+    `UPDATE "Organization" SET "allowOfflineSales" = true WHERE "id" = (SELECT "orgId" FROM "Branch" WHERE "id" = $1)
+     RETURNING "id", "vatRateBp", "pricesIncludeVat"`,
+    [BRANCH],
+  );
+  await sql(`UPDATE "RegisterDevice" SET "revokedAt" = now() WHERE "registerId" = $1 AND "revokedAt" IS NULL`, [
+    REGISTER,
+  ]);
+  const [register] = await sql(
+    `UPDATE "Register" SET "offlineCode" = COALESCE("offlineCode", 'T' || (SELECT count(*) + 1 FROM "Register"
+       WHERE "orgId" = $2 AND "offlineCode" IS NOT NULL)) WHERE "id" = $1 RETURNING "offlineCode", "lastOfflineSaleNo"`,
+    [REGISTER, org.id],
+  );
+  const [device] = await sql(
+    `INSERT INTO "RegisterDevice" ("id", "orgId", "registerId", "secretHash", "enrolledById")
+     SELECT gen_random_uuid(), $1, $2, $3, "id" FROM "User" WHERE "email" = $4 RETURNING "id"`,
+    [org.id, REGISTER, secretHash, SELLER.email],
+  );
+  const [shift] = await sql(
+    `SELECT "id", (extract(epoch FROM "openedAt") * 1000)::float8 AS "openedMs" FROM "RegisterShift" WHERE "registerId" = $1 AND "status" = 'OPEN'`,
+    [REGISTER],
+  );
+  const [cashier] = await sql(`SELECT "id" FROM "User" WHERE "email" = $1`, [SELLER.email]);
+  const vatRows = await sql(`SELECT "id", "vatApplicable" FROM "Product" WHERE "id" = ANY($1)`, [
+    items.map((item) => item.id),
+  ]);
+  const taxed = new Map(vatRows.map((row) => [row.id, row.vatApplicable]));
+
+  // Device totals as totals.ts computes them (VAT per line, half up), so no sale is flagged TOTALS_DIFFER.
+  const half = (num, den) => (2n * num + den) / (2n * den);
+  const priced = (product, qty) => {
+    const gross = product.priceMinor * qty;
+    const rate = taxed.get(product.id) ? org.vatRateBp : 0;
+    if (org.pricesIncludeVat) {
+      return { total: gross, vat: gross - Number(half(BigInt(gross) * 10_000n, BigInt(10_000 + rate))) };
+    }
+    const vat = Number(half(BigInt(gross) * BigInt(rate), 10_000n));
+    return { total: gross + vat, vat };
+  };
+  const now = Date.now();
+  const queue = Array.from({ length: QUEUED }, (_, i) => {
+    const product = items[i % items.length];
+    const qty = 1 + (i % 3);
+    const { total, vat } = priced(product, qty);
+    return {
+      key: `drill-offline-${randomUUID()}`,
+      body: {
+        ...saleBody(product, qty),
+        offline: {
+          deviceId: device.id,
+          deviceSecret: secret,
+          number: `${register.offlineCode}-${String(register.lastOfflineSaleNo + i + 1).padStart(6, "0")}`,
+          // One a second from the shift's start (Prisma stores UTC in a plain timestamp, so read it as epoch ms).
+          soldAt: new Date(shift.openedMs + (i + 1) * 1000).toISOString(),
+          snapshotAt: new Date(now - 3_600_000).toISOString(),
+          snapshotVersion: 1,
+          shiftId: shift.id,
+          cashierId: cashier.id,
+          lines: [{ unitPriceMinor: product.priceMinor, discountMinor: 0, lineTotalMinor: total }],
+          subtotalMinor: total - vat,
+          vatMinor: vat,
+          totalMinor: total,
+        },
+      },
+    };
+  });
+  say(`device ${device.id} on ${register.offlineCode} holds ${QUEUED} offline sales`);
+
+  // One at a time, oldest first, like the till's replay loop; stops at the first request with no answer.
+  const replay = async () => {
+    const tally = {};
+    for (const entry of queue) {
+      let status;
+      try {
+        status = `HTTP ${(await sale(entry.key, entry.body)).status}`;
+      } catch (err) {
+        status = `network error ${err.cause?.code ?? err.message}`;
+      }
+      tally[status] = (tally[status] ?? 0) + 1;
+      if (status.startsWith("network")) break;
+    }
+    return tally;
+  };
+  const first = replay();
+  await sleep(KILL_AFTER_MS);
+  hardKill(server);
+  say(`killed server pid ${server.pid} ${KILL_AFTER_MS} ms into the replay`);
+  say(`first replay saw: ${JSON.stringify(await first)}`);
+  const keys = queue.map((entry) => entry.key);
+  const [{ n: before }] = await sql(`SELECT count(*)::int AS n FROM "Sale" WHERE "idempotencyKey" = ANY($1)`, [keys]);
+  say(`committed before restart: ${before} of ${QUEUED}`);
+
+  server = startServer();
+  await waitForHealth(200);
+  say("server restarted, health 200");
+  say(`second replay of the whole queue: ${JSON.stringify(await replay())}`);
+  const rows = await sql(
+    `SELECT "idempotencyKey", "number", "offlineFlags" FROM "Sale" WHERE "idempotencyKey" = ANY($1)`,
+    [keys],
+  );
+  const numbers = rows.map((row) => Number(row.number.split("-")[1])).sort((a, b) => a - b);
+  say(
+    `every key has exactly one sale: ${new Set(rows.map((row) => row.idempotencyKey)).size === QUEUED && rows.length === QUEUED}`,
+  );
+  say(`offline numbers gap-free and unique: ${numbers.every((n, i) => n === register.lastOfflineSaleNo + i + 1)}`);
+  const flags = {};
+  for (const row of rows) for (const flag of row.offlineFlags) flags[flag] = (flags[flag] ?? 0) + 1;
+  say(`review flags: ${JSON.stringify(flags)}`);
+  say(`consistency: ${JSON.stringify(await checkConsistency(keys))}`);
+}
+
+const scenarios = { retry, crash, "db-drop": dbDrop, offline };
+
 const run = scenarios[process.argv[2]];
 if (!run) throw new Error(`usage: node scripts/failure-drill.mjs ${Object.keys(scenarios).join("|")}`);
 let server;

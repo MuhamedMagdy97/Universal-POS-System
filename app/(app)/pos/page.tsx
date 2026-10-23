@@ -118,6 +118,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
                   key={shift.id}
                   locale={locale}
                   shiftId={shift.id}
+                  registerId={register.id}
                   currency={settings.currency}
                   cash={shiftCash}
                 />

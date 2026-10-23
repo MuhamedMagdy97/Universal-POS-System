@@ -8,9 +8,10 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Product-wide
 
-- Online only: no offline checkout. [offline-till-spec](../planning/offline-till/offline-till-spec.md) slice 1 (server: shop setting,
-  device enrolment, register series, accept-as-sold with review flags) is built but hidden; the till cache, queue, service
-  worker and review list (slices 2–4) are not. Offline numbers (`T1-000045`) cannot yet be looked up on Returns. Manual payments only (cash, card, wallet recorded by hand); no payment-provider
+- Offline selling is **sales only** and opt-in (shop setting plus one enrolled browser per till); no refunds, voids,
+  cash movements, shift open/close or customers offline, and not for shops linked to the inventory system. Unsynced sales
+  on a lost or wiped device are lost. Limits: 12 h offline, 300 queued sales, session expiry. See
+  [offline strategy](../architecture/offline-strategy.md). Manual payments only (cash, card, wallet recorded by hand); no payment-provider
   integration. No native mobile or desktop app, no e-commerce, no full accounting. [mvp-scope]
 - Saudi receipts carry the ZATCA Phase 1 QR (simplified tax invoice); ZATCA Phase 2 (Fatoora clearance, CSID, UBL XML)
   is not built. Egypt ETA e-receipts are designed in [eta-e-receipt-spec](../planning/eta-e-receipt/eta-e-receipt-spec.md)

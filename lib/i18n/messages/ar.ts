@@ -576,6 +576,10 @@ export const ar: Messages = {
   "pos.close.submit": "إغلاق الوردية",
   "pos.close.closing": "جارٍ الإغلاق…",
   "pos.close.cancel": "إلغاء",
+  "pos.close.offlineQueued":
+    "{count} عمليات بيع دون اتصال على هذه الخزينة لم تُرسل بعد. أعد الاتصال وانتظر إرسالها قبل الإغلاق.",
+  "pos.close.offlineUnsynced": "أبلغت الخزينة {code} عن {count} عمليات بيع غير مُرسلة في {time}.",
+  "pos.close.offlineNoteLabel": "ملاحظة للإغلاق رغم ذلك (مطلوبة)",
   "pos.close.resultTitle": "تم إغلاق الوردية",
   "pos.close.done": "تم",
   "pos.close.noteRequired": "أضف سببًا للفرق قبل الإغلاق.",

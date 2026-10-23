@@ -34,11 +34,11 @@ SELECT count(*) FROM "InventoryMovement" m
 
 ## The drill
 
-All four scenarios were run on 2026-10-19 against a production build (`npm run build`, `next start`) on port 3302,
+Scenarios 1–4 were run on 2026-10-19 (5 on 2026-10-23) against a production build (`npm run build`, `next start`) on port 3302,
 with a scratch database `pos_dev_recovery` (PostgreSQL 16.15 in the `pos-postgres` container) migrated with
 `npx prisma migrate deploy` and loaded with `npm run db:seed:dev`. No other database was touched.
 
-[`scripts/failure-drill.mjs`](../../scripts/failure-drill.mjs) drives scenarios 1–3. It signs in as the seeded
+[`scripts/failure-drill.mjs`](../../scripts/failure-drill.mjs) drives scenarios 1–3 and 5. It signs in as the seeded
 manager of shop A, opens a shift on Till 1 if needed, and posts cash sales to `POST /api/sales`. It reads
 `DATABASE_URL` from `.env` and refuses `pos_dev`, `pos_test` and `pos_e2e`. Its consistency check reports, for the
 drill's sales: sales without items, payments ≠ total, line totals ≠ total, ledger quantity ≠ sold quantity, sale
@@ -261,6 +261,41 @@ Runbook for a failed deploy:
 4. `npx prisma migrate status` must say "Database schema is up to date!" before starting the new release.
 
 Do not delete rows from `_prisma_migrations` by hand.
+
+### 5. Offline till replay through a crash
+
+Run on 2026-10-23 on the same kind of scratch database (`pos_dev_recovery`, migrated and seeded as above, fresh
+`npm run build`). The script starts and kills its own server.
+
+```bash
+node scripts/failure-drill.mjs offline
+```
+
+It enrols a device on Till 1 (SQL, as the till's "Use this till offline" leaves it), builds 50 offline sales the way the
+till does (`offline` block, `T1-…` numbers, totals as `totals.ts` computes them, sold during the open shift), replays
+them one at a time oldest first, hard-kills the server 1.5 s in, restarts it and replays the whole queue again with the
+same keys:
+
+```
+device 950f8807-… on T1 holds 50 offline sales
+killed server pid 28388 1500 ms into the replay
+first replay saw: {"HTTP 201":45,"network error ECONNRESET":1}
+committed before restart: 46 of 50
+server restarted, health 200
+429 on /api/sales, waiting 37 s as Retry-After says
+second replay of the whole queue: {"HTTP 200":46,"HTTP 201":4}
+every key has exactly one sale: true
+offline numbers gap-free and unique: true
+review flags: {}
+consistency: {"sales":50,"sales_without_items":0,"sales_payments_mismatch":0,"sales_lines_mismatch":0,"sales_ledger_mismatch":0,"orphan_sale_movements":0,"sales_without_audit":0,"reconcile_mismatches":0,"sale_number_gaps":0}
+```
+
+- The sale in flight at the kill committed though its answer was lost (46 committed, 45 answered); its replay got 200
+  with the stored sale, as for an online retry. The till treats "no answer" the same way: the entry stays queued.
+- Every key has exactly one sale, the register's series has no gaps, nothing was flagged, and every consistency count
+  is 0. The org series (`000123`) is untouched; the gap check now skips offline numbers.
+- An earlier run gave every sale `CLOCK_SKEW`: the script had read the shift's `openedAt` through `pg`, which takes
+  Prisma's UTC `timestamp` columns as local time. The script now reads it as epoch milliseconds.
 
 ## Clean-up
 

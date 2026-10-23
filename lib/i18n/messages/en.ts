@@ -578,6 +578,10 @@ export const en = {
   "pos.close.submit": "Close shift",
   "pos.close.closing": "Closing…",
   "pos.close.cancel": "Cancel",
+  "pos.close.offlineQueued":
+    "{count} offline sales on this till are not synced yet. Reconnect and wait for them to send before closing.",
+  "pos.close.offlineUnsynced": "Register {code} reported {count} unsynced sales at {time}.",
+  "pos.close.offlineNoteLabel": "Note to close anyway (required)",
   "pos.close.resultTitle": "Shift closed",
   "pos.close.done": "Done",
   "pos.close.noteRequired": "Add a reason for the difference before closing.",

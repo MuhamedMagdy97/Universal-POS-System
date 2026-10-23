@@ -47,6 +47,16 @@ Refusals: "This branch still has stock. Move it or write it off first.", "A shif
 first.", "This till has an open shift. Close it first.", "The shop needs at least one active branch.", "Another branch
 already uses this code.", "This branch already has a till with this name."
 
+### Offline till
+
+**Settings** → **Offline till** [البيع دون اتصال]: tick **Allow offline sales** [السماح بالبيع دون اتصال] (owner only;
+refused while the shop is linked to the inventory system). Then on each till that should keep selling without the
+internet, open **Till**, sign in as the owner on that browser and press **Use this till offline**
+[استخدام هذه الخزينة دون اتصال]. One browser per till. The settings screen lists each till's series (T1, T2, …), its
+last offline number and device; **Revoke device** [إلغاء الجهاز] stops a lost or replaced browser (its unsent sales are
+then refused and shown in red on that browser). Use OS disk encryption and a locked account on till computers: a lost
+device loses its unsent sales. What the till does offline: [cashier guide](cashier.md#selling-offline).
+
 ## 4. Staff
 
 **Settings** → **Staff** [الموظفون] → **Add staff** [إضافة موظف].

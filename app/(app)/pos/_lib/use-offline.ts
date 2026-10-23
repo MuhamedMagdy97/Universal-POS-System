@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReceiptDoc, TillSnapshot } from "@/modules/sales";
 import type { Discount } from "@/modules/sales/totals";
 import { safeAction } from "../../inventory/_lib/form";
-import { createSaleAction, enrolTillDeviceAction, tillSnapshotAction } from "../actions";
+import { createSaleAction, enrolTillDeviceAction, reportOfflineQueueAction, tillSnapshotAction } from "../actions";
 import {
   buildOfflineSale,
   offlineBlock,
@@ -66,6 +66,29 @@ export function useOfflineTill({
     await store.saveContact(registerId, at).catch(() => undefined);
   }, [registerId]);
 
+  // The count the server last accepted from this device, so an unchanged queue is not reported every round.
+  const reported = useRef<number | null>(null);
+
+  /** OF14: tells the server how many sales this device still holds, for a close from elsewhere. */
+  const report = useCallback(
+    async (force = false) => {
+      if (!device) return;
+      const pending = (await store.loadQueue(registerId)).filter((entry) => entry.status === "PENDING");
+      if (!force && reported.current === pending.length) return;
+      const result = await reach(() =>
+        reportOfflineQueueAction({
+          registerId,
+          deviceId: device.deviceId,
+          deviceSecret: device.deviceSecret,
+          queued: pending.length,
+          oldestAt: replayOrder(pending)[0]?.soldAt ?? null,
+        }),
+      );
+      if (result !== "UNREACHABLE" && result.ok) reported.current = pending.length;
+    },
+    [device, registerId],
+  );
+
   const refresh = useCallback(async () => {
     const result = await reach(() => tillSnapshotAction(branchId, registerId));
     if (unreachable(result)) {
@@ -76,7 +99,8 @@ export function useOfflineTill({
     await contact();
     setSnapshot(result.data);
     await store.saveSnapshot(result.data).catch(() => undefined);
-  }, [branchId, registerId, contact]);
+    await report(true).catch(() => undefined);
+  }, [branchId, registerId, contact, report]);
 
   const sync = useCallback(async () => {
     if (syncing.current) return;
@@ -102,8 +126,9 @@ export function useOfflineTill({
     } finally {
       syncing.current = false;
       await reloadQueue().catch(() => undefined);
+      await report().catch(() => undefined);
     }
-  }, [registerId, contact, reloadQueue]);
+  }, [registerId, contact, reloadQueue, report]);
 
   // Load what this browser holds for the register, then refresh and replay. IndexedDB may be unavailable
   // (a private window): the till then simply sells online only.

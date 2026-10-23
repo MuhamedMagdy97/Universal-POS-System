@@ -13,7 +13,9 @@ export type SalesConflictReason =
   | "REFUND_QTY_EXCEEDED"
   | "SALE_NOT_COMPLETED"
   | "SALE_HAS_REFUNDS"
-  | "VOID_SHIFT_CLOSED";
+  | "VOID_SHIFT_CLOSED"
+  // The register's offline device reported unsynced sales (offline-till-spec OF14).
+  | "OFFLINE_SALES_UNSYNCED";
 
 export function salesConflict(reason: SalesConflictReason, message: string, details: Record<string, unknown> = {}) {
   return new AppError(reason === "IDEMPOTENCY_CONFLICT" ? "IDEMPOTENCY_CONFLICT" : "CONFLICT", message, {

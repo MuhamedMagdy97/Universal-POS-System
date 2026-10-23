@@ -10,10 +10,12 @@ import { PrintZReportButton } from "../../_components/zreport-print";
 import { closeShiftAction } from "../actions";
 import { canSubmitClose, closeErrorKey, countPreview } from "../_lib/close";
 import { parseCash } from "../_lib/till";
+import { loadQueue } from "../_lib/offline-db";
 
 type Props = {
   locale: Locale;
   shiftId: string;
+  registerId: string;
   currency: CurrencyCode;
   cash: CashBreakdown;
 };
@@ -22,7 +24,10 @@ type Props = {
  * Shift close (T7, shift-close-spec.md): show the expected cash, take the count, note any
  * difference, then close. The server recomputes the expected cash under a lock and is the authority.
  */
-export function CloseShift({ locale, shiftId, currency, cash }: Props) {
+/** What the server said about the register's offline device (OF14). */
+type Unsynced = { offlineCode: string | null; queued: number; reportedAt: string | null };
+
+export function CloseShift({ locale, shiftId, registerId, currency, cash }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const money = (minor: number) => formatMoney(minor, currency, locale);
@@ -35,12 +40,16 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
   const [result, setResult] = useState<ShiftCloseSummary | null>(null);
   // Set when the server found a difference this screen did not (its expected cash was stale).
   const [serverNeedsNote, setServerNeedsNote] = useState(false);
+  // OF14: sales this browser still holds (the close waits for them), and another device's report (needs a note).
+  const [queuedHere, setQueuedHere] = useState(0);
+  const [unsynced, setUnsynced] = useState<Unsynced | null>(null);
+  const [unsyncedNote, setUnsyncedNote] = useState("");
   // True until a refresh of the server data (the expected cash) has landed.
   const [refreshing, startRefresh] = useTransition();
 
   const counted = countPreview(cash.expectedCashMinor, countedRaw, currency);
   const preview = { ...counted, noteRequired: counted.noteRequired || serverNeedsNote };
-  const ready = canSubmitClose(preview, note, pending || refreshing);
+  const ready = canSubmitClose(preview, note, pending || refreshing) && (!unsynced || unsyncedNote.trim() !== "");
 
   function refresh() {
     startRefresh(() => router.refresh());
@@ -52,6 +61,17 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
     setNote("");
     setError(null);
     setServerNeedsNote(false);
+    setQueuedHere(0);
+    setUnsynced(null);
+    setUnsyncedNote("");
+  }
+
+  /** The till never closes over its own unsynced offline sales (OF14): they replay every 30 s once it is online. */
+  async function countUnsyncedHere(): Promise<number> {
+    const held = await loadQueue(registerId).catch(() => []);
+    const waiting = held.filter((entry) => entry.status === "PENDING").length;
+    setQueuedHere(waiting);
+    return waiting;
   }
 
   async function submit(event: FormEvent) {
@@ -59,16 +79,30 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
     if (!ready || preview.countedMinor === null) return;
     setPending(true);
     setError(null);
+    if ((await countUnsyncedHere()) > 0) {
+      setPending(false);
+      return;
+    }
     const result = await safeAction(() =>
       closeShiftAction(shiftId, {
         countedCashMinor: preview.countedMinor ?? 0,
         // Only a note the cashier can see is sent; a note left from an earlier count is dropped.
         discrepancyNote: preview.noteRequired && note.trim() !== "" ? note.trim() : null,
+        unsyncedNote: unsynced && unsyncedNote.trim() !== "" ? unsyncedNote.trim() : null,
       }),
     );
     setPending(false);
     if (result.ok) {
       setResult(result.data);
+      return;
+    }
+    const details = result.error.details as ({ reason?: string } & Partial<Unsynced>) | null;
+    if (details?.reason === "OFFLINE_SALES_UNSYNCED") {
+      setUnsynced({
+        offlineCode: details.offlineCode ?? null,
+        queued: details.queued ?? 0,
+        reportedAt: details.reportedAt ?? null,
+      });
       return;
     }
     const key = closeErrorKey(result.error);
@@ -123,18 +157,27 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          // Sales from another device may have moved the cash since this page loaded. Closing
-          // waits until the fresh numbers have landed.
-          refresh();
-          setOpen(true);
-        }}
-        className="self-start rounded-md border border-border px-4 py-2"
-      >
-        {tr("pos.close.open")}
-      </button>
+      <div className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={async () => {
+            // Checked before any server call: offline, a refresh would reload the whole page.
+            if ((await countUnsyncedHere()) > 0) return;
+            // Sales from another device may have moved the cash since this page loaded. Closing
+            // waits until the fresh numbers have landed.
+            refresh();
+            setOpen(true);
+          }}
+          className="self-start rounded-md border border-border px-4 py-2"
+        >
+          {tr("pos.close.open")}
+        </button>
+        {queuedHere > 0 ? (
+          <p role="alert" className="max-w-xs text-sm text-red-700" data-testid="close-offline-queued">
+            {tr("pos.close.offlineQueued", { count: String(queuedHere) })}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
@@ -221,6 +264,30 @@ export function CloseShift({ locale, shiftId, currency, cash }: Props) {
           </label>
         ) : null}
 
+        {queuedHere > 0 ? (
+          <p role="alert" className="text-red-700" data-testid="close-offline-queued">
+            {tr("pos.close.offlineQueued", { count: String(queuedHere) })}
+          </p>
+        ) : null}
+        {unsynced ? (
+          <label className="flex flex-col gap-1">
+            <span role="alert" className="text-red-700" data-testid="close-offline-unsynced">
+              {tr("pos.close.offlineUnsynced", {
+                code: unsynced.offlineCode ?? "—",
+                count: String(unsynced.queued),
+                time: unsynced.reportedAt ? new Date(unsynced.reportedAt).toLocaleTimeString(locale) : "—",
+              })}
+            </span>
+            <span>{tr("pos.close.offlineNoteLabel")}</span>
+            <textarea
+              value={unsyncedNote}
+              onChange={(e) => setUnsyncedNote(e.target.value)}
+              maxLength={500}
+              rows={2}
+              className="rounded-md border border-border bg-background px-3 py-2"
+            />
+          </label>
+        ) : null}
         {error ? (
           <p role="alert" className="text-red-700">
             {plain(locale, error)}

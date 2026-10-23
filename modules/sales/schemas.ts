@@ -115,6 +115,14 @@ export const CloseShiftInput = z
       .max(500)
       .nullish()
       .transform((value) => value ?? null),
+    // Why the shift closes while the register's offline device reported unsynced sales (offline-till-spec OF14).
+    unsyncedNote: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .nullish()
+      .transform((value) => value ?? null),
   })
   .strict();
 export type CloseShiftInput = z.infer<typeof CloseShiftInput>;

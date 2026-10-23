@@ -4,9 +4,9 @@ import { z } from "zod";
 import { hasPermission } from "@/lib/auth/permissions";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
-import { AppError, notFound } from "@/lib/errors";
+import { AppError, forbidden, notFound } from "@/lib/errors";
 import { record, type AuditRequestMeta } from "@/modules/audit";
-import { hashDeviceSecret } from "@/modules/sales/offline";
+import { hashDeviceSecret, requireOfflineDevice } from "@/modules/sales/offline";
 import { requirePermission, type Tx } from "./access";
 import { Uuid } from "./schemas";
 
@@ -200,6 +200,32 @@ export async function revokeOfflineDevice(
       entityType: "Register",
       entityId: registerId,
       metadata: { deviceId: device.id },
+    });
+  });
+}
+
+/** What a device says it holds unsynced (OF14), sent with its snapshot refresh and after each replay round. */
+export const OfflineQueueReport = z.strictObject({
+  registerId: Uuid,
+  deviceId: Uuid,
+  deviceSecret: z.string().min(16).max(200),
+  queued: z.number().int().min(0).max(100_000),
+  oldestAt: z.iso.datetime({ offset: true }).nullable(),
+});
+
+/** OF14: stores the device's report, so a close from another device can warn. Only the enrolled device may report. */
+export async function reportOfflineQueue(ctx: TenantContext, input: unknown): Promise<void> {
+  if (!hasPermission(ctx.role, "sales.create")) throw forbidden("Missing permission for this action");
+  const report = OfflineQueueReport.parse(input);
+  await getDb().$transaction(async (tx) => {
+    await requireOfflineDevice(tx, ctx.orgId, report.registerId, report);
+    await tx.registerDevice.update({
+      where: { id: report.deviceId },
+      data: {
+        reportedQueued: report.queued,
+        reportedOldestAt: report.oldestAt ? new Date(report.oldestAt) : null,
+        reportedAt: new Date(),
+      },
     });
   });
 }

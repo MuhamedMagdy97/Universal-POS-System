@@ -23,6 +23,7 @@ export {
   updateOfflineSettings,
   enrolOfflineDevice,
   revokeOfflineDevice,
+  reportOfflineQueue,
   OfflineSettingsInput,
   type OfflineSettings,
   type OfflineRegisterRow,

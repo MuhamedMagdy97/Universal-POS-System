@@ -19,7 +19,7 @@ import {
   type ShiftCloseSummary,
   type ShiftSummary,
 } from "@/modules/registers";
-import { enrolOfflineDevice, type EnrolledDevice } from "@/modules/org";
+import { enrolOfflineDevice, reportOfflineQueue, type EnrolledDevice } from "@/modules/org";
 import {
   createSale,
   getTillSnapshot,
@@ -94,4 +94,18 @@ export async function tillSnapshotAction(branchId: string, registerId: string): 
 /** Enrols this browser as the register's offline device (OF16, Owner). The secret is returned once; the till keeps it. */
 export async function enrolTillDeviceAction(registerId: string): Promise<PosActionResult<EnrolledDevice>> {
   return run((ctx, meta) => enrolOfflineDevice(ctx, registerId, meta));
+}
+
+/** The device's unsynced count (OF14), so a close from another device can warn. Fire and forget. */
+export async function reportOfflineQueueAction(input: {
+  registerId: string;
+  deviceId: string;
+  deviceSecret: string;
+  queued: number;
+  oldestAt: string | null;
+}): Promise<PosActionResult<null>> {
+  return run(async (ctx) => {
+    await reportOfflineQueue(ctx, input);
+    return null;
+  });
 }
