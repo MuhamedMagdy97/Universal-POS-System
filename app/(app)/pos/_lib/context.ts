@@ -8,7 +8,7 @@ import { prismaTenantRepository, requireTenant, type TenantContext } from "@/lib
 import { getLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n";
 import { previewShiftCash, type CashBreakdown } from "@/modules/registers";
-import type { TillSettings } from "./till";
+import type { TillOffline, TillSettings } from "./till";
 
 /**
  * Session → tenant → `sales.create` → branch → register → open shift, for the till page.
@@ -35,6 +35,7 @@ export type PosPageContext =
       settings: TillSettings;
       canOpenShift: boolean;
       canCloseShift: boolean;
+      offline: TillOffline;
     }
   | { kind: "denied"; locale: Locale }
   | { kind: "notFound"; locale: Locale; branches: BranchOption[] };
@@ -73,15 +74,23 @@ export async function loadPosContext(
   const [org, registers] = await Promise.all([
     db.organization.findUniqueOrThrow({
       where: { id: ctx.orgId },
-      select: { currency: true, vatRateBp: true, pricesIncludeVat: true, maxCashierDiscountBp: true },
+      select: {
+        currency: true,
+        vatRateBp: true,
+        pricesIncludeVat: true,
+        maxCashierDiscountBp: true,
+        allowOfflineSales: true,
+        inventorySource: true,
+      },
     }),
     db.register.findMany({
       where: { orgId: ctx.orgId, branchId: branch.id, isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, devices: { where: { revokedAt: null }, select: { id: true } } },
     }),
   ]);
-  const register = registers.find((r) => r.id === requestedRegister) ?? registers[0] ?? null;
+  const chosen = registers.find((r) => r.id === requestedRegister) ?? registers[0] ?? null;
+  const register = chosen ? { id: chosen.id, name: chosen.name } : null;
   const open = register
     ? await db.registerShift.findFirst({
         where: { orgId: ctx.orgId, registerId: register.id, status: "OPEN" },
@@ -98,7 +107,7 @@ export async function loadPosContext(
     locale,
     branches,
     branch,
-    registers,
+    registers: registers.map(({ id, name }) => ({ id, name })),
     register,
     shift: open
       ? { id: open.id, openedAt: open.openedAt.toISOString(), openingFloatMinor: open.openingFloatMinor }
@@ -121,5 +130,11 @@ export async function loadPosContext(
     },
     canOpenShift: hasPermission(ctx.role, "registers.open"),
     canCloseShift,
+    // UI gating only: enrolment and replays are checked on the server (offline-till-spec OF5, OF15, OF16).
+    offline: {
+      allowed: org.allowOfflineSales && org.inventorySource !== "EXTERNAL",
+      canEnrol: hasPermission(ctx.role, "offline.manage"),
+      registerHasDevice: (chosen?.devices.length ?? 0) > 0,
+    },
   };
 }

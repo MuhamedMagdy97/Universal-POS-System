@@ -7,6 +7,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
+import { getSession } from "@/lib/auth/session";
 import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import type { ErrorBody } from "@/lib/errors";
 import { actionError, getRequestId } from "@/lib/http";
@@ -18,8 +19,11 @@ import {
   type ShiftCloseSummary,
   type ShiftSummary,
 } from "@/modules/registers";
+import { enrolOfflineDevice, type EnrolledDevice } from "@/modules/org";
 import {
   createSale,
+  getTillSnapshot,
+  type TillSnapshot,
   type CashMovementInput,
   type CloseShiftInput,
   type OpenShiftInput,
@@ -77,4 +81,17 @@ export async function tillStockAction(
   input: z.input<typeof TillStockInput>,
 ): Promise<PosActionResult<(number | null)[]>> {
   return run((ctx) => getTillOnHand(ctx, input));
+}
+
+/** The register's offline snapshot (offline-till-spec OF7), with the session's expiry for the offline limits (OF19). */
+export async function tillSnapshotAction(branchId: string, registerId: string): Promise<PosActionResult<TillSnapshot>> {
+  return run(async (ctx) => {
+    const session = await getSession(await headers());
+    return getTillSnapshot(ctx, branchId, registerId, session ? new Date(session.session.expiresAt) : null);
+  });
+}
+
+/** Enrols this browser as the register's offline device (OF16, Owner). The secret is returned once; the till keeps it. */
+export async function enrolTillDeviceAction(registerId: string): Promise<PosActionResult<EnrolledDevice>> {
+  return run((ctx, meta) => enrolOfflineDevice(ctx, registerId, meta));
 }

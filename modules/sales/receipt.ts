@@ -31,6 +31,8 @@ export type ReceiptDoc = {
   kind: ReceiptKind;
   /** A reprint: printed with a "Copy" mark (H4). */
   copy: boolean;
+  /** Rung up offline (offline-till-spec OF9): the slip says so, on the original and every reprint. */
+  offline: boolean;
   shop: ReceiptShop;
   saleNumber: string;
   currency: CurrencyCode;
@@ -99,6 +101,7 @@ export async function getReceipt(
   const base = {
     kind: request.kind,
     copy: request.copy,
+    offline: sale.receivedAt !== null,
     shop,
     saleNumber: sale.number,
     currency: sale.currency,

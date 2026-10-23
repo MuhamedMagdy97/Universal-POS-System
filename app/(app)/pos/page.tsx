@@ -46,8 +46,20 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
     );
   }
 
-  const { locale, branches, branch, registers, register, shift, shiftCash, settings, canOpenShift, canCloseShift } =
-    page;
+  const {
+    ctx,
+    locale,
+    branches,
+    branch,
+    registers,
+    register,
+    shift,
+    shiftCash,
+    settings,
+    canOpenShift,
+    canCloseShift,
+    offline,
+  } = page;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -112,7 +124,15 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
               ) : null}
             </div>
           </div>
-          <Till key={register.id} locale={locale} branchId={branch.id} registerId={register.id} settings={settings} />
+          <Till
+            key={register.id}
+            locale={locale}
+            branchId={branch.id}
+            registerId={register.id}
+            userId={ctx.userId}
+            settings={settings}
+            offline={offline}
+          />
         </>
       )}
     </div>

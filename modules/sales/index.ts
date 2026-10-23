@@ -6,6 +6,7 @@
  */
 export { createSale, loadSale, requestHashOf, type CreateSaleResult, type SaleDetail } from "./create";
 export { getReceipt, type ReceiptDoc, type ReceiptKind, type ReceiptRequest } from "./receipt";
+export { getTillSnapshot, SNAPSHOT_VERSION, type SnapshotItem, type TillSnapshot } from "./offline-snapshot";
 export { refundSale, voidSale, loadRefund, type RefundDetail, type RefundResult } from "./refunds";
 export {
   getSaleForReturns,
