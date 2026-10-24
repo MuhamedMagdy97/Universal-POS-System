@@ -4,12 +4,14 @@ import { apiRoute, json, queryOf } from "../../_lib/route";
 /**
  * GET /api/catalog/search?q=&limit= → SellableSummary[] (POS type-to-search; active items, no cost).
  * Without `q`: `categoryId=` or `all=1` browses for the till tiles (business-profiles-spec BP8), `limit` up to 60.
+ * Both schemas are strict, so an unknown parameter is refused (422) either way.
  */
 export const GET = apiRoute({ permission: "products.read" }, async (request, _context: unknown, { tenant }) => {
-  const { q, all, ...browse } = queryOf(request);
-  if (q === undefined && (browse.categoryId !== undefined || all === "1")) {
+  const query = queryOf(request);
+  if (query.q === undefined && (query.categoryId !== undefined || query.all === "1")) {
+    const { all: _all, ...browse } = query;
     return json(await browseSellable(tenant, browse));
   }
-  const { q: text, limit } = SearchSellableQuery.parse({ q, limit: browse.limit });
-  return json(await searchSellable(tenant, text, limit));
+  const { q, limit } = SearchSellableQuery.parse(query);
+  return json(await searchSellable(tenant, q, limit));
 });

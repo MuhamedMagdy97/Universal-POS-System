@@ -493,6 +493,18 @@ describe("catalog routes: forged tenant fields (C-12)", () => {
       422,
       "VALIDATION_FAILED",
     );
+    // Browse mode for the till tiles (business-profiles-spec BP8) is strict too.
+    await expectEnvelope(
+      await call(
+        search.GET,
+        "GET",
+        "/catalog/search",
+        {},
+        { cookie: cookies.ADMIN, query: { all: "1", orgId: b.org.id } },
+      ),
+      422,
+      "VALIDATION_FAILED",
+    );
     await expectEnvelope(
       await call(barcodes.GET, "GET", "/barcodes", {}, { cookie: cookies.ADMIN }),
       422,
