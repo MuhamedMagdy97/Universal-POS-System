@@ -856,6 +856,10 @@ export const ar: Messages = {
   "dashboard.tile.sales": "عدد المبيعات",
   "dashboard.tile.refunds": "المرتجعات",
   "dashboard.tile.openShifts": "الورديات المفتوحة",
+  "dashboard.tile.averageTicket": "متوسط الفاتورة",
+  "dashboard.tile.topItems": "الأكثر مبيعًا اليوم",
+  "dashboard.tile.topServices": "الخدمات الأكثر طلبًا اليوم",
+  "dashboard.tile.topEmpty": "لا مبيعات اليوم بعد",
   "dashboard.tile.lowStock": "مخزون منخفض في {branch}",
   // Purchasing (T5)
   "purchasing.nav": "المشتريات",

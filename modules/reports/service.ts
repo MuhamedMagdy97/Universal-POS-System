@@ -228,3 +228,23 @@ export async function getDashboardTiles(ctx: TenantContext): Promise<DashboardTi
     openShifts,
   };
 }
+
+export type TopItem = { sku: string; name: string; nameAr: string | null; qty: number };
+
+/**
+ * Dashboard "Top items today" (business-profiles-spec BP10): the Products report for today over the caller's branches,
+ * by net quantity (sold minus refunded), then name. null for roles without `reports.view`, like the tiles.
+ */
+export async function getTopItemsToday(ctx: TenantContext, limit = 5): Promise<TopItem[] | null> {
+  if (!hasPermission(ctx.role, "reports.view")) return null;
+  const branchIds = (await branchesInScope(ctx)).map((b) => b.id);
+  if (branchIds.length === 0) return [];
+  const { zone } = await orgSettings(ctx.orgId);
+  const today = todayIn(zone);
+  const rows = await q.products({ orgId: ctx.orgId, branchIds, zone, from: today, to: today });
+  return rows
+    .map((row) => ({ sku: row.sku, name: row.name, nameAr: row.nameAr, qty: row.qtySold - row.qtyRefunded }))
+    .filter((row) => row.qty > 0)
+    .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}

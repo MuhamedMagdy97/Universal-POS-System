@@ -863,6 +863,10 @@ export const en = {
   "dashboard.tile.sales": "Sales",
   "dashboard.tile.refunds": "Refunds",
   "dashboard.tile.openShifts": "Open shifts",
+  "dashboard.tile.averageTicket": "Average ticket",
+  "dashboard.tile.topItems": "Top items today",
+  "dashboard.tile.topServices": "Top services today",
+  "dashboard.tile.topEmpty": "No sales yet today",
   "dashboard.tile.lowStock": "Low stock at {branch}",
   // Purchasing (T5)
   "purchasing.nav": "Purchasing",

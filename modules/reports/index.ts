@@ -10,6 +10,8 @@ export {
   exportReportCsv,
   getDashboardTiles,
   type DashboardTiles,
+  getTopItemsToday,
+  type TopItem,
   enumLabel,
   localizedName,
   ROW_CAP,
@@ -38,3 +40,4 @@ export {
   type AuditRow,
   type AuditPage,
 } from "./audit-trail";
+export { averageTicketMinor } from "./average";

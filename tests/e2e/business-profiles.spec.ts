@@ -48,6 +48,13 @@ test("an owner switches a retail shop to Restaurant / café in Settings → Shop
   await nav.getByRole("link", { name: "Menu items" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Menu items" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Add menu item" }).first()).toBeVisible();
+
+  // The café dashboard: average ticket and top items today.
+  await page.goto("/dashboard");
+  await expect(page.getByText(en["dashboard.tile.averageTicket"])).toBeVisible();
+  await expect(page.getByText(en["dashboard.tile.topItems"])).toBeVisible();
+  await expect(page.getByText(en["dashboard.tile.topEmpty"])).toBeVisible();
+  await expect(page.getByText(en["dashboard.tile.refunds"])).toHaveCount(0);
 });
 
 test.describe("retail admin", () => {
