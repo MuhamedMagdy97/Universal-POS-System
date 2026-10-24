@@ -138,7 +138,10 @@
 - 2026-10-24 UI refresh: owner approved five sub-projects ([overview](ui-refresh/README.md)). A, design system and
   app shell, BUILT (PRs #72 and #73, [as built](ui-refresh/design-system-as-built.md)): tokens with dark mode, IBM
   Plex Sans Arabic, component classes, inline icons, a sidebar shell mirrored in Arabic, every screen restyled.
-  Next: B, business profiles.
+  B, business profiles, BUILT (PRs #74 and #75, [as built](ui-refresh/business-profiles-as-built.md)): a profile
+  per business type (accent, icon, item word, dashboard tiles, till layout), every type selectable at setup and
+  changeable by the Owner, tap tiles on the till for fruit and veg, bakery and butcher, café and salon. Next: C,
+  weighed selling.
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

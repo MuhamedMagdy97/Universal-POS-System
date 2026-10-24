@@ -32,25 +32,22 @@ export function TilePanel({
   const tr = translator(locale);
   const [fetchedChips, setFetchedChips] = useState<Chip[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  // Online tiles, keyed by the chip they were fetched for, so a stale answer never shows under another chip.
-  const [fetched, setFetched] = useState<{ key: string; items: TillItem[] | "failed" } | null>(null);
+  // Online tiles per chip ("" = All): an answer lands under the chip it was asked for, never another one.
+  const [fetched, setFetched] = useState<Record<string, TillItem[] | "failed">>({});
   const key = selected ?? "";
 
+  // No cancel flag: an answer is tagged with what it was asked for and only shown while that is still selected
+  // (a cancel flag lost answers under dev double-mounting and hidden route trees).
   useEffect(() => {
     if (snapshot) return;
-    let live = true;
     fetch("/api/categories", { headers: { accept: "application/json" } })
       .then((response) => (response.ok ? (response.json() as Promise<CategoryTree[]>) : []))
-      .then((tree) => live && setFetchedChips(flatten(tree).sort(byName)))
-      .catch(() => live && setFetchedChips([]));
-    return () => {
-      live = false;
-    };
+      .then((tree) => setFetchedChips(flatten(tree).sort(byName)))
+      .catch(() => setFetchedChips([]));
   }, [snapshot]);
 
   useEffect(() => {
     if (snapshot) return;
-    let live = true;
     const params = new URLSearchParams(
       key ? { categoryId: key, limit: String(TILE_LIMIT) } : { all: "1", limit: String(TILE_LIMIT) },
     );
@@ -59,16 +56,13 @@ export function TilePanel({
         if (!response.ok) throw new Error(`tiles failed: ${response.status}`);
         return response.json() as Promise<TillItem[]>;
       })
-      .then((items) => live && setFetched({ key, items }))
-      .catch(() => live && setFetched({ key, items: "failed" }));
-    return () => {
-      live = false;
-    };
+      .then((items) => setFetched((current) => ({ ...current, [key]: items })))
+      .catch(() => setFetched((current) => ({ ...current, [key]: "failed" })));
   }, [snapshot, key]);
 
   // Offline: straight from the snapshot.
   const chips = snapshot ? [...(snapshot.categories ?? [])].sort(byName) : fetchedChips;
-  const result = snapshot ? snapshotTiles(snapshot, selected) : fetched?.key === key ? fetched.items : null;
+  const result = snapshot ? snapshotTiles(snapshot, selected) : (fetched[key] ?? null);
   const failed = result === "failed";
   const items = failed ? null : result;
 
