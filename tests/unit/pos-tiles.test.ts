@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { snapshotTiles } from "@/app/(app)/pos/_lib/tiles";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { loadTiles, snapshotTiles } from "@/app/(app)/pos/_lib/tiles";
 import type { TillSnapshot } from "@/modules/sales/offline-snapshot";
 
 /** Till tiles offline (business-profiles-spec BP8): from the snapshot, by name, 60 at most. */
@@ -38,5 +38,40 @@ describe("snapshotTiles", () => {
     const tiles = snapshotTiles(snap, null);
     expect(tiles).toHaveLength(60);
     expect(tiles[0]).not.toHaveProperty("barcodes");
+  });
+});
+
+describe("loadTiles", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks the browse search for a chip", async () => {
+    const fetch = vi.fn(async (_url: string) => new Response(JSON.stringify([{ sku: "A" }]), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await loadTiles("cat-1", null, () => {})).toEqual([{ sku: "A" }]);
+    expect(String(fetch.mock.calls[0]?.[0])).toContain("categoryId=cat-1");
+  });
+
+  it("falls back to the snapshot and reports the network down when the request cannot be sent", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))),
+    );
+    const unreachable = vi.fn();
+    const snap = snapshot([item("A", "Tea", "drinks")]);
+    expect((await loadTiles("drinks", snap, unreachable)) as unknown[]).toHaveLength(1);
+    expect(unreachable).toHaveBeenCalledOnce();
+  });
+
+  it("fails without a snapshot or on a server error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))),
+    );
+    expect(await loadTiles("", null, () => {})).toBe("failed");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 500 })),
+    );
+    expect(await loadTiles("", snapshot([item("A", "Tea")]), () => {})).toBe("failed");
   });
 });

@@ -24,6 +24,9 @@ describe("business profiles", () => {
     for (const p of BUSINESS_PRESETS) {
       expect(contrastRatio("#ffffff", p.accent.light), p.id).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio("#0b1220", p.accent.dark), p.id).toBeGreaterThanOrEqual(4.5);
+      // Accent text on the soft tint (badges, notices).
+      expect(contrastRatio(p.accent.light, p.accent.softLight), `${p.id} soft`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(p.accent.dark, p.accent.softDark), `${p.id} soft dark`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

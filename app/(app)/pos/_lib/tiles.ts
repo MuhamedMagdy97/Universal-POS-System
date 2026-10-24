@@ -23,3 +23,26 @@ export function snapshotTiles(snapshot: TillSnapshot, categoryId: string | null)
       vatApplicable: item.vatApplicable,
     }));
 }
+
+/**
+ * Online tiles for a chip ("" = All) from the browse search. When the request cannot be sent (fetch throws a
+ * TypeError) and a usable snapshot is on the device, the till is marked unreachable and the snapshot answers, as the
+ * till's search does. Anything else is "failed".
+ */
+export async function loadTiles(
+  key: string,
+  fallback: TillSnapshot | null,
+  onUnreachable: () => void,
+): Promise<TillItem[] | "failed"> {
+  const params = new URLSearchParams(key ? { categoryId: key } : { all: "1" });
+  params.set("limit", String(TILE_LIMIT));
+  try {
+    const response = await fetch(`/api/catalog/search?${params}`, { headers: { accept: "application/json" } });
+    if (!response.ok) return "failed";
+    return (await response.json()) as TillItem[];
+  } catch (err) {
+    if (!(err instanceof TypeError) || !fallback) return "failed";
+    onUnreachable();
+    return snapshotTiles(fallback, key || null);
+  }
+}

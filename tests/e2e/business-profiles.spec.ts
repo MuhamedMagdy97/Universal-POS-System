@@ -49,7 +49,7 @@ async function createCategory(orgId: string, name: string): Promise<string> {
 }
 
 test("a café sells from a tile on the till", async ({ browser }) => {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await browser.newContext({ hasTouch: true })).newPage();
   const { orgId, branchId, email } = await newShop(page, "Restaurant / café");
   const drinks = await createCategory(orgId, "Hot drinks");
   await createCategory(orgId, "Desserts");
@@ -76,8 +76,16 @@ test("a café sells from a tile on the till", async ({ browser }) => {
   const longTile = tiles.getByRole("button", { name: /Add Cappuccino/ });
   await expect(longTile).toBeVisible();
   expect((await longTile.boundingBox())?.height ?? Infinity).toBeLessThanOrEqual(96);
-  await tiles.getByRole("button", { name: "Add Latte" }).click();
+  // Tiles show on-hand stock like the search results.
+  await expect(tiles.getByRole("button", { name: "Add Latte" })).toContainText("On hand: 10");
+  // A touch tap keeps the on-screen keyboard down; a mouse click puts the scanner box back in focus.
+  const search = page.getByRole("textbox", { name: "Scan or search items" });
+  await tiles.getByRole("button", { name: "Add Latte" }).tap();
   await expect(page.getByRole("textbox", { name: "Quantity for Latte" })).toHaveValue("1");
+  await expect(search).not.toBeFocused();
+  await longTile.click();
+  await expect(search).toBeFocused();
+  await page.getByRole("button", { name: /^Remove Cappuccino/ }).click();
   await page.getByLabel(/Cash received/).fill("10");
   await page.getByRole("button", { name: /^Charge/ }).click();
   await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();

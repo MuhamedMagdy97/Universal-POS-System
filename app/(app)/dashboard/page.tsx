@@ -90,7 +90,7 @@ async function DashboardContent() {
           title={tr(profile.itemWord === "services" ? "dashboard.tile.topServices" : "dashboard.tile.topItems")}
           empty={tr("dashboard.tile.topEmpty")}
           href={today("products")}
-          rows={top.map((row) => ({ name: (locale === "ar" && row.nameAr) || row.name, qty: row.qty }))}
+          rows={top.map((row) => ({ sku: row.sku, name: (locale === "ar" && row.nameAr) || row.name, qty: row.qty }))}
         />
       ) : null;
     }
@@ -161,7 +161,7 @@ function TopItemsCard({
   title: string;
   empty: string;
   href: string;
-  rows: { name: string; qty: number }[];
+  rows: { sku: string; name: string; qty: number }[];
 }) {
   return (
     <Link href={href} className="card flex flex-col gap-2 transition-colors hover:border-border-strong">
@@ -171,7 +171,7 @@ function TopItemsCard({
       ) : (
         <ol className="flex flex-col gap-1.5">
           {rows.map((row) => (
-            <li key={row.name} className="flex items-baseline justify-between gap-3">
+            <li key={row.sku} className="flex items-baseline justify-between gap-3">
               <span className="truncate">{row.name}</span>
               <span dir="ltr" className="font-semibold tabular-nums">
                 {row.qty}

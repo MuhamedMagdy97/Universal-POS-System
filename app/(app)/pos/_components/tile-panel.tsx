@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState, type MouseEvent } from "react";
 import { translator, type Locale } from "@/lib/i18n";
 import type { TillSnapshot } from "@/modules/sales";
-import { snapshotTiles, TILE_LIMIT } from "../_lib/tiles";
+import { loadTiles, snapshotTiles } from "../_lib/tiles";
+import { StockNote } from "./till-parts";
 import { displayName, lineKey, type TillItem } from "../_lib/till";
 
 type Chip = { id: string; name: string; nameAr: string | null };
@@ -16,18 +17,29 @@ const byName = (a: Chip, b: Chip) => a.name.localeCompare(b.name);
 /**
  * Tap tiles for the till (business-profiles-spec BP7, BP8): category chips ("All" first, then each active category
  * by name) and a grid of item tiles; a tap adds one unit. Online the tiles come from the catalog search's browse
- * mode; while selling offline (`snapshot` set) from the till snapshot.
+ * mode; while selling offline (`snapshot` set) from the till snapshot. When the network drops mid-shift, a usable
+ * snapshot (`fallback`) answers and the till is marked unreachable, as its search does. Tiles show on-hand stock
+ * like the search results (`stock`, loaded by the till through `onShown`).
  */
 export function TilePanel({
   locale,
   money,
   onAdd,
   snapshot,
+  fallback,
+  onUnreachable,
+  stock,
+  onShown,
 }: {
   locale: Locale;
   money: (minor: number) => string;
-  onAdd: (item: TillItem) => void;
+  /** `refocus` is false for a touch tap, so the scanner box does not pop up the on-screen keyboard. */
+  onAdd: (item: TillItem, refocus: boolean) => void;
   snapshot: TillSnapshot | null;
+  fallback: TillSnapshot | null;
+  onUnreachable: () => void;
+  stock: Record<string, number | null>;
+  onShown: (items: readonly TillItem[]) => void;
 }) {
   const tr = translator(locale);
   const [fetchedChips, setFetchedChips] = useState<Chip[]>([]);
@@ -46,18 +58,17 @@ export function TilePanel({
       .catch(() => setFetchedChips([]));
   }, [snapshot]);
 
+  // The till's latest fallback and callbacks, read when an answer arrives without re-running the fetch.
+  const arrived = useEffectEvent((forKey: string) =>
+    loadTiles(forKey, fallback, onUnreachable).then((items) => {
+      setFetched((current) => ({ ...current, [forKey]: items }));
+      if (items !== "failed") onShown(items);
+    }),
+  );
+
   useEffect(() => {
     if (snapshot) return;
-    const params = new URLSearchParams(
-      key ? { categoryId: key, limit: String(TILE_LIMIT) } : { all: "1", limit: String(TILE_LIMIT) },
-    );
-    fetch(`/api/catalog/search?${params}`, { headers: { accept: "application/json" } })
-      .then((response) => {
-        if (!response.ok) throw new Error(`tiles failed: ${response.status}`);
-        return response.json() as Promise<TillItem[]>;
-      })
-      .then((items) => setFetched((current) => ({ ...current, [key]: items })))
-      .catch(() => setFetched((current) => ({ ...current, [key]: "failed" })));
+    void arrived(key);
   }, [snapshot, key]);
 
   // Offline: straight from the snapshot.
@@ -100,13 +111,16 @@ export function TilePanel({
             <button
               key={lineKey(item)}
               type="button"
-              onClick={() => onAdd(item)}
+              onClick={(event: MouseEvent) => onAdd(item, (event.nativeEvent as PointerEvent).pointerType !== "touch")}
               aria-label={tr("pos.search.add", { name: displayName(item, locale) })}
               className="btn h-24 flex-col items-start justify-between p-3 text-start"
             >
               <span className="line-clamp-2 w-full font-medium">{displayName(item, locale)}</span>
-              <span dir="ltr" className="text-sm text-muted tabular-nums">
-                {money(item.unitPriceMinor)}
+              <span className="flex w-full flex-wrap items-baseline justify-between gap-x-2">
+                <span dir="ltr" className="text-sm text-muted tabular-nums">
+                  {money(item.unitPriceMinor)}
+                </span>
+                <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} />
               </span>
             </button>
           ))}

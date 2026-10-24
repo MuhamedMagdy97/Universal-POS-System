@@ -26,6 +26,22 @@ Built 2026-10-24 against [business-profiles-spec.md](business-profiles-spec.md) 
   an older snapshot shows everything under "All". The self-contained parts of `till.tsx` (discount box, exact cash,
   stock note, offline bar and slip) moved to `till-parts.tsx`; `till.tsx` went from 1,100 to about 850 lines.
 
+## After the final review
+
+- Tiles show on-hand stock like the search results.
+- When the network drops, a tile request falls back to a usable snapshot and marks the till unreachable, as the
+  search does (`loadTiles`, unit-tested).
+- A touch tap on a tile does not refocus the scanner box (no on-screen keyboard over the grid); a mouse click or a scan
+  still does.
+- Tile answers are kept per chip, so a late answer never replaces the chip now shown.
+- Fruit & veg and bakery soft tints are lighter, so accent text on them is 4.5:1 too (now unit-tested).
+- The catalog search still refuses unknown query parameters in both modes.
+
+Known and left for later: a parent category's chip lists only items filed directly under it; chips and tiles sort by
+the English name in Arabic too; the offline tile list is re-sorted on every render; the accent can show blue for a
+moment before the shop's colour streams in; tile names do not read the price to screen readers; the till-layout
+switch after a type change is tested on the dashboard and catalog, not on the till.
+
 ## Deviations from the spec
 
 | Spec | As built | Why |

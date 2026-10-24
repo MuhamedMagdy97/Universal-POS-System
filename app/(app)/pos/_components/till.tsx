@@ -247,13 +247,14 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  function add(item: TillItem) {
+  /** `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. */
+  function add(item: TillItem, refocus = true) {
     setCart((current) => addToCart(current, item));
     setSelectedKey(lineKey(item));
     setResults(null);
     setQuery("");
     setError(null);
-    focusSearch();
+    if (refocus) focusSearch();
   }
 
   async function find() {
@@ -549,6 +550,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
             money={money}
             onAdd={add}
             snapshot={sellingOffline && off.snapshot ? off.snapshot : null}
+            fallback={off.block === null ? off.snapshot : null}
+            onUnreachable={off.markUnreachable}
+            stock={stock}
+            onShown={(items) => void loadStock(items)}
           />
         ) : null}
 
