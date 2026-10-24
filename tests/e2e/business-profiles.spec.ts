@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { MESSAGES } from "../../lib/i18n";
 import { storageStateFor } from "./support/auth";
-import { resetLoginRateLimit } from "./support/db";
+import { e2eQuery, resetLoginRateLimit } from "./support/db";
+import { createRunProduct } from "./support/inventory";
+import { createRunRegister, openRunStock } from "./support/pos";
 
 /**
  * Business profiles (business-profiles-spec): a fresh owner sets up a shop and switches it to Restaurant / café;
@@ -15,18 +17,72 @@ const run = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(
 const accent = (page: Page) =>
   page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
 
+/** Sets up a shop through onboarding; returns its ids and the owner's email. */
 async function newShop(page: Page, type: string) {
+  const shopName = `Shop ${run()}`;
+  const email = `owner-${run()}@example.test`;
   await resetLoginRateLimit();
   await page.goto("/onboarding");
   await page.getByRole("radio", { name: type }).check();
-  await page.getByLabel(en["onboarding.shopName"]).fill(`Shop ${run()}`);
+  await page.getByLabel(en["onboarding.shopName"]).fill(shopName);
   await page.getByLabel(en["onboarding.ownerName"]).fill("Owner");
-  await page.getByLabel(en["onboarding.email"]).fill(`owner-${run()}@example.test`);
+  await page.getByLabel(en["onboarding.email"]).fill(email);
   await page.getByLabel(en["onboarding.password"].replace("{min}", "10")).fill(PASSWORD);
   await page.getByLabel(en["onboarding.confirm"]).fill(PASSWORD);
   await page.getByRole("button", { name: en["onboarding.create"] }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+  const [shop] = await e2eQuery<{ orgId: string; branchId: string }>(
+    `SELECT o."id" AS "orgId", b."id" AS "branchId" FROM "Organization" o JOIN "Branch" b ON b."orgId" = o."id"
+      WHERE o."name" = $1`,
+    [shopName],
+  );
+  return { ...shop, email };
 }
+
+async function createCategory(orgId: string, name: string): Promise<string> {
+  const [row] = await e2eQuery<{ id: string }>(
+    `INSERT INTO "Category" ("id", "orgId", "name", "isActive", "sortOrder", "createdAt", "updatedAt")
+     VALUES (gen_random_uuid(), $1, $2, true, 0, now(), now()) RETURNING "id"`,
+    [orgId, name],
+  );
+  return row.id;
+}
+
+test("a café sells from a tile on the till", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  const { orgId, branchId, email } = await newShop(page, "Restaurant / café");
+  const drinks = await createCategory(orgId, "Hot drinks");
+  await createCategory(orgId, "Desserts");
+  const latte = await createRunProduct(orgId, `LAT-${run().toUpperCase()}`, "Latte");
+  const long = await createRunProduct(
+    orgId,
+    `LNG-${run().toUpperCase()}`,
+    "Cappuccino with oat milk, cinnamon and an extra shot of espresso",
+  );
+  for (const id of [latte, long]) {
+    await e2eQuery(`UPDATE "Product" SET "categoryId" = $1 WHERE "id" = $2`, [drinks, id]);
+    await openRunStock(orgId, branchId, id, 10, email);
+  }
+  const registerId = await createRunRegister(orgId, branchId, "Bar");
+
+  await page.goto(`/pos?branch=${branchId}&register=${registerId}`);
+  await page.getByLabel(/Opening cash in the drawer/).fill("100");
+  await page.getByRole("button", { name: "Open shift" }).click();
+
+  const tiles = page.getByTestId("till-tiles");
+  await tiles.getByRole("button", { name: "Desserts" }).click();
+  await expect(tiles.getByText(en["pos.tiles.empty"])).toBeVisible();
+  await tiles.getByRole("button", { name: "Hot drinks" }).click();
+  const longTile = tiles.getByRole("button", { name: /Add Cappuccino/ });
+  await expect(longTile).toBeVisible();
+  expect((await longTile.boundingBox())?.height ?? Infinity).toBeLessThanOrEqual(96);
+  await tiles.getByRole("button", { name: "Add Latte" }).click();
+  await expect(page.getByRole("textbox", { name: "Quantity for Latte" })).toHaveValue("1");
+  await page.getByLabel(/Cash received/).fill("10");
+  await page.getByRole("button", { name: /^Charge/ }).click();
+  await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();
+  await expect(page.getByText(/Latte × 1/)).toBeVisible();
+});
 
 test("an owner switches a retail shop to Restaurant / café in Settings → Shop", async ({ browser }) => {
   const page = await (await browser.newContext()).newPage();

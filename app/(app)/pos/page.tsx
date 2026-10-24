@@ -6,6 +6,8 @@ import { OpenShiftForm } from "./_components/open-shift-form";
 import { Till } from "./_components/till";
 import { CloseShift } from "./_components/close-shift";
 import { CashMovement } from "./_components/cash-movement";
+import { orgBusinessType } from "@/modules/org";
+import { profileOf } from "@/modules/presets";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -131,6 +133,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
             branchId={branch.id}
             registerId={register.id}
             userId={ctx.userId}
+            layout={profileOf(await orgBusinessType(ctx.orgId)).tillLayout}
             settings={settings}
             offline={offline}
           />
