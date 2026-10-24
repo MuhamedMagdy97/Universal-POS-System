@@ -29,3 +29,4 @@ export {
   type OfflineRegisterRow,
   type EnrolledDevice,
 } from "./offline";
+export { BusinessTypeInput, getBusinessType, orgBusinessType, updateBusinessType } from "./business";

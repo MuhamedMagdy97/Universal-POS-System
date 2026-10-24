@@ -29,6 +29,7 @@ export const PERMISSIONS = [
   "integrations.manage",
   // Offline till (offline-till-spec OF5, OF16): allow offline sales, enrol and revoke till devices. Owner only.
   "offline.manage",
+  "shop.manage",
   // Offline till (offline-till-spec OF13): the "Offline sales to review" list. Owner, Admin and Manager.
   "sales.review",
 ] as const;

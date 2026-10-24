@@ -49,7 +49,7 @@ test("an owner sets up a shop, adds a branch, a till and a cashier, and deactiva
   await owner.getByRole("link", { name: "Set up a new business" }).click();
   await expect(owner).toHaveURL(/\/onboarding$/);
   await expect(owner.getByRole("radio", { name: "General retail" })).toBeChecked();
-  await expect(owner.getByRole("radio", { name: /Grocery/ })).toBeDisabled();
+  await expect(owner.getByRole("radio", { name: /Grocery/ })).toBeEnabled();
   await setUpShop(owner, en, shopName, `owner-${id}@example.test`);
   await expect(owner.getByRole("banner")).toContainText(shopName);
 

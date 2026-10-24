@@ -6,6 +6,7 @@ import { translator } from "@/lib/i18n";
 import { useClientLocale } from "@/lib/i18n/client";
 
 const TABS = [
+  { href: "/settings/shop", label: "settings.tab.shop" },
   { href: "/settings/receipt", label: "settings.tab.receipt" },
   { href: "/settings/staff", label: "settings.tab.staff" },
   { href: "/settings/branches", label: "settings.tab.branches" },

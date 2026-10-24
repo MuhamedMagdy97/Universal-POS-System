@@ -1185,6 +1185,16 @@ export const en = {
   "settings.tab.branches": "Branches and tills",
   "settings.tab.inventory": "Inventory system",
   "settings.tab.offline": "Offline till",
+  "settings.tab.shop": "Shop",
+  "settings.shop.title": "Shop",
+  "settings.shop.intro":
+    "The kind of business picks the colour, the till layout, what the catalog calls your items and the dashboard numbers. Products, stock, sales and reports stay as they are.",
+  "settings.shop.businessType": "Kind of business",
+  "settings.shop.hint": "Tills pick up a new layout the next time the page loads.",
+  "settings.shop.ownerOnly": "Only the owner can change the kind of business.",
+  "settings.shop.save": "Save",
+  "settings.shop.saved": "Saved",
+  "settings.shop.error": "Could not save. Try again.",
   "settings.offline.title": "Offline till",
   "settings.offline.intro":
     "Lets a till keep selling while it cannot reach the server. Each till that sells offline numbers its sales in its own series (T1-000001) and sends them when the connection is back.",

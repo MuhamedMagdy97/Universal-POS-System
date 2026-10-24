@@ -15,6 +15,7 @@ import {
   createRegister,
   updateBranch,
   revokeOfflineDevice,
+  updateBusinessType,
   updateOfflineSettings,
   updateReceiptSettings,
   updateRegister,
@@ -165,6 +166,14 @@ export async function retryInventoryPostingAction(
   postingId: string,
 ): Promise<ActionResult<{ status: "PENDING" | "DONE" | "FAILED" }>> {
   return run("/settings/inventory", (ctx, meta) => retryInventoryPosting(ctx, postingId, meta));
+}
+
+/** Settings → Shop (business-profiles-spec BP3): the business type. Owner only. */
+export async function saveBusinessTypeAction(businessType: string): Promise<ActionResult<null>> {
+  return run("/settings/shop", async (ctx, meta) => {
+    await updateBusinessType(ctx, { businessType }, meta);
+    return null;
+  });
 }
 
 /** Offline till (offline-till-spec OF5, OF16; slice 1): the shop toggle and revoking a till's device. Owner only. */

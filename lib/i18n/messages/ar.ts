@@ -1174,6 +1174,16 @@ export const ar: Messages = {
   "settings.tab.branches": "الفروع ونقاط البيع",
   "settings.tab.inventory": "نظام المخزون",
   "settings.tab.offline": "البيع دون اتصال",
+  "settings.tab.shop": "المتجر",
+  "settings.shop.title": "المتجر",
+  "settings.shop.intro":
+    "نوع النشاط يحدد اللون وشكل نقطة البيع واسم الأصناف في الكتالوج وأرقام لوحة التحكم. تبقى المنتجات والمخزون والمبيعات والتقارير كما هي.",
+  "settings.shop.businessType": "نوع النشاط",
+  "settings.shop.hint": "تظهر الواجهة الجديدة في نقاط البيع عند تحميل الصفحة مرة أخرى.",
+  "settings.shop.ownerOnly": "المالك وحده يستطيع تغيير نوع النشاط.",
+  "settings.shop.save": "حفظ",
+  "settings.shop.saved": "تم الحفظ",
+  "settings.shop.error": "تعذر الحفظ. حاول مرة أخرى.",
   "settings.offline.title": "البيع دون اتصال",
   "settings.offline.intro":
     "يتيح لنقطة البيع مواصلة البيع عندما لا تصل إلى الخادم. كل نقطة بيع تبيع دون اتصال ترقّم مبيعاتها في سلسلة خاصة بها (T1-000001) وترسلها عند عودة الاتصال.",
