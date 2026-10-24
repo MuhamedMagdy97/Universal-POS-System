@@ -23,6 +23,7 @@ import { escapeLike, isBarcodeCandidate } from "./rules";
 import {
   BarcodeCode,
   SearchSellableQuery,
+  BrowseSellableQuery,
   Uuid,
   type CatalogItemRef,
   type LookupResult,
@@ -55,6 +56,7 @@ const PRODUCT_SELECT = {
   vatApplicable: true,
   hasVariants: true,
   isActive: true,
+  categoryId: true,
 } satisfies Prisma.ProductSelect;
 
 const VARIANT_SELECT = {
@@ -219,6 +221,30 @@ export async function searchSellable(
   }
   for (; vi < variantOnly.length; vi += 1) push(variantOnly[vi].product, variantOnly[vi]);
 
+  return out.slice(0, query.limit);
+}
+
+/**
+ * Till tiles (business-profiles-spec BP7, BP8): active items in one category (or all), by product name, products
+ * with variants expanded to their active variants, capped at `limit` (1–60, default 60). No cost.
+ */
+export async function browseSellable(ctx: TenantContext, input: unknown): Promise<SellableSummary[]> {
+  await requirePermission(ctx, "products.read");
+  const query = BrowseSellableQuery.parse(input);
+  const products = await db().product.findMany({
+    where: { orgId: ctx.orgId, isActive: true, ...(query.categoryId && { categoryId: query.categoryId }) },
+    select: {
+      ...PRODUCT_SELECT,
+      variants: { where: { isActive: true }, select: VARIANT_SELECT, orderBy: VARIANT_ORDER },
+    },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: query.limit,
+  });
+  const out = products.flatMap((product) =>
+    (product.hasVariants ? product.variants : [null]).flatMap((variant) =>
+      itemRefViolation(product, variant, { requireActive: true }) ? [] : [toSellableSummary(product, variant)],
+    ),
+  );
   return out.slice(0, query.limit);
 }
 
