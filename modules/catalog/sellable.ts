@@ -25,6 +25,7 @@ export type SeamProduct = {
   vatApplicable: boolean;
   hasVariants: boolean;
   isActive: boolean;
+  categoryId?: string | null;
 };
 
 /** Variant columns the seam reads. `null` price/cost = inherit from the product. */
@@ -118,6 +119,7 @@ export function toSellableSummary(product: SeamProduct, variant: SeamVariant | n
     unitPriceMinor: effectivePrice(product, variant),
     vatCategory: product.vatCategory,
     vatApplicable: product.vatApplicable,
+    ...(product.categoryId !== undefined && { categoryId: product.categoryId }),
   };
 }
 

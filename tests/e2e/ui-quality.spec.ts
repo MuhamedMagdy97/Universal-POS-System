@@ -109,6 +109,9 @@ test.describe("cashier till", () => {
       expect(box?.height ?? 0, await control.evaluate((el) => el.outerHTML.slice(0, 120))).toBeGreaterThanOrEqual(48);
     }
 
+    // A retail till has no tiles (business-profiles-spec §2).
+    await expect(page.getByTestId("till-tiles")).toHaveCount(0);
+
     await page.setViewportSize({ width: 1280, height: 520 });
     await page.getByText("Split", { exact: true }).click();
     const form = page.getByRole("form", { name: "Payment method" });

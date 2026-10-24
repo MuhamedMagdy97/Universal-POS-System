@@ -452,6 +452,9 @@ export const en = {
   "catalog.import.fileError.hasErrors": "Some rows have errors. Nothing was imported.",
   // Till (checkout, T6)
   "pos.nav": "Till",
+  "pos.tiles.label": "Items by category",
+  "pos.tiles.all": "All",
+  "pos.tiles.empty": "No items",
   "pos.title": "Till",
   "pos.branch": "Branch",
   "pos.register": "Register",

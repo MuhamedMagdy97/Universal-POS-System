@@ -40,6 +40,8 @@ export type TillSnapshot = {
   /** Set for a Saudi shop with a valid VAT number: the offline slip carries the phase-1 QR (OF9). */
   zatcaVatNumber: string | null;
   items: SnapshotItem[];
+  /** Active categories by name, for the till tiles offline (business-profiles-spec BP8). Absent on older snapshots. */
+  categories?: { id: string; name: string; nameAr: string | null }[];
 };
 
 export async function getTillSnapshot(
@@ -55,7 +57,7 @@ export async function getTillSnapshot(
   const db = getDb();
   await requireRegister(db, ctx.orgId, branchId, registerId);
   const snapshotAt = new Date();
-  const [org, branch, register, shift, user, items] = await Promise.all([
+  const [org, branch, register, shift, user, items, categories] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: ctx.orgId } }),
     db.branch.findUniqueOrThrow({ where: { id: branchId }, select: { name: true, address: true } }),
     db.register.findUniqueOrThrow({
@@ -68,6 +70,11 @@ export async function getTillSnapshot(
     }),
     db.user.findUniqueOrThrow({ where: { id: ctx.userId }, select: { name: true } }),
     listSellable(ctx),
+    db.category.findMany({
+      where: { orgId: ctx.orgId, isActive: true },
+      select: { id: true, name: true, nameAr: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    }),
   ]);
   return {
     version: SNAPSHOT_VERSION,
@@ -103,5 +110,6 @@ export async function getTillSnapshot(
     timeZone: zoneFor(org.countryCode),
     zatcaVatNumber: org.countryCode === "SA" && org.taxNumber && isSaudiVatNumber(org.taxNumber) ? org.taxNumber : null,
     items,
+    categories,
   };
 }

@@ -340,6 +340,13 @@ export const SearchSellableQuery = z.strictObject({
   limit: z.coerce.number<string | number>().int().min(1).max(50).default(20),
 });
 export type SearchSellableQueryInput = z.input<typeof SearchSellableQuery>;
+
+/** Till tiles (business-profiles-spec BP8): active items, in one category or all of them, by name. */
+export const BrowseSellableQuery = z.strictObject({
+  categoryId: z.uuid().optional(),
+  limit: z.coerce.number<string | number>().int().min(1).max(60).default(60),
+});
+export type BrowseSellableQueryInput = z.input<typeof BrowseSellableQuery>;
 export type SearchSellableQuery = z.infer<typeof SearchSellableQuery>;
 
 // ---------------------------------------------------------------------------
@@ -473,6 +480,8 @@ export type SellableItem = CatalogItemRef & {
   costMinor: number;
   vatCategory: VatCategory;
   vatApplicable: boolean;
+  /** The product's category (business-profiles-spec BP8, till tiles); absent where a reader did not load it. */
+  categoryId?: string | null;
 };
 
 /** A sellable row without cost: what POS search/scan screens may show. */

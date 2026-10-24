@@ -449,6 +449,9 @@ export const ar: Messages = {
   "catalog.import.fileError.hasErrors": "بعض الصفوف بها أخطاء. لم يُستورد شيء.",
   // نقطة البيع (T6)
   "pos.nav": "نقطة البيع",
+  "pos.tiles.label": "الأصناف حسب الفئة",
+  "pos.tiles.all": "الكل",
+  "pos.tiles.empty": "لا توجد أصناف",
   "pos.title": "نقطة البيع",
   "pos.branch": "الفرع",
   "pos.register": "الصندوق",
