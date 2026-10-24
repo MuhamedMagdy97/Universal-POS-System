@@ -6,6 +6,8 @@ import { SignOutButton } from "./_components/sign-out-button";
 import { LoadingOrg } from "./_components/loading-org";
 import { AccountLink } from "./_components/account-link";
 import { AppShell } from "./_components/app-shell";
+import { BrandIcon, BusinessTheme } from "./_components/business-theme";
+import { Icon } from "@/app/_ui/icons";
 import { DashboardNavLink } from "./_components/dashboard-nav-link";
 import { CatalogNavLink } from "./_components/catalog-nav-link";
 import { InventoryNavLink } from "./_components/inventory-nav-link";
@@ -35,6 +37,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   ];
   return (
     <AppShell
+      brand={
+        <Suspense fallback={<Icon name="store" className="size-6" />}>
+          <BrandIcon />
+        </Suspense>
+      }
       nav={links.map((NavLink, i) => (
         <Suspense key={i} fallback={null}>
           <NavLink />
@@ -55,6 +62,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </>
       }
     >
+      <Suspense fallback={null}>
+        <BusinessTheme />
+      </Suspense>
       {children}
     </AppShell>
   );

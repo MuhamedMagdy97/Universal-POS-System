@@ -279,6 +279,12 @@ export const en = {
   // Product list
   "catalog.products.title": "Products",
   "catalog.products.add": "Add product",
+  "catalog.word.items": "Items",
+  "catalog.word.items.add": "Add item",
+  "catalog.word.menuItems": "Menu items",
+  "catalog.word.menuItems.add": "Add menu item",
+  "catalog.word.services": "Services",
+  "catalog.word.services.add": "Add service",
   "catalog.products.searchPlaceholder": "Search name, SKU or scan a barcode",
   "catalog.products.column.name": "Name",
   "catalog.products.column.sku": "SKU",
@@ -857,6 +863,10 @@ export const en = {
   "dashboard.tile.sales": "Sales",
   "dashboard.tile.refunds": "Refunds",
   "dashboard.tile.openShifts": "Open shifts",
+  "dashboard.tile.averageTicket": "Average ticket",
+  "dashboard.tile.topItems": "Top items today",
+  "dashboard.tile.topServices": "Top services today",
+  "dashboard.tile.topEmpty": "No sales yet today",
   "dashboard.tile.lowStock": "Low stock at {branch}",
   // Purchasing (T5)
   "purchasing.nav": "Purchasing",
@@ -1185,6 +1195,16 @@ export const en = {
   "settings.tab.branches": "Branches and tills",
   "settings.tab.inventory": "Inventory system",
   "settings.tab.offline": "Offline till",
+  "settings.tab.shop": "Shop",
+  "settings.shop.title": "Shop",
+  "settings.shop.intro":
+    "The kind of business picks the colour, the till layout, what the catalog calls your items and the dashboard numbers. Products, stock, sales and reports stay as they are.",
+  "settings.shop.businessType": "Kind of business",
+  "settings.shop.hint": "Tills pick up a new layout the next time the page loads.",
+  "settings.shop.ownerOnly": "Only the owner can change the kind of business.",
+  "settings.shop.save": "Save",
+  "settings.shop.saved": "Saved",
+  "settings.shop.error": "Could not save. Try again.",
   "settings.offline.title": "Offline till",
   "settings.offline.intro":
     "Lets a till keep selling while it cannot reach the server. Each till that sells offline numbers its sales in its own series (T1-000001) and sends them when the connection is back.",
@@ -1313,7 +1333,6 @@ export const en = {
   "onboarding.intro":
     "Create your shop and your owner account. You get one branch and one till, ready to add products and sell.",
   "onboarding.businessType": "Type of business",
-  "onboarding.comingSoon": "Coming soon",
   "onboarding.shopName": "Shop name",
   "onboarding.country": "Country",
   "onboarding.country.EG": "Egypt",

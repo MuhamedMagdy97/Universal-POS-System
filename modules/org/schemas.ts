@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BUSINESS_TYPE_IDS } from "@/modules/presets";
 
 /**
  * Input rules for shop setup, staff, branches and tills (onboarding spec O2, O3, O5, O9).
@@ -33,7 +34,7 @@ export const AccountInput = z.object({ ownerName: name(120), email: Email, passw
 
 export const SetupInput = z
   .object({
-    businessType: z.literal("RETAIL"),
+    businessType: z.enum(BUSINESS_TYPE_IDS),
     shopName: name(120),
     country: z.enum(["EG", "SA"]),
     branchName: name(60),

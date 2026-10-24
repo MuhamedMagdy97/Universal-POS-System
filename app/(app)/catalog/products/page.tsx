@@ -10,6 +10,9 @@ import { flattenCategories } from "../_lib/category-options";
 import { CatalogPage, CatalogSubnav, PermissionDenied, StatusBadge, TableSkeleton } from "../_components/shell";
 import { ProductsToolbar } from "../_components/products-toolbar";
 import { ManagedNotice } from "../../_components/managed-notice";
+import { ITEM_WORD_KEYS } from "../../_lib/business";
+import { orgBusinessType } from "@/modules/org";
+import { profileOf } from "@/modules/presets";
 
 /** Back-office list requests 50 per page (resolution R13; API default stays 25). */
 const PAGE_SIZE = 50;
@@ -53,6 +56,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
   if (page.kind === "denied") return <PermissionDenied locale={page.locale} />;
   const { ctx, locale, currency, can, managed } = page;
   const tr = translator(locale);
+  const words = ITEM_WORD_KEYS[profileOf(await orgBusinessType(ctx.orgId)).itemWord];
 
   let result;
   let categories;
@@ -82,7 +86,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
   return (
     <CatalogPage locale={locale}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">{tr("catalog.products.title")}</h1>
+        <h1 className="text-2xl font-semibold">{tr(words.title)}</h1>
         <CatalogSubnav locale={locale} current="products" />
         {can.create ? (
           <div className="ms-auto flex gap-2">
@@ -90,7 +94,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
               {tr("catalog.import.link")}
             </Link>
             <Link href="/catalog/products/new" className="btn btn-primary">
-              {tr("catalog.products.add")}
+              {tr(words.add)}
             </Link>
           </div>
         ) : null}
@@ -125,7 +129,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
             <p className="text-muted">{tr("catalog.state.empty.body")}</p>
             {can.create ? (
               <Link href="/catalog/products/new" className="btn btn-primary">
-                {tr("catalog.products.add")}
+                {tr(words.add)}
               </Link>
             ) : null}
           </div>

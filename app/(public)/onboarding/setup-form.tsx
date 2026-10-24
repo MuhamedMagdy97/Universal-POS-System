@@ -3,13 +3,14 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
-import { BUSINESS_PRESETS, MARKET_PRESETS } from "@/modules/presets";
+import { Icon } from "@/app/_ui/icons";
+import { BUSINESS_PRESETS, MARKET_PRESETS, type BusinessTypeId } from "@/modules/presets";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/modules/org/schemas";
 import { orgErrorKey } from "../../(app)/settings/_lib/errors";
 import { plain } from "../../(app)/inventory/_lib/form";
 import { createShopAction } from "./actions";
 
-/** One-page shop setup (O2). Only General retail can be picked; country sets currency, VAT and timezone. */
+/** One-page shop setup (O2, business-profiles-spec BP2): any business type; country sets currency, VAT and timezone. */
 export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccount: boolean }) {
   const tr = translator(locale);
   const router = useRouter();
@@ -28,7 +29,7 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
     setPending(true);
     setError(null);
     const result = await createShopAction({
-      businessType: "RETAIL",
+      businessType: text("businessType") as BusinessTypeId,
       shopName: text("shopName"),
       country,
       branchName: text("branchName"),
@@ -49,25 +50,16 @@ export function SetupForm({ locale, needsAccount }: { locale: Locale; needsAccou
     <form onSubmit={submit} className="card flex flex-col gap-5">
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 font-medium">{tr("onboarding.businessType")}</legend>
-        {BUSINESS_PRESETS.map((preset) => {
-          const included = preset.status === "included";
-          return (
-            <label
-              key={preset.id}
-              className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-border-strong px-4 py-3 transition-colors hover:bg-surface-sunken has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
-            >
-              <input
-                type="radio"
-                name="businessType"
-                value={preset.id}
-                defaultChecked={included}
-                disabled={!included}
-              />
-              <span className="flex-1">{preset.label[locale]}</span>
-              {included ? null : <span className="badge">{tr("onboarding.comingSoon")}</span>}
-            </label>
-          );
-        })}
+        {BUSINESS_PRESETS.map((preset) => (
+          <label
+            key={preset.id}
+            className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-border-strong px-4 py-3 transition-colors hover:bg-surface-sunken has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+          >
+            <input type="radio" name="businessType" value={preset.id} defaultChecked={preset.id === "RETAIL"} />
+            <Icon name={preset.icon} className="size-5 text-muted" />
+            <span className="flex-1">{preset.label[locale]}</span>
+          </label>
+        ))}
       </fieldset>
 
       <label className="field">

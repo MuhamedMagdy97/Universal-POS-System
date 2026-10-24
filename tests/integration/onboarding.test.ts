@@ -132,6 +132,18 @@ describe("shop setup", () => {
     expect(shift.status).toBe("OPEN");
   });
 
+  it("creates a shop of any business type (business-profiles-spec BP2)", async () => {
+    const created = await createShop({
+      businessType: "SALON",
+      shopName: `Salon ${randomUUID().slice(0, 8)}`,
+      country: "SA",
+      branchName: "Main",
+      account: { ownerName: "Owner", email: email("salon"), password: PASSWORD },
+    });
+    const org = await db.organization.findUniqueOrThrow({ where: { id: created.orgId } });
+    expect(org.businessType).toBe("SALON");
+  });
+
   it("leaves nothing behind when the email is taken or the input is bad (acceptance 2)", async () => {
     const first = await shop("Dup");
     const name = `Orphan ${randomUUID()}`;
@@ -149,7 +161,7 @@ describe("shop setup", () => {
     const badEmail = email("bad");
     await expect(
       createShop({
-        businessType: "GROCERY",
+        businessType: "PHARMACY" as "RETAIL",
         shopName: name,
         country: "EG",
         branchName: "Main",
