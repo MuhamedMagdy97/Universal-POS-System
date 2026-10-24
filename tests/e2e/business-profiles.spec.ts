@@ -12,6 +12,9 @@ const en = MESSAGES.en;
 const PASSWORD = "e2e owner password";
 const run = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+const accent = (page: Page) =>
+  page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
+
 async function newShop(page: Page, type: string) {
   await resetLoginRateLimit();
   await page.goto("/onboarding");
@@ -35,6 +38,29 @@ test("an owner switches a retail shop to Restaurant / café in Settings → Shop
   await expect(page.getByRole("status")).toHaveText(en["settings.shop.saved"]);
   await page.reload();
   await expect(page.getByRole("radio", { name: "Restaurant / café" })).toBeChecked();
+
+  // The café view: coral accent, "Menu items" in the nav, on the products page and its add button.
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/dashboard");
+  await expect.poll(() => accent(page)).toBe("#c2410c");
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await expect(nav.getByRole("link", { name: "Menu items" })).toBeVisible();
+  await nav.getByRole("link", { name: "Menu items" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Menu items" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Add menu item" }).first()).toBeVisible();
+});
+
+test.describe("retail admin", () => {
+  test.use({ storageState: storageStateFor("adminA") });
+
+  test("keeps the retail view", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/dashboard");
+    await expect.poll(() => accent(page)).toBe("#1d5fd1");
+    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" })).toBeVisible();
+    await page.goto("/catalog/products");
+    await expect(page.getByRole("heading", { level: 1, name: "Products" })).toBeVisible();
+  });
 });
 
 test.describe("cashier", () => {

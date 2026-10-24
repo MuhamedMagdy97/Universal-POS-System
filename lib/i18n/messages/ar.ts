@@ -276,6 +276,12 @@ export const ar: Messages = {
   // Product list
   "catalog.products.title": "المنتجات",
   "catalog.products.add": "إضافة منتج",
+  "catalog.word.items": "الأصناف",
+  "catalog.word.items.add": "إضافة صنف",
+  "catalog.word.menuItems": "قائمة الطعام",
+  "catalog.word.menuItems.add": "إضافة صنف للقائمة",
+  "catalog.word.services": "الخدمات",
+  "catalog.word.services.add": "إضافة خدمة",
   "catalog.products.searchPlaceholder": "ابحث بالاسم أو رمز الصنف أو امسح الباركود",
   "catalog.products.column.name": "الاسم",
   "catalog.products.column.sku": "رمز الصنف",

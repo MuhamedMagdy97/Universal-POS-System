@@ -279,6 +279,12 @@ export const en = {
   // Product list
   "catalog.products.title": "Products",
   "catalog.products.add": "Add product",
+  "catalog.word.items": "Items",
+  "catalog.word.items.add": "Add item",
+  "catalog.word.menuItems": "Menu items",
+  "catalog.word.menuItems.add": "Add menu item",
+  "catalog.word.services": "Services",
+  "catalog.word.services.add": "Add service",
   "catalog.products.searchPlaceholder": "Search name, SKU or scan a barcode",
   "catalog.products.column.name": "Name",
   "catalog.products.column.sku": "SKU",

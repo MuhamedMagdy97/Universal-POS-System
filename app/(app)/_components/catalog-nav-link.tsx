@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NavItem } from "./nav-item";
+import { currentProfile, ITEM_WORD_KEYS } from "../_lib/business";
 import { AppError } from "@/lib/errors";
 import { hasPermission } from "@/lib/auth/permissions";
 import { requireTenant } from "@/lib/auth/tenant";
@@ -17,5 +18,13 @@ export async function CatalogNavLink() {
     if (!(err instanceof AppError)) throw err;
   }
   if (!canRead) return null;
-  return <NavItem href="/catalog/products" label={translator(locale)("catalog.nav")} icon="catalog" match="/catalog" />;
+  const word = (await currentProfile())?.itemWord ?? "products";
+  return (
+    <NavItem
+      href="/catalog/products"
+      label={translator(locale)(ITEM_WORD_KEYS[word].nav)}
+      icon="catalog"
+      match="/catalog"
+    />
+  );
 }

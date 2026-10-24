@@ -13,7 +13,17 @@ import { useClientLocale } from "@/lib/i18n/client";
  * close button, the backdrop or a navigation closes it). While open, focus moves into it and the page behind is
  * inert; closing it by hand gives focus back to the menu button. `nav` and `topBar` are Server Components.
  */
-export function AppShell({ nav, topBar, children }: { nav: ReactNode; topBar: ReactNode; children: ReactNode }) {
+export function AppShell({
+  nav,
+  topBar,
+  brand,
+  children,
+}: {
+  nav: ReactNode;
+  topBar: ReactNode;
+  brand: ReactNode;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const locale = useClientLocale();
   // Open for the page it was opened on: a navigation closes it without an effect.
@@ -63,7 +73,7 @@ export function AppShell({ nav, topBar, children }: { nav: ReactNode; topBar: Re
             title="Universal POS"
             className="flex min-h-10 items-center gap-2 rounded-lg px-2 font-semibold text-accent sm:max-lg:justify-center sm:group-data-[collapsed=true]:justify-center"
           >
-            <Icon name="store" className="size-6" />
+            {brand}
             <span className="truncate text-foreground sm:max-lg:sr-only sm:group-data-[collapsed=true]:sr-only">
               Universal POS
             </span>
