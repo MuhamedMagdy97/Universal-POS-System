@@ -50,8 +50,14 @@ One till has at most one open shift. Anyone allowed to sell can sell on an open 
      It is red when it is 0 or less, or less than the quantity in the sale. It is shown only: whether the sale goes
      through is decided when you charge (see "Not enough stock" below).
 2. **Quantity:** type it in the **Qty** box, or press **+** / **−** on the keyboard to change the selected line (the
-   one you scanned last or clicked into; it is shaded). Whole numbers only, 1 or more. An empty box blocks the charge
+   one you scanned last or clicked into; it is shaded). Pieces are whole numbers, 1 or more. An empty box blocks the charge
    until you fix it. Press **×** to remove a line, or **Clear sale** [مسح البيع] to empty the sale.
+   - **Weighed items** (sold per kg): finding one opens **Weight (kg)** [الوزن (كجم)]. Type the weight, up to 3
+     decimals (0.750 = 750 g; a comma or ٫ works too), and press Enter or **Add**. Esc closes it. The line shows the
+     weight in kg and the price per kg; **+** / **−** change it by 0.1 kg. The same item again adds its weight.
+   - **Scale labels**: when the owner has turned them on, scan the label the scale printed. A weight label adds that
+     weight; a price label adds the printed price and the weight it stands for. Changing that line's weight by hand
+     prices it by weight again. "This scale label did not scan correctly" — scan it again or type the weight.
 3. Check **Subtotal**, **VAT** and **Total** on the right. "Prices include VAT" means shelf prices already include it.
    The final numbers come from the server and are what the receipt shows.
 4. Choose the **Payment method**:
@@ -198,4 +204,4 @@ If the internet or the server drops, the till carries on:
 
 ## What isn't there
 
-No automatic promotions or coupons, no weighed (kg) items. Full list: [known limitations](../product/known-limitations.md).
+No automatic promotions or coupons. A shop linked to the inventory system cannot sell weighed items. Full list: [known limitations](../product/known-limitations.md).

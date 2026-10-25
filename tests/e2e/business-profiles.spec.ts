@@ -98,8 +98,10 @@ test("an owner switches a retail shop to Restaurant / café in Settings → Shop
   await page.goto("/settings/shop");
   await expect(page.getByRole("radio", { name: "General retail" })).toBeChecked();
   await page.getByRole("radio", { name: "Restaurant / café" }).check();
-  await page.getByRole("button", { name: en["settings.shop.save"] }).click();
-  await expect(page.getByRole("status")).toHaveText(en["settings.shop.saved"]);
+  // The business type form; the scale-label card below has its own Save.
+  const typeForm = page.locator("form", { has: page.getByRole("radio", { name: "Restaurant / café" }) });
+  await typeForm.getByRole("button", { name: en["settings.shop.save"] }).click();
+  await expect(typeForm.getByRole("status")).toHaveText(en["settings.shop.saved"]);
   await page.reload();
   await expect(page.getByRole("radio", { name: "Restaurant / café" })).toBeChecked();
 
