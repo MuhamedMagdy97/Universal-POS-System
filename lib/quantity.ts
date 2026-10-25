@@ -15,7 +15,8 @@ export const MAX_QTY = 1_000_000;
 
 /** A line's amount: `price × pieces`, or `price per kg × grams ÷ 1000` rounded half up. */
 export function lineMinor(unitPriceMinor: number, qty: number, unitType: QtyUnit): number {
-  if (unitType === "EACH") return multiply(unitPriceMinor, qty);
+  // Only KG is a weight; any other unit (old data, a snapshot from elsewhere) counts as pieces.
+  if (unitType !== "KG") return multiply(unitPriceMinor, qty);
   const exact = BigInt(multiply(unitPriceMinor, qty));
   return Number(divideRoundHalfUp(exact, BigInt(KG_SCALE)));
 }
