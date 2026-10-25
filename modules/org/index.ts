@@ -30,3 +30,4 @@ export {
   type EnrolledDevice,
 } from "./offline";
 export { BusinessTypeInput, getBusinessType, orgBusinessType, updateBusinessType } from "./business";
+export { getScaleSettings, ScaleSettingsInput, updateScaleSettings } from "./scale";

@@ -1218,6 +1218,17 @@ export const en = {
   "settings.shop.save": "Save",
   "settings.shop.saved": "Saved",
   "settings.shop.error": "Could not save. Try again.",
+  "settings.scale.title": "Scale labels",
+  "settings.scale.intro":
+    "Labels printed by your scale: 13 digits starting with a prefix, then the item code (saved as the item's barcode with the prefix), then the weight or the price.",
+  "settings.scale.enabled": "Read scale labels at the till",
+  "settings.scale.prefixes": "Prefixes (two digits starting with 2, separated by commas)",
+  "settings.scale.itemDigits": "Item code digits",
+  "settings.scale.valueKind": "The label holds",
+  "settings.scale.WEIGHT": "The weight in grams",
+  "settings.scale.PRICE": "The price",
+  "settings.scale.invalid": "Check the prefixes: two digits each, starting with 2, no repeats.",
+  "settings.scale.ownerOnly": "Only the owner can change scale labels.",
   "settings.offline.title": "Offline till",
   "settings.offline.intro":
     "Lets a till keep selling while it cannot reach the server. Each till that sells offline numbers its sales in its own series (T1-000001) and sends them when the connection is back.",

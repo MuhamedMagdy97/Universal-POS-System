@@ -1207,6 +1207,17 @@ export const ar: Messages = {
   "settings.shop.save": "حفظ",
   "settings.shop.saved": "تم الحفظ",
   "settings.shop.error": "تعذر الحفظ. حاول مرة أخرى.",
+  "settings.scale.title": "ملصقات الميزان",
+  "settings.scale.intro":
+    "الملصقات التي يطبعها الميزان: ١٣ رقمًا تبدأ ببادئة، ثم رمز الصنف (يُحفظ كباركود الصنف مع البادئة)، ثم الوزن أو السعر.",
+  "settings.scale.enabled": "قراءة ملصقات الميزان في نقطة البيع",
+  "settings.scale.prefixes": "البادئات (رقمان يبدآن بـ 2، مفصولة بفواصل)",
+  "settings.scale.itemDigits": "عدد أرقام رمز الصنف",
+  "settings.scale.valueKind": "يحمل الملصق",
+  "settings.scale.WEIGHT": "الوزن بالجرام",
+  "settings.scale.PRICE": "السعر",
+  "settings.scale.invalid": "راجع البادئات: رقمان لكل منها، تبدأ بـ 2، بلا تكرار.",
+  "settings.scale.ownerOnly": "المالك وحده يستطيع تغيير ملصقات الميزان.",
   "settings.offline.title": "البيع دون اتصال",
   "settings.offline.intro":
     "يتيح لنقطة البيع مواصلة البيع عندما لا تصل إلى الخادم. كل نقطة بيع تبيع دون اتصال ترقّم مبيعاتها في سلسلة خاصة بها (T1-000001) وترسلها عند عودة الاتصال.",
