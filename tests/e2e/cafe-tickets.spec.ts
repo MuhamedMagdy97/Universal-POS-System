@@ -45,6 +45,13 @@ test("a café runs table 4 from order to payment, and holds a takeaway", async (
   await card.getByRole("button", { name: en["settings.shop.save"] }).click();
   await expect(card.getByRole("status")).toHaveText(en["settings.shop.saved"]);
 
+  // Settings → Shop: a 12% service charge on dine-in (R11).
+  await page.goto("/settings/shop");
+  const service = page.getByRole("form", { name: en["settings.service.title"] });
+  await service.getByLabel(en["settings.service.percent"]).fill("12");
+  await service.getByRole("button", { name: en["settings.shop.save"] }).click();
+  await expect(service.getByRole("status")).toHaveText(en["settings.shop.saved"]);
+
   await page.goto(`/pos?branch=${branchId}&register=${registerId}`);
   await page.getByLabel(/Opening cash in the drawer/).fill("100");
   await page.getByRole("button", { name: "Open shift" }).click();
@@ -78,6 +85,9 @@ test("a café runs table 4 from order to payment, and holds a takeaway", async (
   await expect(slip).toContainText("1 × Water");
   await expect(slip).not.toContainText("Tea");
 
+  // Four items at 10.00 and 12% service charge: 44.80.
+  await expect(page.getByTestId("till-service-charge")).toHaveText("EGP 4.80");
+  await expect(page.getByTestId("till-total")).toContainText("44.80");
   await page.getByLabel(/Cash received/).fill("50");
   await page.getByRole("button", { name: /^Charge/ }).click();
   await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();
@@ -88,6 +98,7 @@ test("a café runs table 4 from order to payment, and holds a takeaway", async (
     [orgId],
   );
   expect(paid).toEqual({ status: "PAID", orderType: "DINE_IN", tableName: "4", lines: 3 });
+  await expect(page.getByTestId("receipt-service-charge")).toHaveText("EGP 4.80");
 
   // A takeaway: held, picked up from the floor, paid.
   await page.getByRole("button", { name: /New sale/ }).click();
@@ -96,6 +107,8 @@ test("a café runs table 4 from order to payment, and holds a takeaway", async (
   await page.getByRole("button", { name: en["pos.ticket.hold"] }).click();
   await page.getByRole("button", { name: /^Takeaway #2/ }).click();
   await expect(page.getByTestId("ticket-place")).toHaveText("Takeaway · Ticket 2");
+  // No service charge on a takeaway.
+  await expect(page.getByTestId("till-service-charge")).toHaveCount(0);
   await page.getByLabel(/Cash received/).fill("10");
   await page.getByRole("button", { name: /^Charge/ }).click();
   await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();

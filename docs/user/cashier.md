@@ -136,6 +136,31 @@ Refusals after **Charge**:
 | "This sale was already sent with different items. Start a new sale." | Press **Clear sale** and scan again. |
 | "Something went wrong. Try again." | Press **Charge** again; the same sale is not recorded twice. |
 
+## Options and notes
+
+- An item with options (a size, extras) opens **Options for {item}** when you add it. The first choice of a "pick
+  one" group is already chosen; tick what the customer wants and press **Add, {price}**. Esc cancels.
+- The same item with other options, or with a note, is its own line. Press **Note** [ملاحظة] on a line, type
+  "no onions" and press Enter. Notes print on the kitchen slip and the receipt.
+
+## Restaurants and cafés
+
+A café shop opens the till on **Tables** [الطاولات]: one tile per table, free, or with its open ticket's total and
+minutes open. The owner sets the tables up in Settings → Tables.
+
+1. **Dine-in:** press a free table. The bar shows "Table 4 · Ticket 12". Add what is ordered.
+2. **Send to kitchen** [إرسال للمطبخ] saves the ticket and prints a kitchen slip with only what was not sent yet.
+   Sent lines show **Sent 2**. Taking back something already sent needs a manager and prints a "CANCELLED" slip.
+3. **Hold** [تعليق] saves the ticket and goes back to Tables. Any till in the branch can open it again.
+4. **Pay:** open the ticket and charge as usual. The ticket closes and the table is free again.
+- **Takeaway** and **Delivery:** pick the order type above the sale. Charge at once, or **Hold** to pay later (held
+  orders are listed under Tables). Delivery needs the customer (F9) and takes the address.
+- **Move** puts a dine-in ticket on another free table. **Cancel ticket** needs a reason, and a manager, once
+  anything was sent.
+- **Service charge:** when the owner has set one, dine-in orders show it before VAT. **Remove** takes it off this
+  order only.
+- Offline, the café till sells at the counter only: no tables or tickets until it is back online.
+
 ## Receipt and reprint
 
 After the charge you see **Sale {number}** with the lines, totals, what was paid and the change.

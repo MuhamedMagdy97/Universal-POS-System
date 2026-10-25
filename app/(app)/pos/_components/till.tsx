@@ -658,6 +658,14 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               </dd>
             </>
           ) : null}
+          {receipt.serviceChargeMinor > 0 ? (
+            <>
+              <dt>{tr("receipt.serviceCharge")}</dt>
+              <dd dir="ltr" className="text-end" data-testid="receipt-service-charge">
+                {money(receipt.serviceChargeMinor)}
+              </dd>
+            </>
+          ) : null}
           <dt>{tr("pos.totals.subtotal")}</dt>
           <dd dir="ltr" className="text-end">
             {money(receipt.subtotalMinor)}
