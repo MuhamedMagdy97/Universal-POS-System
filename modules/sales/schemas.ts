@@ -102,8 +102,13 @@ export const SaleInput = z
       }),
     // Sent only when a device replays an offline sale (OF11); online sales leave it out and hash as before.
     offline: OfflineSaleInput.optional(),
+    // A café sale (restaurant-cafe-spec R2, R5): the ticket it pays (its lines must be exactly the ticket's), or the
+    // order type of a counter sale. Delivery details come from the ticket.
+    ticket: z.strictObject({ id: Uuid, version: z.int().min(1) }).optional(),
+    orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).optional(),
   })
   .strict()
+  .refine((sale) => !sale.offline || !sale.ticket, { message: "An offline sale pays no ticket" })
   // Walk-in only offline (OF3).
   .refine((sale) => !sale.offline || !sale.customerId, { message: "An offline sale has no customer" })
   .refine((sale) => !sale.offline || sale.offline.lines.length === sale.lines.length, {

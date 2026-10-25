@@ -68,6 +68,13 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
         <p dir="auto">{tr("receipt.customerVatNo", { number: doc.customer.taxNumber })}</p>
       ) : null}
       {doc.reason ? <p>{tr("receipt.reason", { reason: doc.reason })}</p> : null}
+      {doc.order ? (
+        <p data-testid="receipt-order">
+          {tr(`receipt.order.${doc.order.type}`)}
+          {doc.order.tableName ? ` · ${tr("receipt.table", { name: doc.order.tableName })}` : ""}
+        </p>
+      ) : null}
+      {doc.order?.deliveryAddress ? <p dir="auto">{doc.order.deliveryAddress}</p> : null}
       <table className="receipt-rule">
         <tbody>
           {doc.lines.map((line, index) => (

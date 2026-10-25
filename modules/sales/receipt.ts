@@ -46,6 +46,8 @@ export type ReceiptDoc = {
   reason: string | null;
   /** The sale's customer snapshot, on its refund and void slips too; no phone (customers-spec CU10, CU11). */
   customer: { name: string; taxNumber: string | null } | null;
+  /** A café order (restaurant-cafe-spec R13): its type, table and delivery address; absent elsewhere. */
+  order?: { type: "DINE_IN" | "TAKEAWAY" | "DELIVERY"; tableName: string | null; deliveryAddress: string | null };
   /** `discountMinor`: what the line was discounted, shown under it on a sale or void slip (discounts-spec DC14). */
   lines: {
     name: string;
@@ -127,6 +129,9 @@ export async function getReceipt(
     timeZone: zoneFor(org.countryCode),
     registerName: sale.register.name,
     customer: sale.customerName ? { name: sale.customerName, taxNumber: sale.customerTaxNumber } : null,
+    ...(sale.orderType && {
+      order: { type: sale.orderType, tableName: sale.tableName, deliveryAddress: sale.deliveryAddress },
+    }),
   };
   const saleLines = sale.items.map((item) => ({
     name: item.nameSnapshot,

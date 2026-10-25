@@ -36,6 +36,7 @@ import {
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
 import { lineKeyOf, resolveOptions, stockLinesOf, type OptionSnapshot } from "./options";
+import { closeTicket, ticketForSale } from "./tickets";
 import { NOTE_MAX } from "./schemas";
 
 /**
@@ -82,6 +83,11 @@ export type SaleDetail = {
     note: string | null;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
+  /** A café sale (restaurant-cafe-spec R2, R13); null elsewhere. */
+  orderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null;
+  tableName: string | null;
+  ticketId: string | null;
+  delivery: { address: string | null; note: string | null } | null;
   /** The customer as snapshotted on the sale; null for a walk-in (customers-spec CU8). */
   customer: { id: string; name: string; phone: string; taxNumber: string | null } | null;
 };
@@ -263,7 +269,17 @@ async function sell(
   }
 
   // Checked before anything is held in the inventory system (customers-spec CU17).
-  const customer = parsed.customerId ? await customerForSale(ctx, parsed.customerId, meta) : null;
+  const customerId =
+    parsed.customerId ??
+    (parsed.ticket
+      ? ((
+          await db.ticket.findFirst({
+            where: { id: parsed.ticket.id, orgId: ctx.orgId },
+            select: { customerId: true },
+          })
+        )?.customerId ?? undefined)
+      : undefined);
+  const customer = customerId ? await customerForSale(ctx, customerId, meta) : null;
 
   let held: HeldSale | null = null;
   if (linked) {
@@ -413,6 +429,16 @@ async function writeSale(
 
   const lines = mergeLines(input.lines, org.linked);
   const refs = lines.map((line) => line.ref);
+  // Paying a ticket (restaurant-cafe-spec R5): locked, OPEN at the version the till saw, and exactly these lines.
+  const ticket = input.ticket
+    ? await ticketForSale(
+        tx,
+        ctx,
+        input.ticket,
+        input.branchId,
+        lines.map((line) => ({ key: lineKeyOf(line.ref, line.options, line.note), qty: line.qty })),
+      )
+    : null;
   let items: SellableItem[];
   let options: OptionSnapshot[][];
   let totals: PricedSale;
@@ -475,6 +501,15 @@ async function writeSale(
       vatMinor: totals.vatMinor,
       totalMinor: totals.totalMinor,
       changeMinor: settlement.changeMinor,
+      ...(ticket
+        ? {
+            orderType: ticket.orderType,
+            ticketId: ticket.id,
+            tableName: ticket.tableName,
+            deliveryAddress: ticket.deliveryAddress,
+            deliveryNote: ticket.deliveryNote,
+          }
+        : input.orderType && { orderType: input.orderType }),
       ...(customer && {
         customerId: customer.id,
         customerName: customer.name,
@@ -530,6 +565,7 @@ async function writeSale(
       lineCount: items.length,
       paymentMethods: settlement.payments.map((payment) => payment.method),
       ...(customer && { customerId: customer.id }),
+      ...(ticket && { ticketId: ticket.id, orderType: ticket.orderType }),
       // What was asked for and what each line got (DC10).
       ...(totals.discountMinor > 0 && {
         discount: {
@@ -567,6 +603,7 @@ async function writeSale(
     });
   }
   if (held) await recordSaleFulfils(tx, held, saleId, saleItemIds);
+  if (ticket) await closeTicket(tx, ticket.id, saleId);
 
   return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };
 }
@@ -612,6 +649,10 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       amountMinor: payment.amountMinor,
       reference: payment.reference,
     })),
+    orderType: sale.orderType,
+    tableName: sale.tableName,
+    ticketId: sale.ticketId,
+    delivery: sale.orderType === "DELIVERY" ? { address: sale.deliveryAddress, note: sale.deliveryNote } : null,
     customer:
       sale.customerId && sale.customerName
         ? {
