@@ -122,6 +122,15 @@ enum OrderType {
   DELIVERY
 }
 
+// Salon appointments (salon-spec S5): DONE only by checking out at the till.
+enum AppointmentStatus {
+  BOOKED
+  ARRIVED
+  DONE
+  CANCELLED
+  NO_SHOW
+}
+
 enum TicketStatus {
   OPEN
   PAID
@@ -313,6 +322,9 @@ model Organization {
   allowOfflineSales    Boolean         @default(false)
   // Service charge on dine-in orders (restaurant-cafe-spec R11): basis points, 0 = off. Owner only.
   serviceChargeBp      Int             @default(0)
+  // Opening hours for the appointment calendar (salon-spec S6), minutes after local midnight.
+  opensAt              Int             @default(540)
+  closesAt             Int             @default(1260)
   // Scale labels (weighed-selling-spec W6): Owner only, off by default. A label is prefix + item code + value + check.
   scaleLabelsEnabled   Boolean         @default(false)
   scaleLabelPrefixes   String[]        @default(["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"])
@@ -333,6 +345,8 @@ model Organization {
   diningTables               DiningTable[]
   staffMembers               StaffMember[]
   staffMemberBranches        StaffMemberBranch[]
+  appointments               Appointment[]
+  appointmentServices        AppointmentService[]
   tickets                    Ticket[]
   ticketLines                TicketLine[]
   optionGroups               OptionGroup[]
@@ -451,6 +465,7 @@ model Branch {
   sales              Sale[]
   diningTables       DiningTable[]
   staffMembers       StaffMemberBranch[]
+  appointments       Appointment[]
   tickets            Ticket[]
   refunds            Refund[]
   shifts             RegisterShift[]
@@ -595,20 +610,21 @@ model Product {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  category      Category?            @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
-  variants      ProductVariant[]
-  barcodes      Barcode[]
-  stockBalances StockBalance[]
-  movements     InventoryMovement[]
-  countLines    StockCountLine[]
-  transferLines StockTransferLine[]
-  poItems       POItem[]
-  receiptItems  GoodsReceiptItem[]
-  returnItems   PurchaseReturnItem[]
-  saleItems     SaleItem[]
-  optionGroups  ProductOptionGroup[]
-  ticketLines   TicketLine[]
+  org                 Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  category            Category?            @relation(fields: [orgId, categoryId], references: [orgId, id], onDelete: Restrict)
+  variants            ProductVariant[]
+  barcodes            Barcode[]
+  stockBalances       StockBalance[]
+  movements           InventoryMovement[]
+  countLines          StockCountLine[]
+  transferLines       StockTransferLine[]
+  poItems             POItem[]
+  receiptItems        GoodsReceiptItem[]
+  returnItems         PurchaseReturnItem[]
+  saleItems           SaleItem[]
+  optionGroups        ProductOptionGroup[]
+  ticketLines         TicketLine[]
+  appointmentServices AppointmentService[]
 
   @@unique([orgId, id])
   @@unique([orgId, sku])
@@ -1192,9 +1208,10 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org     Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  sales   Sale[]
-  tickets Ticket[]
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  sales        Sale[]
+  tickets      Ticket[]
+  appointments Appointment[]
 
   @@unique([orgId, id])
   @@unique([orgId, phone])
@@ -1243,6 +1260,8 @@ model Sale {
   tableName             String?
   deliveryAddress       String?
   deliveryNote          String?
+  // The appointment this sale checked out (salon-spec S7).
+  appointmentId         String?    @db.Uuid
 
   org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
@@ -1262,6 +1281,50 @@ model Sale {
 }
 
 // Snapshot of product data at sale time; later price edits never touch it.
+// A booking on the salon calendar (salon-spec S5): a staff member (or "any"), a customer (known or typed in), the
+// services booked and when. A staff member's BOOKED and ARRIVED appointments never overlap (checked under a lock).
+model Appointment {
+  id            String            @id @default(uuid()) @db.Uuid
+  orgId         String            @db.Uuid
+  branchId      String            @db.Uuid
+  staffMemberId String?           @db.Uuid
+  customerId    String?           @db.Uuid
+  customerName  String?
+  customerPhone String?
+  startsAt      DateTime
+  endsAt        DateTime
+  status        AppointmentStatus @default(BOOKED)
+  note          String?
+  saleId        String?           @db.Uuid
+  createdById   String            @db.Uuid
+  version       Int               @default(1)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  org         Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch      Branch               @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  staffMember StaffMember?         @relation(fields: [orgId, staffMemberId], references: [orgId, id], onDelete: Restrict)
+  customer    Customer?            @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  services    AppointmentService[]
+
+  @@unique([orgId, id])
+  @@index([orgId, branchId, startsAt])
+  @@index([orgId, staffMemberId, startsAt])
+}
+
+model AppointmentService {
+  orgId         String @db.Uuid
+  appointmentId String @db.Uuid
+  productId     String @db.Uuid
+  sortOrder     Int
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  appointment Appointment  @relation(fields: [orgId, appointmentId], references: [orgId, id], onDelete: Cascade)
+  product     Product      @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+
+  @@id([orgId, appointmentId, sortOrder])
+}
+
 // The people who do the work (salon-spec S3): not users, though one may be linked to a user. Deactivated, never
 // deleted; sale lines keep their name and commission as they were.
 model StaffMember {
@@ -1276,8 +1339,9 @@ model StaffMember {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  org      Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  branches StaffMemberBranch[]
+  org          Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branches     StaffMemberBranch[]
+  appointments Appointment[]
 
   @@unique([orgId, id])
 }
