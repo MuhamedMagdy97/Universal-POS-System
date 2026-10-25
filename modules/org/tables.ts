@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
-import { notFound } from "@/lib/errors";
+import { AppError, notFound } from "@/lib/errors";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { requirePermission } from "./access";
 
@@ -60,6 +60,20 @@ export async function saveTables(
     for (const row of tables) if (row.id && !byId.has(row.id)) throw notFound("DiningTable");
 
     const kept = new Set(tables.flatMap((row) => (row.id ? [row.id] : [])));
+    // A table with an open ticket stays: dropping it would hide the ticket from every till.
+    const dropped = existing.filter((row) => row.isActive && !kept.has(row.id)).map((row) => row.id);
+    if (dropped.length > 0) {
+      const busy = await tx.ticket.findFirst({
+        where: { orgId: ctx.orgId, tableId: { in: dropped }, status: "OPEN" },
+        select: { table: { select: { name: true } } },
+      });
+      if (busy) {
+        throw new AppError("CONFLICT", "That table has an open ticket: pay, move or cancel it first", {
+          reason: "TABLE_BUSY",
+          table: busy.table?.name ?? null,
+        });
+      }
+    }
     // Free the names first: a renamed table may take a name another row gives up in the same save.
     for (const row of existing) {
       await tx.diningTable.update({ where: { id: row.id }, data: { name: `~${row.id}` } });

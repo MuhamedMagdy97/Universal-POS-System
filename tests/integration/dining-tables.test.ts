@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { listTables, saveTables } from "@/modules/org";
+import { openTicket } from "@/modules/sales";
 import { createMember, createTenant, expectAppError, testDb } from "./helpers";
 
 /** A branch's tables (restaurant-cafe-spec R3): Owner and Admin save them, audited; a dropped table is deactivated. */
@@ -62,5 +63,27 @@ describe("dining tables", () => {
     await expect(saveTables(admin, { branchId, tables: [{ name: "5" }, { name: "5" }] })).rejects.toThrow();
     await expectAppError(saveTables(cashier, { branchId, tables: [] }), 403);
     await expectAppError(saveTables(admin, { branchId: otherBranchId, tables: [] }), 404);
+  });
+});
+
+describe("a table with an open ticket", () => {
+  it("cannot be dropped, so its ticket never disappears from the floor", async () => {
+    const owner = await createMember(db, orgId, "OWNER");
+    const [first, second] = (await listTables(owner, branchId)).filter((table) => table.isActive);
+    await openTicket(owner, { branchId, orderType: "DINE_IN", tableId: first.id });
+    await expectAppError(
+      saveTables(owner, { branchId, tables: [{ id: second.id, name: second.name }] }),
+      409,
+      "TABLE_BUSY",
+    );
+    // Renaming it is fine.
+    await saveTables(owner, {
+      branchId,
+      tables: [
+        { id: first.id, name: "Window" },
+        { id: second.id, name: second.name },
+      ],
+    });
+    expect((await listTables(owner, branchId)).find((table) => table.id === first.id)?.name).toBe("Window");
   });
 });

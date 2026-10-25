@@ -15,6 +15,7 @@ import { loadSale, requestHashOf, type SaleDetail } from "./create";
 import { salesConflict } from "./errors";
 import { IdempotencyKey, RefundInput, VoidInput } from "./schemas";
 import { stockLinesOf } from "./options";
+import { serviceRefundShare } from "./totals";
 
 /**
  * Refunds of some lines of a completed sale and voids of whole sales (T8, returns-void-spec.md).
@@ -323,20 +324,17 @@ async function serviceChargeShare(
     where: { orgId, saleId },
     _sum: { serviceChargeMinor: true, serviceChargeVatMinor: true },
   });
-  const givenMinor = given._sum.serviceChargeMinor ?? 0;
-  const givenVatMinor = given._sum.serviceChargeVatMinor ?? 0;
-  const goodsMinor = items.reduce((total, item) => total + item.lineTotalMinor, 0);
   const refundedBefore = [...prior.values()].reduce((total, row) => total + row.amountMinor, 0);
-  const refundedAfter = refundedBefore + lines.reduce((total, line) => total + line.amountMinor, 0);
   const qtyNow = new Map(lines.map((line) => [line.saleItemId, line.qty]));
-  const allBack = items.every((item) => (prior.get(item.id)?.qty ?? 0) + (qtyNow.get(item.id) ?? 0) === item.qty);
-  if (allBack || goodsMinor === 0) {
-    return { amountMinor: sale.serviceChargeMinor - givenMinor, vatMinor: sale.serviceChargeVatMinor - givenVatMinor };
-  }
-  const upTo = (whole: number) => Number(divideRoundHalfUp(BigInt(whole) * BigInt(refundedAfter), BigInt(goodsMinor)));
-  const amountMinor = Math.max(upTo(sale.serviceChargeMinor) - givenMinor, 0);
-  const vatMinor = Math.min(Math.max(upTo(sale.serviceChargeVatMinor) - givenVatMinor, 0), amountMinor);
-  return { amountMinor, vatMinor };
+  return serviceRefundShare({
+    chargedMinor: sale.serviceChargeMinor,
+    chargedVatMinor: sale.serviceChargeVatMinor,
+    givenMinor: given._sum.serviceChargeMinor ?? 0,
+    givenVatMinor: given._sum.serviceChargeVatMinor ?? 0,
+    goodsMinor: items.reduce((total, item) => total + item.lineTotalMinor, 0),
+    refundedAfterMinor: refundedBefore + lines.reduce((total, line) => total + line.amountMinor, 0),
+    allBack: items.every((item) => (prior.get(item.id)?.qty ?? 0) + (qtyNow.get(item.id) ?? 0) === item.qty),
+  });
 }
 
 /** Lines of a refund: `amount = round(lineTotal × qty ÷ soldQty)`, and the same for VAT. */

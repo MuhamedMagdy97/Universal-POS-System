@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cartFromTicket, minutesOpen, ticketLinesOf } from "@/app/(app)/pos/_lib/tickets";
+import {
+  canQueueOffline,
+  cartFromTicket,
+  mergeIntoTicket,
+  minutesOpen,
+  ticketLinesOf,
+} from "@/app/(app)/pos/_lib/tickets";
 import { cartKey, previewCart, type TillSettings } from "@/app/(app)/pos/_lib/till";
 import { DEFAULT_SCALE_SETTINGS } from "@/lib/scale-label";
 
@@ -71,5 +77,31 @@ describe("a ticket in the cart", () => {
   it("counts whole minutes open", () => {
     expect(minutesOpen("2026-10-25T10:00:00.000Z", new Date("2026-10-25T10:12:59.000Z"))).toBe(12);
     expect(minutesOpen("2026-10-25T10:00:00.000Z", new Date("2026-10-25T09:59:00.000Z"))).toBe(0);
+  });
+});
+
+describe("final review fixes", () => {
+  it("keeps line discounts across a save, and merges a rung-up cart into a picked ticket", () => {
+    const before = cartFromTicket(ticket).map((line, index) =>
+      index === 1 ? { ...line, discount: { kind: "AMOUNT" as const, amountMinor: 500 } } : line,
+    );
+    expect(cartFromTicket(ticket, before)[1].discount).toEqual({ kind: "AMOUNT", amountMinor: 500 });
+
+    const rungUp = [
+      { ...item("k", 2_500), qty: 2, note: "candle" },
+      { ...item("w", 500), qty: 1 },
+    ];
+    const merged = mergeIntoTicket(cartFromTicket(ticket), rungUp);
+    expect(merged.map((line) => [cartKey(line), line.qty])).toEqual([
+      ["c||o:lg", 2],
+      ["k||n:candle", 3],
+      ["w|", 1],
+    ]);
+  });
+
+  it("never queues a ticket payment or a sale with a service charge offline", () => {
+    expect(canQueueOffline({ paysTicket: false, serviceChargeMinor: 0 })).toBe(true);
+    expect(canQueueOffline({ paysTicket: true, serviceChargeMinor: 0 })).toBe(false);
+    expect(canQueueOffline({ paysTicket: false, serviceChargeMinor: 324 })).toBe(false);
   });
 });

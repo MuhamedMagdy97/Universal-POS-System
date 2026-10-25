@@ -575,6 +575,8 @@ export const en = {
   "pos.ticket.error.busy": "That table already has an open ticket.",
   "pos.ticket.error.customer": "Choose the customer for a delivery order (F9).",
   "pos.ticket.error.reason": "Give a reason: part of this order was sent to the kitchen.",
+  "pos.ticket.error.offline":
+    "No connection. A ticket or a service charge needs the server: try again when it is back.",
   "pos.ticket.error.forbidden": "A manager must take back what was sent to the kitchen.",
   "pos.ticket.openTickets": "{count} open tickets stay open after the close.",
   "kitchen.cancelled": "CANCELLED",
@@ -1320,6 +1322,7 @@ export const en = {
   "settings.tables.down": "Move table {n} down",
   "settings.tables.remove": "Remove table {n}",
   "settings.tables.add": "Add a table",
+  "settings.tables.busy": "A table you removed has an open ticket. Pay, move or cancel it first.",
   "settings.tables.invalid": "Each table needs a name, and two tables cannot share one.",
   "settings.scale.title": "Scale labels",
   "settings.scale.intro":
@@ -1679,6 +1682,7 @@ export const en = {
   "review.mark": "Mark reviewed",
   "review.flag.PRICE_CHANGED": "Price changed",
   "review.flag.ITEM_ARCHIVED": "Item archived",
+  "review.flag.OPTIONS_CHANGED": "Options changed",
   "review.flag.STOCK_NEGATIVE": "Stock went negative",
   "review.flag.DISCOUNT_OVER_LIMIT": "Discount over the limit",
   "review.flag.LATE_FOR_CLOSED_SHIFT": "Arrived after the shift closed",
@@ -1687,6 +1691,7 @@ export const en = {
   "review.flag.TOTALS_DIFFER": "Totals differ",
   "review.detail.price": "{item}: sold at {sold}, now {current}, difference {diff}",
   "review.detail.archived": "{item} is archived",
+  "review.detail.options": "{item}: an option was changed or removed after the sale; check the price",
   "review.detail.stock": "{item}: stock now {qty}; fix with an adjustment or a count",
   "review.detail.discount": "{cashier} gave {discount}; their limit is now {limit}",
   "review.detail.late": "Shift on {register} opened {opened}, closed {closed}; adds {cash} cash to its drawer",

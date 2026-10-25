@@ -48,7 +48,13 @@ export function TablesManager({
       if (!result.ok) {
         setNotice({
           ok: false,
-          text: tr(result.error.code === "VALIDATION_FAILED" ? "settings.tables.invalid" : "settings.shop.error"),
+          text: tr(
+            (result.error.details as { reason?: string } | null)?.reason === "TABLE_BUSY"
+              ? "settings.tables.busy"
+              : result.error.code === "VALIDATION_FAILED"
+                ? "settings.tables.invalid"
+                : "settings.shop.error",
+          ),
         });
         return;
       }

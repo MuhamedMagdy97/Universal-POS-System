@@ -1,9 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
-import { createOptionGroup, setProductOptionGroups, type OptionGroupDetail } from "@/modules/catalog";
+import {
+  createOptionGroup,
+  setProductOptionGroups,
+  updateOptionGroup,
+  type OptionGroupDetail,
+} from "@/modules/catalog";
 import * as inventory from "@/modules/inventory";
-import { enrolOfflineDevice, updateOfflineSettings } from "@/modules/org";
+import { enrolOfflineDevice, revokeOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { openShift } from "@/modules/registers";
 import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
 import { addToCart } from "@/app/(app)/pos/_lib/till";
@@ -208,5 +213,45 @@ describe("options on an offline sale", () => {
     expect(sale.lines).toMatchObject([{ qty: 2, unitPriceMinor: 3_500, note: "to go" }]);
     const row = await db.sale.findUniqueOrThrow({ where: { id: sale.id }, select: { offlineFlags: true } });
     expect(row.offlineFlags).toEqual([]);
+  });
+});
+
+describe("an offline sale whose option changed before it reached the server", () => {
+  it("is recorded as sold, with the options it was sold with, and flagged for review", async () => {
+    await revokeOfflineDevice(owner, registerId);
+    const enrolled = await enrolOfflineDevice(owner, registerId);
+    const snap = await getTillSnapshot(cashier, branchId, registerId, null);
+    const [found] = searchSnapshot(snap.items, "OPT-COFFEE");
+    const options = [choice(size, "Large")];
+    const { unitPriceMinor, snapshot } = resolveOptions(found, options);
+    const cart = addToCart([], found, 1, undefined, { options, labels: snapshot, unitPriceMinor });
+    const body = {
+      branchId,
+      registerId,
+      lines: [{ ref: ref(coffee), qty: 1, options }],
+      payments: [{ method: "CASH" as const, amountMinor: 3_500 }],
+    };
+    const built = buildOfflineSale({
+      body,
+      cart,
+      saleDiscount: null,
+      plan: { payments: body.payments, changeMinor: 0 },
+      snapshot: snap,
+      device: enrolled,
+      seq: enrolled.lastOfflineSaleNo + 1,
+      soldAt: new Date(),
+    });
+    // Large is dropped from the menu before the device reconnects.
+    await updateOptionGroup(owner, size.id, {
+      name: "Size",
+      minSelect: 1,
+      maxSelect: 1,
+      choices: [{ id: choice(size, "Regular"), name: "Regular", priceDeltaMinor: 0 }],
+    });
+    const { sale } = await createSale(cashier, built.body, KEY());
+    expect(sale.totalMinor).toBe(3_500);
+    expect(sale.lines[0].options.map((option) => option.name)).toEqual(["Large"]);
+    const row = await db.sale.findUniqueOrThrow({ where: { id: sale.id }, select: { offlineFlags: true } });
+    expect(row.offlineFlags).toContain("OPTIONS_CHANGED");
   });
 });

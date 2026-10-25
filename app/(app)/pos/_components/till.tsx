@@ -21,7 +21,7 @@ import {
   saveTicketAction,
   sendTicketAction,
 } from "../ticket-actions";
-import { cartFromTicket, ticketErrorKey, ticketLinesOf } from "../_lib/tickets";
+import { canQueueOffline, cartFromTicket, mergeIntoTicket, ticketErrorKey, ticketLinesOf } from "../_lib/tickets";
 import { TablesView } from "./tables-view";
 import { TicketBar, type OrderType } from "./ticket-bar";
 import { createSaleAction, tillStockAction } from "../actions";
@@ -448,7 +448,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   function loadTicket(next: TicketView) {
     setTicket(next);
     setOrderType(next.orderType);
-    if (next.lines.length > 0 || ticket) setCart(cartFromTicket(next));
+    // What was rung up before picking a busy table joins its ticket (saved with the next Hold, Send or Pay).
+    if (!ticket && cart.length > 0 && next.lines.length > 0) setCart(mergeIntoTicket(cartFromTicket(next), cart));
+    else if (next.lines.length > 0 || ticket) setCart(cartFromTicket(next));
     if (next.customer) setCustomer({ ...next.customer, taxNumber: null });
     setFloor(null);
     setSelectedKey(null);
@@ -485,7 +487,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     }
     if (saved.data.cancelled) printer.print(<KitchenSlipView slip={saved.data.cancelled} locale={locale} />);
     setTicket(saved.data.ticket);
-    setCart(cartFromTicket(saved.data.ticket));
+    setCart((current) => cartFromTicket(saved.data.ticket, current));
     return saved.data.ticket;
   }
 
@@ -513,7 +515,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     }
     if (sent.data.slip) printer.print(<KitchenSlipView slip={sent.data.slip} locale={locale} />);
     setTicket(sent.data.ticket);
-    setCart(cartFromTicket(sent.data.ticket));
+    setCart((current) => cartFromTicket(sent.data.ticket, current));
   }
 
   async function moveTicket(tableId: string) {
@@ -559,11 +561,25 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
-      ...(paying ? { ticket: { id: paying.id, version: paying.version } } : tickets ? { orderType } : {}),
+      ...(paying
+        ? { ticket: { id: paying.id, version: paying.version } }
+        : tickets
+          ? { orderType: sellingOffline ? ("TAKEAWAY" as const) : orderType }
+          : {}),
       ...(servicePossible && serviceOff ? { serviceCharge: false } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
+    // A ticket payment or a service charge needs the server (R5, R12): never queued offline, the key kept to retry.
+    const queueable = canQueueOffline({
+      paysTicket: paying !== null,
+      serviceChargeMinor: preview.ok ? preview.serviceChargeMinor : 0,
+    });
+    if (unreachable(sent) && off.device && !queueable) {
+      setPending(false);
+      setError(tr("pos.ticket.error.offline"));
+      return;
+    }
     if (unreachable(sent) && off.device) {
       // OF6: no server. The sale goes to the queue under the same key, so if the online attempt did land, its
       // replay is refused as a conflict (listed for a manager) instead of selling twice.
@@ -1009,14 +1025,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                             {tr("pos.discount.line")}
                           </button>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => setNoteFor(key)}
-                          aria-label={tr("pos.note.add", { name })}
-                          className="btn btn-sm me-1"
-                        >
-                          {tr("pos.note.button")}
-                        </button>
+                        {/* A sent line keeps its note: changing it would take the sent dish back (R10). */}
+                        {line.sentQty ? null : (
+                          <button
+                            type="button"
+                            onClick={() => setNoteFor(key)}
+                            aria-label={tr("pos.note.add", { name })}
+                            className="btn btn-sm me-1"
+                          >
+                            {tr("pos.note.button")}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setCart((current) => removeLine(current, key))}

@@ -62,6 +62,10 @@ function flagLines(row: OfflineReviewRow, flag: string, details: Details, locale
           diff: money(n(line.soldMinor) - n(line.currentMinor)),
         }),
       );
+    case "OPTIONS_CHANGED":
+      return (Array.isArray(details.skus) ? details.skus : []).map((sku) =>
+        tr("review.detail.options", { item: item(sku) }),
+      );
     case "ITEM_ARCHIVED":
       return (Array.isArray(details.skus) ? details.skus : []).map((sku) =>
         tr("review.detail.archived", { item: item(sku) }),
@@ -113,6 +117,7 @@ function flagLines(row: OfflineReviewRow, flag: string, details: Details, locale
 const FLAG_LABELS = {
   PRICE_CHANGED: "review.flag.PRICE_CHANGED",
   ITEM_ARCHIVED: "review.flag.ITEM_ARCHIVED",
+  OPTIONS_CHANGED: "review.flag.OPTIONS_CHANGED",
   STOCK_NEGATIVE: "review.flag.STOCK_NEGATIVE",
   DISCOUNT_OVER_LIMIT: "review.flag.DISCOUNT_OVER_LIMIT",
   LATE_FOR_CLOSED_SHIFT: "review.flag.LATE_FOR_CLOSED_SHIFT",

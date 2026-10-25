@@ -16,7 +16,7 @@ import {
 } from "@/modules/integrations/inventory-sys";
 import { reserveSale } from "@/modules/integrations/inventory-sys/postings";
 import { openShift } from "@/modules/registers";
-import { createSale, refundSale, voidSale } from "@/modules/sales";
+import { createSale, openTicket, refundSale, saveTicketLines, voidSale } from "@/modules/sales";
 import { POST as runScheduler } from "@/app/api/internal/inventory/run/route";
 import { availableOf, fakeFetch, fakeIms, type FakeIms, type FakeProduct } from "../support/fake-ims";
 import { createMember, createTenant, expectAppError, testDb } from "./helpers";
@@ -122,6 +122,32 @@ describe("weighed items on a linked till (weighed-selling-spec W11)", () => {
     await db.product.update({ where: { id: shop.items[0].productId }, data: { unitType: "KG" } });
     await expectAppError(createSale(shop.cashier, sale(shop, [[0, 750]], 7500), saleKey()), 422, "ITEM_NOT_SELLABLE");
     expect(reserveCalls()).toBe(0);
+  });
+});
+
+describe("a café ticket on a linked till (restaurant-cafe-spec R5, R9)", () => {
+  it("pays a ticket with one item under two notes: one inventory line, both notes on the sale", async () => {
+    const shop = await linkedShop("Post Ticket", 1);
+    const ref = { productId: shop.items[0].productId, variantId: null };
+    const opened = await openTicket(shop.cashier, { branchId: shop.branchA.id, orderType: "TAKEAWAY" });
+    const lines = [
+      { ref, qty: 1 },
+      { ref, qty: 1, note: "no sugar" },
+    ];
+    const { ticket } = await saveTicketLines(shop.cashier, opened.id, { version: 1, lines });
+    const { sale: sold } = await createSale(
+      shop.cashier,
+      {
+        branchId: shop.branchA.id,
+        registerId: shop.register.id,
+        lines,
+        ticket: { id: ticket.id, version: ticket.version },
+        payments: [{ method: "CASH", amountMinor: 2_000 }],
+      },
+      saleKey(),
+    );
+    expect(sold.lines).toMatchObject([{ qty: 2, note: "no sugar" }]);
+    expect(reserveCalls()).toBe(1);
   });
 });
 

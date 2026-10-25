@@ -71,7 +71,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
   const completed = sale.status === "COMPLETED";
   const anyLeft = sale.lines.some((line) => refundableOf(line) > 0);
   const showRefund = canRefund && completed && anyLeft;
-  const plan = planRefund(sale.lines, qtys);
+  const plan = planRefund(sale.lines, qtys, sale.serviceCharge);
   // The till paying out: the sale's own till when it is open, else the first open till in the branch.
   const firstOpen = sale.registers.find((till) => till.hasOpenShift)?.id ?? "";
   const [tillId, setTillId] = useState(firstOpen);

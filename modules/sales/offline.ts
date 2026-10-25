@@ -26,7 +26,9 @@ export type OfflineFlag =
   | "LATE_FOR_CLOSED_SHIFT"
   | "STALE_SNAPSHOT"
   | "CLOCK_SKEW"
-  | "TOTALS_DIFFER";
+  | "TOTALS_DIFFER"
+  // A chosen option was archived or changed between the sale and its replay (restaurant-cafe-spec R12).
+  | "OPTIONS_CHANGED";
 
 /** Each raised flag and what the review list shows for it, in the order raised. */
 export type OfflineFlags = Map<OfflineFlag, Record<string, unknown>>;

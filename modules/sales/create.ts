@@ -187,6 +187,66 @@ function withOptions<T extends SellableItem>(
   };
 }
 
+/**
+ * Offline replay (R12, OF13): the sale already left the shop, so options archived or changed since are taken as sold,
+ * read from their stored rows, and the sale is flagged OPTIONS_CHANGED instead of refused. An id that never existed
+ * is still refused.
+ */
+async function withOptionsAsSold(
+  tx: Tx,
+  orgId: string,
+  items: readonly SellableItem[],
+  lines: readonly MergedLine[],
+  flags: OfflineFlags,
+): Promise<{ items: SellableItem[]; options: OptionSnapshot[][] }> {
+  try {
+    return withOptions(items, lines);
+  } catch (err) {
+    if (!(err instanceof AppError) || (err.details as { reason?: string } | null)?.reason !== "OPTIONS_INVALID") {
+      throw err;
+    }
+  }
+  const ids = [...new Set(lines.flatMap((line) => line.options))];
+  const rows = await tx.optionChoice.findMany({
+    where: { orgId, id: { in: ids } },
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      priceDeltaMinor: true,
+      group: { select: { name: true, nameAr: true } },
+    },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const changed: string[] = [];
+  const resolved = items.map((item, index) => {
+    try {
+      return resolveOptions(item, lines[index].options);
+    } catch {
+      const picked = lines[index].options.map((id) => byId.get(id));
+      if (picked.some((row) => !row))
+        throw new AppError("VALIDATION_FAILED", "Unknown option", { reason: "OPTIONS_INVALID" });
+      changed.push(item.sku);
+      const snapshot = picked.map((row) => ({
+        group: row?.group.name ?? "",
+        groupAr: row?.group.nameAr ?? null,
+        name: row?.name ?? "",
+        nameAr: row?.nameAr ?? null,
+        priceDeltaMinor: row?.priceDeltaMinor ?? 0,
+      }));
+      return {
+        unitPriceMinor: item.unitPriceMinor + snapshot.reduce((total, option) => total + option.priceDeltaMinor, 0),
+        snapshot,
+      };
+    }
+  });
+  flags.set("OPTIONS_CHANGED", { skus: changed });
+  return {
+    items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
+    options: resolved.map((result) => result.snapshot),
+  };
+}
+
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
 function priceCart(
   items: { unitPriceMinor: number; vatApplicable: boolean; unitType: QtyUnit }[],
@@ -441,7 +501,8 @@ async function writeSale(
         ctx,
         input.ticket,
         input.branchId,
-        lines.map((line) => ({ key: lineKeyOf(line.ref, line.options, line.note), qty: line.qty })),
+        // Per line, not per item: a linked shop merges one item's lines (and joins their notes) for the sale itself.
+        mergeLines(input.lines).map((line) => ({ key: lineKeyOf(line.ref, line.options, line.note), qty: line.qty })),
       )
     : null;
   let items: SellableItem[];
@@ -451,7 +512,13 @@ async function writeSale(
     // Archived items resolve too: they were sold before (or without knowing) the archive (OF13).
     const archived = await archivedFlags(tx, ctx.orgId, refs);
     let current: SellableItem[];
-    ({ items: current, options } = withOptions(await getItemsForHistory(tx, ctx.orgId, refs), lines));
+    ({ items: current, options } = await withOptionsAsSold(
+      tx,
+      ctx.orgId,
+      await getItemsForHistory(tx, ctx.orgId, refs),
+      lines,
+      flags,
+    ));
     if (archived.some(Boolean)) {
       flags.set("ITEM_ARCHIVED", { skus: current.filter((_, index) => archived[index]).map((item) => item.sku) });
     }

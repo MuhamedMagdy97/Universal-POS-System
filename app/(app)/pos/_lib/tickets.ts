@@ -5,10 +5,15 @@
 import type { ErrorBody } from "@/lib/errors";
 import type { MessageKey } from "@/lib/i18n";
 import type { TicketView } from "@/modules/sales/tickets";
-import { saleErrorKey, type CartLine } from "./till";
+import { MAX_QTY } from "@/lib/quantity";
+import { cartKey, saleErrorKey, type CartLine } from "./till";
 
-/** A loaded ticket as cart lines: priced with their options, with how much went to the kitchen. */
-export function cartFromTicket(ticket: Pick<TicketView, "lines">): CartLine[] {
+/**
+ * A loaded ticket as cart lines: priced with their options, with how much went to the kitchen. Line discounts are not
+ * kept on the ticket, so those of `previous` (the cart just saved) carry over by line.
+ */
+export function cartFromTicket(ticket: Pick<TicketView, "lines">, previous: readonly CartLine[] = []): CartLine[] {
+  const discounts = new Map(previous.flatMap((line) => (line.discount ? [[cartKey(line), line.discount]] : [])));
   return ticket.lines.map((line) => ({
     ...line.item,
     qty: line.qty,
@@ -16,7 +21,29 @@ export function cartFromTicket(ticket: Pick<TicketView, "lines">): CartLine[] {
     ...(line.options.length > 0 && { options: line.options, optionLabels: line.optionLabels }),
     ...(line.note && { note: line.note }),
     sentQty: line.sentQty,
+    ...(discounts.has(line.key) && { discount: discounts.get(line.key) }),
   }));
+}
+
+/** What was rung up before a busy table was picked joins its ticket instead of replacing it. */
+export function mergeIntoTicket(ticketCart: readonly CartLine[], rungUp: readonly CartLine[]): CartLine[] {
+  const out = ticketCart.map((line) => ({ ...line }));
+  for (const line of rungUp) {
+    const twin = out.find((current) => cartKey(current) === cartKey(line));
+    if (twin) {
+      twin.qty = Math.min(twin.qty + line.qty, MAX_QTY);
+      twin.qtyText = undefined;
+    } else out.push({ ...line, sentQty: 0 });
+  }
+  return out;
+}
+
+/**
+ * Whether a sale may go to the offline queue when the server cannot be reached. Paying a ticket and charging a
+ * service charge need the server (R5, R12): queued, they could never be replayed.
+ */
+export function canQueueOffline(sale: { paysTicket: boolean; serviceChargeMinor: number }): boolean {
+  return !sale.paysTicket && sale.serviceChargeMinor === 0;
 }
 
 /** The cart as the ticket save takes it. */

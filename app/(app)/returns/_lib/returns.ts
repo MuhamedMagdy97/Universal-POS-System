@@ -7,6 +7,7 @@ import type { ErrorBody } from "@/lib/errors";
 import type { MessageKey } from "@/lib/i18n";
 import { divideRoundHalfUp, normalizeDigits } from "@/lib/money";
 import { parseQtyInput, type QtyUnit } from "@/lib/quantity";
+import { serviceRefundShare } from "@/modules/sales/totals";
 
 export type PreviewLine = {
   saleItemId: string;
@@ -46,7 +47,19 @@ export type RefundPlan =
   { ok: true; lines: { saleItemId: string; qty: number }[]; totalMinor: number } | { ok: false; invalid: string[] };
 
 /** Turns the typed quantities into the refund lines. Any unreadable box blocks the plan; zero lines are left out. */
-export function planRefund(lines: readonly PreviewLine[], raw: Readonly<Record<string, string>>): RefundPlan {
+export type RefundService = {
+  chargedMinor: number;
+  chargedVatMinor: number;
+  givenMinor: number;
+  givenVatMinor: number;
+};
+
+/** `service`: the sale's service charge, whose share the server adds to the refund (restaurant-cafe-spec R11). */
+export function planRefund(
+  lines: readonly PreviewLine[],
+  raw: Readonly<Record<string, string>>,
+  service: RefundService | null = null,
+): RefundPlan {
   const invalid: string[] = [];
   const picked: { saleItemId: string; qty: number }[] = [];
   let totalMinor = 0;
@@ -60,7 +73,17 @@ export function planRefund(lines: readonly PreviewLine[], raw: Readonly<Record<s
     picked.push({ saleItemId: line.saleItemId, qty });
     totalMinor += lineRefundMinor(line, qty);
   }
-  return invalid.length > 0 ? { ok: false, invalid } : { ok: true, lines: picked, totalMinor };
+  if (invalid.length > 0) return { ok: false, invalid };
+  if (service && picked.length > 0) {
+    const qtyNow = new Map(picked.map((line) => [line.saleItemId, line.qty]));
+    totalMinor += serviceRefundShare({
+      ...service,
+      goodsMinor: lines.reduce((total, line) => total + line.lineTotalMinor, 0),
+      refundedAfterMinor: lines.reduce((total, line) => total + line.refundedAmountMinor, 0) + totalMinor,
+      allBack: lines.every((line) => line.refundedQty + (qtyNow.get(line.saleItemId) ?? 0) === line.qty),
+    }).amountMinor;
+  }
+  return { ok: true, lines: picked, totalMinor };
 }
 
 export function canSubmitRefund(plan: RefundPlan, reason: string, pending: boolean): boolean {

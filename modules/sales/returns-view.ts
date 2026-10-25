@@ -51,6 +51,8 @@ export type SaleForReturns = {
   voidReason: string | null;
   lines: ReturnLine[];
   refunds: ReturnRefund[];
+  /** The sale's service charge and what refunds gave back of it (restaurant-cafe-spec R11); null when none. */
+  serviceCharge: { chargedMinor: number; chargedVatMinor: number; givenMinor: number; givenVatMinor: number } | null;
   /** The sale's register has an open shift to book a refund on (V6). */
   registerHasOpenShift: boolean;
   /** Active tills in the sale's branch that can pay out a refund, the sale's own till first. */
@@ -130,6 +132,15 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       refundedQty: refunded.get(item.id)?.qty ?? 0,
       refundedAmountMinor: refunded.get(item.id)?.amountMinor ?? 0,
     })),
+    serviceCharge:
+      sale.serviceChargeMinor > 0
+        ? {
+            chargedMinor: sale.serviceChargeMinor,
+            chargedVatMinor: sale.serviceChargeVatMinor,
+            givenMinor: sale.refunds.reduce((total, refund) => total + refund.serviceChargeMinor, 0),
+            givenVatMinor: sale.refunds.reduce((total, refund) => total + refund.serviceChargeVatMinor, 0),
+          }
+        : null,
     refunds: sale.refunds.map((refund) => ({
       id: refund.id,
       method: refund.method,

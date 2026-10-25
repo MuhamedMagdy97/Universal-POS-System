@@ -1,4 +1,4 @@
-import { MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
+import { divideRoundHalfUp, MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
 import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { amountTooLarge, discountTooLarge, invalidPayment, labelMismatch } from "./errors";
 
@@ -227,4 +227,34 @@ export function settlePayments(totalMinor: number, tenders: readonly TenderInput
   if (cash.amountMinor < due) throw invalidPayment("Cash tendered is less than the amount due", { due });
   payments.push({ method: "CASH", amountMinor: due, reference: null });
   return { payments, changeMinor: cash.amountMinor - due };
+}
+
+/**
+ * The service charge a refund gives back (restaurant-cafe-spec R11): in proportion to the goods refunded so far,
+ * counted cumulatively so repeated part refunds never give back more than was charged; the refund that returns the
+ * last of the goods gives back exactly what is left. The server books it and the Returns screen shows it.
+ */
+export function serviceRefundShare(input: {
+  chargedMinor: number;
+  chargedVatMinor: number;
+  /** Already given back by earlier refunds. */
+  givenMinor: number;
+  givenVatMinor: number;
+  /** The sale's goods (its lines' totals) and how much of them is refunded once this refund is done. */
+  goodsMinor: number;
+  refundedAfterMinor: number;
+  allBack: boolean;
+}): { amountMinor: number; vatMinor: number } {
+  if (input.chargedMinor === 0) return { amountMinor: 0, vatMinor: 0 };
+  if (input.allBack || input.goodsMinor === 0) {
+    return {
+      amountMinor: input.chargedMinor - input.givenMinor,
+      vatMinor: input.chargedVatMinor - input.givenVatMinor,
+    };
+  }
+  const upTo = (whole: number) =>
+    Number(divideRoundHalfUp(BigInt(whole) * BigInt(input.refundedAfterMinor), BigInt(input.goodsMinor)));
+  const amountMinor = Math.max(upTo(input.chargedMinor) - input.givenMinor, 0);
+  const vatMinor = Math.min(Math.max(upTo(input.chargedVatMinor) - input.givenVatMinor, 0), amountMinor);
+  return { amountMinor, vatMinor };
 }
