@@ -19,6 +19,10 @@ import {
   ArchiveInput,
   createCategory,
   CreateCategory,
+  createOptionGroup,
+  setProductOptionGroups,
+  updateOptionGroup,
+  type OptionGroupDetail,
   createProductAggregate,
   getProduct,
   importProducts,
@@ -42,6 +46,7 @@ import type { SavedProduct } from "./_lib/payloads";
 
 const PRODUCTS_PATH = "/catalog/products";
 const CATEGORIES_PATH = "/catalog/categories";
+const OPTIONS_PATH = "/catalog/options";
 
 type Session = { ctx: TenantContext; meta: { requestId: string } };
 
@@ -232,6 +237,40 @@ export async function previewImportAction(csv: unknown): Promise<ActionResult<Im
 export async function importProductsAction(csv: unknown): Promise<ActionResult<{ created: number }>> {
   return run(async ({ ctx, meta }) => {
     const result = await importProducts(ctx, parseAt(ImportCsv, csv, ""), meta);
+    revalidatePath(PRODUCTS_PATH);
+    return result;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Option groups (restaurant-cafe-spec R7)
+// ---------------------------------------------------------------------------
+
+export async function createOptionGroupAction(input: unknown): Promise<ActionResult<OptionGroupDetail>> {
+  return run(async ({ ctx, meta }) => {
+    const group = await createOptionGroup(ctx, input, meta);
+    revalidatePath(OPTIONS_PATH);
+    return group;
+  });
+}
+
+export async function updateOptionGroupAction(
+  groupId: string,
+  input: unknown,
+): Promise<ActionResult<OptionGroupDetail>> {
+  return run(async ({ ctx, meta }) => {
+    const group = await updateOptionGroup(ctx, groupId, input, meta);
+    revalidatePath(OPTIONS_PATH);
+    return group;
+  });
+}
+
+export async function setProductOptionGroupsAction(
+  productId: string,
+  groupIds: unknown,
+): Promise<ActionResult<{ groupIds: string[] }>> {
+  return run(async ({ ctx, meta }) => {
+    const result = await setProductOptionGroups(ctx, productId, groupIds, meta);
     revalidatePath(PRODUCTS_PATH);
     return result;
   });

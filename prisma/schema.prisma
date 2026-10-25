@@ -313,6 +313,9 @@ model Organization {
   membershipBranches         MembershipBranch[]
   categories                 Category[]
   products                   Product[]
+  optionGroups               OptionGroup[]
+  optionChoices              OptionChoice[]
+  productOptionGroups        ProductOptionGroup[]
   variants                   ProductVariant[]
   barcodes                   Barcode[]
   stockBalances              StockBalance[]
@@ -576,10 +579,64 @@ model Product {
   receiptItems  GoodsReceiptItem[]
   returnItems   PurchaseReturnItem[]
   saleItems     SaleItem[]
+  optionGroups  ProductOptionGroup[]
 
   @@unique([orgId, id])
   @@unique([orgId, sku])
   @@index([orgId, categoryId])
+}
+
+// Options on a dish (restaurant-cafe-spec R7): "Size" (exactly one), "Extras" (up to three). A choice's price is added
+// to the product's price on the sale line; removed choices are deactivated, never deleted.
+model OptionGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  name      String
+  nameAr    String?
+  minSelect Int      @default(0)
+  maxSelect Int      @default(1)
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org      Organization         @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  choices  OptionChoice[]
+  products ProductOptionGroup[]
+
+  @@unique([orgId, id])
+}
+
+model OptionChoice {
+  id              String   @id @default(uuid()) @db.Uuid
+  orgId           String   @db.Uuid
+  groupId         String   @db.Uuid
+  name            String
+  nameAr          String?
+  priceDeltaMinor Int      @default(0)
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  group OptionGroup  @relation(fields: [orgId, groupId], references: [orgId, id], onDelete: Restrict)
+
+  @@unique([orgId, id])
+  @@index([orgId, groupId])
+}
+
+model ProductOptionGroup {
+  orgId     String @db.Uuid
+  productId String @db.Uuid
+  groupId   String @db.Uuid
+  sortOrder Int    @default(0)
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  product Product      @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+  group   OptionGroup  @relation(fields: [orgId, groupId], references: [orgId, id], onDelete: Restrict)
+
+  @@id([orgId, productId, groupId])
+  @@index([orgId, groupId])
 }
 
 model ProductVariant {
@@ -1184,6 +1241,10 @@ model SaleItem {
   // Cost per unit before VAT at the moment of sale (P12 M1). NULL = unknown: cost 0 or a sale
   // made before P12 (M2, M6). Never returned by the sales API or the receipt (M10).
   unitCostMinor  Int?
+  // Chosen options as sold (restaurant-cafe-spec R7): [{ group, groupAr, name, nameAr, priceDeltaMinor }]; NULL = none.
+  // `unitPriceMinor` already includes them. `note` is the line note (R8), up to 140 characters.
+  options        Json?
+  note           String?
 
   org         Organization    @relation(fields: [orgId], references: [id], onDelete: Restrict)
   sale        Sale            @relation(fields: [orgId, saleId], references: [orgId, id], onDelete: Restrict)

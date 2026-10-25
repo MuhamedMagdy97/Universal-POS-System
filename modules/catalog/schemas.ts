@@ -317,6 +317,32 @@ export const CreateCategory = z.strictObject({
 });
 export type CreateCategory = z.infer<typeof CreateCategory>;
 
+/**
+ * An option group with its choices (restaurant-cafe-spec R7), for create and for update (the choices list replaces
+ * the group's: a listed `id` keeps that choice, a missing one is deactivated, one without `id` is new).
+ */
+export const OptionGroupInput = z
+  .strictObject({
+    name: Name,
+    nameAr: Name.nullable().optional(),
+    minSelect: z.int().min(0).max(20),
+    maxSelect: z.int().min(1).max(20),
+    choices: z
+      .array(
+        z.strictObject({
+          id: Uuid.optional(),
+          name: Name,
+          nameAr: Name.nullable().optional(),
+          priceDeltaMinor: z.int().min(0).max(MAX_STORABLE_MINOR),
+        }),
+      )
+      .min(1)
+      .max(30),
+  })
+  .refine((group) => group.maxSelect >= group.minSelect, { path: ["maxSelect"], message: "OPTION_RANGE" })
+  .refine((group) => group.minSelect <= group.choices.length, { path: ["minSelect"], message: "OPTION_RANGE" });
+export type OptionGroupInput = z.infer<typeof OptionGroupInput>;
+
 /** Category list filter (the whole tree is returned; no cursor). */
 export const ListCategoriesQuery = z.strictObject({ status: ProductStatus.default("active") });
 export type ListCategoriesQuery = z.infer<typeof ListCategoriesQuery>;
@@ -480,6 +506,16 @@ export type ProductDetail = ProductSummary & {
 
 export type CatalogItemRef = { productId: string; variantId: string | null };
 
+/** An active option group as the till and checkout see it (R7): active choices only, in order. */
+export type OptionGroupView = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  minSelect: number;
+  maxSelect: number;
+  choices: { id: string; name: string; nameAr: string | null; priceDeltaMinor: number }[];
+};
+
 export type SellableItem = CatalogItemRef & {
   sku: string;
   name: string;
@@ -492,6 +528,8 @@ export type SellableItem = CatalogItemRef & {
   vatApplicable: boolean;
   /** The product's category (business-profiles-spec BP8, till tiles); absent where a reader did not load it. */
   categoryId?: string | null;
+  /** Option groups to pick from (restaurant-cafe-spec R7); absent when the item has none. */
+  optionGroups?: OptionGroupView[];
 };
 
 /** A sellable row without cost: what POS search/scan screens may show. */

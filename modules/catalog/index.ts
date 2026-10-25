@@ -52,6 +52,14 @@ export {
   type CategoryNode,
   type CategoryDetail,
 } from "./categories";
+export {
+  createOptionGroup,
+  getProductOptionGroupIds,
+  listOptionGroups,
+  setProductOptionGroups,
+  updateOptionGroup,
+  type OptionGroupDetail,
+} from "./options";
 export { addBarcode, removeBarcode } from "./barcodes";
 // Cross-module seam (T3.5). The tx-aware functions skip permission checks: callers authorise first.
 export {
