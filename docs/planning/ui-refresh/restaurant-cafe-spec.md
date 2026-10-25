@@ -1,6 +1,6 @@
 # Restaurant and Café (UI Refresh D): Specification
 
-Status: **Draft for the owner's review (2026-10-25).** Every choice below is the recommended one.
+Status: **Approved by the owner (2026-10-25); built 2026-10-25 ([as built](restaurant-cafe-as-built.md)).** Every choice below is the recommended one.
 
 Source: [overview](README.md), [business profiles as built](business-profiles-as-built.md),
 [weighed selling as built](weighed-selling-as-built.md). Today a sale is created whole and paid at once

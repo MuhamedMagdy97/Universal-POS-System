@@ -143,7 +143,9 @@
   changeable by the Owner, tap tiles on the till for fruit and veg, bakery and butcher, café and salon.
   C, weighed selling, BUILT (three PRs, [as built](ui-refresh/weighed-selling-as-built.md)): KG items priced per kg
   and stored in grams, a weight box at the till, kg on every stock, purchasing and report screen, and Owner-set
-  EAN-13 scale labels with weight or price. Next: D, restaurant and café.
+  EAN-13 scale labels with weight or price. D, restaurant and café, BUILT (three PRs, [as built](ui-refresh/restaurant-cafe-as-built.md)): options and line
+  notes, tables with open tickets paid later, kitchen slips, dine-in/takeaway/delivery orders and an Owner-set
+  dine-in service charge. Next: E, salon.
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

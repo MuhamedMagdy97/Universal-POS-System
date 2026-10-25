@@ -12,7 +12,7 @@ missing today.
 | A   | Design system + app shell | All                                | None                    | [design-system-spec.md](design-system-spec.md) |
 | B   | Business profiles         | All                                | Search API, one setting | [business-profiles-spec.md](business-profiles-spec.md) |
 | C   | Weighed selling           | Grocery, fruit & veg, bakery/butcher | Migration, money paths | [weighed-selling-spec.md](weighed-selling-spec.md), [as built](weighed-selling-as-built.md) |
-| D   | Restaurant / café         | Restaurant and café                | Migrations              | [restaurant-cafe-spec.md](restaurant-cafe-spec.md) |
+| D   | Restaurant / café         | Restaurant and café                | Migrations              | [restaurant-cafe-spec.md](restaurant-cafe-spec.md), [as built](restaurant-cafe-as-built.md) |
 | E   | Salon                     | Salon                              | Migrations              | Not written                                    |
 
 Order: A, then B. C, D and E each build on B and not on each other; C goes first because three business types need it.
