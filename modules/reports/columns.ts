@@ -11,7 +11,7 @@ export type ColumnKind =
   | "text"
   | "name" // localized: `name` / `nameAr`
   | "int"
-  | "qty" // pieces, or grams on a row whose unitType is KG (shown in kg, weighed-selling-spec W9)
+  | "qty" // pieces; grams on a KG row (shown in kg); "—" on a MIXED row (weighed-selling-spec W9)
   | "money"
   | "day"
   | "datetime"
@@ -71,8 +71,8 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
   ],
   categories: [
     c("name", "reports.col.category", "name"),
-    c("qtySold", "reports.col.qtySold", "int"),
-    c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+    c("qtySold", "reports.col.qtySold", "qty"),
+    c("qtyRefunded", "reports.col.qtyRefunded", "qty"),
     c("grossMinor", "reports.col.sales", "money"),
     c("refundsMinor", "reports.col.refunds", "money"),
     c("netMinor", "reports.col.netRevenue", "money"),
@@ -142,10 +142,10 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("day", "reports.col.day", "day"),
     c("supplierName", "reports.col.supplier", "text"),
     c("receiptsCount", "reports.col.receipts", "int"),
-    c("units", "reports.col.units", "int"),
+    c("units", "reports.col.units", "qty"),
     c("valueMinor", "reports.col.purchaseValue", "money"),
     // Returns to the supplier on their own date (purchase-returns-spec R12).
-    c("returnedUnits", "reports.col.returnedUnits", "int"),
+    c("returnedUnits", "reports.col.returnedUnits", "qty"),
     c("returnedValueMinor", "reports.col.returnedValue", "money"),
     c("netValueMinor", "reports.col.netPurchaseValue", "money"),
   ],

@@ -79,7 +79,13 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
     name: string;
     nameAr: string | null;
     variantName: string | null;
+    unitType: QtyUnit;
   }) {
+    // A scan cannot weigh: a weighed item's weight is typed in its counted box (weighed-selling-spec W7).
+    if (row.unitType === "KG") {
+      setMessage({ kind: "error", text: tr("inventory.count.typeWeight", { name: nameOf(row) }) });
+      return;
+    }
     const data = await act(() =>
       recordCountEntryAction(count.id, { ref: { productId: row.productId, variantId: row.variantId }, add: 1 }),
     );

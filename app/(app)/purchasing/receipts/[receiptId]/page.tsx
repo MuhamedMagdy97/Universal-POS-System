@@ -40,6 +40,8 @@ async function ReceiptContent({ params }: Props) {
   }
   const money = (minor: number) => formatMinor(minor, receipt.currency, locale);
   const returnedUnits = receipt.lines.reduce((total, line) => total + line.qtyReturned, 0);
+  // Grams and pieces do not add up: a weighed receipt shows "—" for its unit totals (weighed-selling-spec W9).
+  const weighed = receipt.lines.some((line) => line.unitType === "KG");
   const returnable = can.manage && receipt.lines.some((line) => line.returnable > 0);
 
   return (
@@ -107,8 +109,8 @@ async function ReceiptContent({ params }: Props) {
           <tfoot>
             <tr className="border-t border-border font-semibold">
               <td>{tr("purchasing.po.total")}</td>
-              <td className="text-end">{receipt.units}</td>
-              <td className="text-end">{returnedUnits}</td>
+              <td className="text-end">{weighed ? "—" : receipt.units}</td>
+              <td className="text-end">{weighed ? "—" : returnedUnits}</td>
               <td />
               <td className="text-end">{money(receipt.valueMinor)}</td>
             </tr>
@@ -129,12 +131,18 @@ async function ReceiptContent({ params }: Props) {
                   href={`/purchasing/receipts/${receipt.id}/returns/${ret.id}`}
                   className="underline-offset-4 hover:underline"
                 >
-                  {tr("purchasing.returns.row", {
-                    number: ret.number,
-                    units: ret.units,
-                    value: money(ret.valueMinor),
-                    name: ret.returnedByName,
-                  })}
+                  {weighed
+                    ? tr("purchasing.returns.rowWeighed", {
+                        number: ret.number,
+                        value: money(ret.valueMinor),
+                        name: ret.returnedByName,
+                      })
+                    : tr("purchasing.returns.row", {
+                        number: ret.number,
+                        units: ret.units,
+                        value: money(ret.valueMinor),
+                        name: ret.returnedByName,
+                      })}
                 </Link>{" "}
                 <span className="text-muted">— {tr(`purchasing.reason.${ret.reason}`)}</span>
               </li>

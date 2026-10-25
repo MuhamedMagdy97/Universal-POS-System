@@ -80,7 +80,7 @@ describe("poTotals (P13)", () => {
         { qtyOrdered: 3, qtyReceived: 1, unitCostMinor: 1250 },
         { qtyOrdered: 2, qtyReceived: 2, unitCostMinor: 99 },
       ]),
-    ).toEqual({ lineCount: 2, orderedUnits: 5, receivedUnits: 3, totalMinor: 3948 });
+    ).toEqual({ lineCount: 2, orderedUnits: 5, receivedUnits: 3, totalMinor: 3948, weighed: false });
   });
 });
 

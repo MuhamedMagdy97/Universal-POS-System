@@ -53,6 +53,8 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
 
   const parsed = receiptLines(rows, currency);
   const units = parsed?.reduce((total, line) => total + line.qty, 0) ?? 0;
+  // Grams and pieces do not add up: with a weighed line the button counts lines (weighed-selling-spec W9).
+  const weighed = rows.some((row) => row.unitType === "KG");
 
   function update(index: number, patch: Partial<ReceiveRow>) {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -154,7 +156,9 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
         </p>
       ) : null}
       <button type="submit" disabled={pending || !parsed || units === 0} className="btn btn-primary self-start">
-        {tr("purchasing.receive.submit", { units })}
+        {weighed
+          ? tr("purchasing.receive.submitLines", { lines: parsed?.length ?? 0 })
+          : tr("purchasing.receive.submit", { units })}
       </button>
     </form>
   );

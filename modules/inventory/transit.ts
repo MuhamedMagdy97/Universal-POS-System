@@ -53,6 +53,8 @@ export type TransferSummary = {
   cancelledAt: Date | null;
   lineCount: number;
   unitsSent: number;
+  /** A KG line is on it: `unitsSent` adds grams to pieces (shown as "—"). */
+  weighed: boolean;
 };
 
 export type TransferLineView = {
@@ -400,13 +402,14 @@ const summarySelect = {
 
 function summaryOf(
   row: Prisma.StockTransferGetPayload<{ select: typeof summarySelect }>,
-  lines: { qtySent: number }[],
+  lines: { qtySent: number; product?: { unitType: string } }[],
 ): TransferSummary {
   return {
     ...row,
     reference: transferReference(row.id),
     lineCount: lines.length,
     unitsSent: lines.reduce((sum, line) => sum + line.qtySent, 0),
+    weighed: lines.some((line) => line.product?.unitType === "KG"),
   };
 }
 
@@ -426,7 +429,7 @@ export async function listTransfers(
     },
     orderBy: { sentAt: "desc" },
     take: 50,
-    select: { ...summarySelect, lines: { select: { qtySent: true } } },
+    select: { ...summarySelect, lines: { select: { qtySent: true, product: { select: { unitType: true } } } } },
   });
   return rows.map(({ lines, ...row }) => summaryOf(row, lines));
 }

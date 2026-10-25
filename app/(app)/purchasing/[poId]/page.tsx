@@ -48,6 +48,8 @@ async function PoContent({ params, searchParams }: Props) {
 
   const outstandingUnits = po.lines.reduce((total, line) => total + line.outstanding, 0);
   const returnedUnits = po.lines.reduce((total, line) => total + line.qtyReturned, 0);
+  // Grams and pieces do not add up: a weighed order shows "—" for its unit totals (weighed-selling-spec W9).
+  const units = (total: number) => (po.totals.weighed ? "—" : total);
   const returnable = can.manage && po.lines.some((line) => line.returnable > 0);
   const editable = can.manage && canEdit({ status: po.status, receivedUnits: po.totals.receivedUnits });
   const [suppliers, shop] = await Promise.all([
@@ -175,7 +177,7 @@ async function PoContent({ params, searchParams }: Props) {
             <tfoot>
               <tr>
                 <th>{tr("purchasing.po.total")}</th>
-                <th className="num">{po.totals.orderedUnits}</th>
+                <th className="num">{units(po.totals.orderedUnits)}</th>
                 <th />
                 <th className="num" dir="ltr">
                   {formatMinor(po.totals.totalMinor, po.currency, locale)}
@@ -196,7 +198,7 @@ async function PoContent({ params, searchParams }: Props) {
         poId={po.id}
         status={po.status}
         receivedUnits={po.totals.receivedUnits}
-        outstandingUnits={outstandingUnits}
+        outstandingUnits={po.totals.weighed ? null : outstandingUnits}
         can={can}
       />
       {returnable ? (
@@ -265,10 +267,10 @@ async function PoContent({ params, searchParams }: Props) {
             <tfoot>
               <tr className="border-t border-border font-semibold">
                 <td>{tr("purchasing.po.total")}</td>
-                <td className="text-end">{po.totals.orderedUnits}</td>
-                <td className="text-end">{po.totals.receivedUnits}</td>
-                <td className="text-end">{outstandingUnits}</td>
-                <td className="text-end">{returnedUnits}</td>
+                <td className="text-end">{units(po.totals.orderedUnits)}</td>
+                <td className="text-end">{units(po.totals.receivedUnits)}</td>
+                <td className="text-end">{units(outstandingUnits)}</td>
+                <td className="text-end">{units(returnedUnits)}</td>
                 <td />
                 <td className="text-end">{formatMinor(po.totals.totalMinor, po.currency, locale)}</td>
               </tr>
@@ -287,11 +289,16 @@ async function PoContent({ params, searchParams }: Props) {
               <span dir="ltr" className="text-muted">
                 {shopDateTime(receipt.receivedAt, zone)}
               </span>{" "}
-              {tr("purchasing.receipts.row", {
-                units: receipt.units,
-                value: formatMinor(receipt.valueMinor, po.currency, locale),
-                name: receipt.receivedByName,
-              })}
+              {po.totals.weighed
+                ? tr("purchasing.receipts.rowWeighed", {
+                    value: formatMinor(receipt.valueMinor, po.currency, locale),
+                    name: receipt.receivedByName,
+                  })
+                : tr("purchasing.receipts.row", {
+                    units: receipt.units,
+                    value: formatMinor(receipt.valueMinor, po.currency, locale),
+                    name: receipt.receivedByName,
+                  })}
               {receipt.note ? <span className="text-muted"> — {receipt.note}</span> : null}
             </li>
           ))}
@@ -308,12 +315,18 @@ async function PoContent({ params, searchParams }: Props) {
                   {shopDateTime(ret.returnedAt, zone)}
                 </span>{" "}
                 <Link href={`/purchasing/${po.id}/returns/${ret.id}`} className="underline-offset-4 hover:underline">
-                  {tr("purchasing.returns.row", {
-                    number: ret.number,
-                    units: ret.units,
-                    value: formatMinor(ret.valueMinor, po.currency, locale),
-                    name: ret.returnedByName,
-                  })}
+                  {po.totals.weighed
+                    ? tr("purchasing.returns.rowWeighed", {
+                        number: ret.number,
+                        value: formatMinor(ret.valueMinor, po.currency, locale),
+                        name: ret.returnedByName,
+                      })
+                    : tr("purchasing.returns.row", {
+                        number: ret.number,
+                        units: ret.units,
+                        value: formatMinor(ret.valueMinor, po.currency, locale),
+                        name: ret.returnedByName,
+                      })}
                 </Link>{" "}
                 <span className="text-muted">— {tr(`purchasing.reason.${ret.reason}`)}</span>
               </li>

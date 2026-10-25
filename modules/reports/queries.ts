@@ -125,17 +125,29 @@ export async function payments(scope: ReportScope): Promise<PaymentsRow[]> {
 function lineFacts(scope: ReportScope): Prisma.Sql {
   return Prisma.sql`
     SELECT si."productId", si."variantId", si."vatRateBp" AS rate,
-           si."qty" AS sq, si."lineTotalMinor" AS sa, si."vatMinor" AS sv, 0 AS rq, 0 AS ra, 0 AS rv
+           si."qty" AS sq, si."lineTotalMinor" AS sa, si."vatMinor" AS sv, 0 AS rq, 0 AS ra, 0 AS rv,
+           si."unitType" = 'KG' AS kg
     FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
     WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
     UNION ALL
     SELECT si."productId", si."variantId", si."vatRateBp",
-           0, 0, 0, ri."qty", ri."amountMinor", ri."vatMinor"
+           0, 0, 0, ri."qty", ri."amountMinor", ri."vatMinor", si."unitType" = 'KG'
     FROM "RefundItem" ri
     JOIN "Refund" r ON r."orgId" = ri."orgId" AND r."id" = ri."refundId"
     JOIN "SaleItem" si ON si."orgId" = ri."orgId" AND si."id" = ri."saleItemId"
     WHERE ${inScope("r", scope)} AND ${inRange(col("r", "createdAt"), scope)}`;
 }
+
+/**
+ * What a grouped row's quantities are (weighed-selling-spec W9): pieces, grams when every line is weighed, or MIXED
+ * (grams and pieces added together, shown as "—" and never totalled).
+ */
+export type RowUnit = "EACH" | "KG" | "MIXED";
+
+/** `BOOL_OR` / `BOOL_AND` of "the line is KG" over a group, read by `rowUnit`. */
+const KG_FLAGS = Prisma.sql`BOOL_OR(f.kg) AS anykg, BOOL_AND(f.kg) AS allkg`;
+const rowUnit = (row: { anykg: boolean | null; allkg: boolean | null }): RowUnit =>
+  row.allkg ? "KG" : row.anykg ? "MIXED" : "EACH";
 
 type LineTotals = { qtySold: number; qtyRefunded: number; grossMinor: number; refundsMinor: number; netMinor: number };
 
@@ -207,23 +219,44 @@ export async function products(scope: ReportScope): Promise<ProductsRow[]> {
     .sort(byNetDesc);
 }
 
-export type CategoriesRow = LineTotals & { categoryId: string | null; name: string; nameAr: string | null };
+export type CategoriesRow = LineTotals & {
+  categoryId: string | null;
+  name: string;
+  nameAr: string | null;
+  unitType: RowUnit;
+};
 
 /** By the product's current category; no category is one row with `categoryId: null` (§11.1). */
 export async function categories(scope: ReportScope): Promise<CategoriesRow[]> {
   const rows = await getDb().$queryRaw<
-    { categoryId: string | null; sq: Big; sa: Big; rq: Big; ra: Big; name: string | null; nameAr: string | null }[]
+    {
+      categoryId: string | null;
+      sq: Big;
+      sa: Big;
+      rq: Big;
+      ra: Big;
+      name: string | null;
+      nameAr: string | null;
+      anykg: boolean | null;
+      allkg: boolean | null;
+    }[]
   >`
     WITH f AS (${lineFacts(scope)}),
     k AS (
-      SELECT p."categoryId", SUM(f.sq) AS sq, SUM(f.sa) AS sa, SUM(f.rq) AS rq, SUM(f.ra) AS ra
+      SELECT p."categoryId", SUM(f.sq) AS sq, SUM(f.sa) AS sa, SUM(f.rq) AS rq, SUM(f.ra) AS ra, ${KG_FLAGS}
       FROM f JOIN "Product" p ON p."orgId" = ${scope.orgId}::uuid AND p."id" = f."productId"
       GROUP BY 1
     )
     SELECT k.*, c."name", c."nameAr"
     FROM k LEFT JOIN "Category" c ON c."orgId" = ${scope.orgId}::uuid AND c."id" = k."categoryId"`;
   return rows
-    .map((row) => ({ categoryId: row.categoryId, name: row.name ?? "", nameAr: row.nameAr, ...lineTotals(row) }))
+    .map((row) => ({
+      categoryId: row.categoryId,
+      name: row.name ?? "",
+      nameAr: row.nameAr,
+      unitType: rowUnit(row),
+      ...lineTotals(row),
+    }))
     .sort(byNetDesc);
 }
 
@@ -243,14 +276,14 @@ function profitFacts(scope: ReportScope, byDay: boolean): Prisma.Sql {
     SELECT si."productId", si."variantId", ${saleDay} AS day, si."qty" AS sq, 0 AS rq,
            (si."lineTotalMinor" - si."vatMinor")::bigint AS net,
            ${lineValueSql(col("si", "unitCostMinor"), col("si", "qty"), col("si", "unitType"))} AS cost,
-           CASE WHEN si."unitCostMinor" IS NULL THEN 1 ELSE 0 END AS nc
+           CASE WHEN si."unitCostMinor" IS NULL THEN 1 ELSE 0 END AS nc, si."unitType" = 'KG' AS kg
     FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
     WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
     UNION ALL
     SELECT si."productId", si."variantId", ${refundDay}, 0, ri."qty",
            -(ri."amountMinor" - ri."vatMinor")::bigint,
            -(${lineValueSql(col("si", "unitCostMinor"), col("ri", "qty"), col("si", "unitType"))}),
-           0
+           0, si."unitType" = 'KG'
     FROM "RefundItem" ri
     JOIN "Refund" r ON r."orgId" = ri."orgId" AND r."id" = ri."refundId"
     JOIN "SaleItem" si ON si."orgId" = ri."orgId" AND si."id" = ri."saleItemId"
@@ -258,9 +291,19 @@ function profitFacts(scope: ReportScope, byDay: boolean): Prisma.Sql {
 }
 
 const PROFIT_SUMS = Prisma.sql`SUM(f.sq) AS sq, SUM(f.rq) AS rq, SUM(f.net) AS net,
-  SUM(f.net) FILTER (WHERE f.cost IS NOT NULL) AS netc, SUM(f.cost) AS cost, SUM(f.nc) AS nc`;
+  SUM(f.net) FILTER (WHERE f.cost IS NOT NULL) AS netc, SUM(f.cost) AS cost, SUM(f.nc) AS nc,
+  ${KG_FLAGS}`;
 
-type ProfitSums = { sq: Big; rq: Big; net: Big; netc: Big; cost: Big; nc: Big };
+type ProfitSums = {
+  sq: Big;
+  rq: Big;
+  net: Big;
+  netc: Big;
+  cost: Big;
+  nc: Big;
+  anykg: boolean | null;
+  allkg: boolean | null;
+};
 
 export type ProfitTotals = {
   qtySold: number;
@@ -337,7 +380,12 @@ export async function profitProducts(scope: ReportScope): Promise<ProfitProducts
     .sort(byProfitDesc);
 }
 
-export type ProfitCategoriesRow = ProfitTotals & { categoryId: string | null; name: string; nameAr: string | null };
+export type ProfitCategoriesRow = ProfitTotals & {
+  categoryId: string | null;
+  name: string;
+  nameAr: string | null;
+  unitType: RowUnit;
+};
 
 /** By the product's current category, as in `categories`. */
 export async function profitCategories(scope: ReportScope): Promise<ProfitCategoriesRow[]> {
@@ -353,18 +401,24 @@ export async function profitCategories(scope: ReportScope): Promise<ProfitCatego
     SELECT k.*, c."name", c."nameAr"
     FROM k LEFT JOIN "Category" c ON c."orgId" = ${scope.orgId}::uuid AND c."id" = k."categoryId"`;
   return rows
-    .map((row) => ({ categoryId: row.categoryId, name: row.name ?? "", nameAr: row.nameAr, ...profitTotals(row) }))
+    .map((row) => ({
+      categoryId: row.categoryId,
+      name: row.name ?? "",
+      nameAr: row.nameAr,
+      unitType: rowUnit(row),
+      ...profitTotals(row),
+    }))
     .sort(byProfitDesc);
 }
 
-export type ProfitDaysRow = ProfitTotals & { day: string; linesNoCost: number };
+export type ProfitDaysRow = ProfitTotals & { day: string; linesNoCost: number; unitType: RowUnit };
 
 /** By the shop's local day; a refund counts on its own day, so a day can lose money (M3). */
 export async function profitDays(scope: ReportScope): Promise<ProfitDaysRow[]> {
   const rows = await getDb().$queryRaw<(ProfitSums & { day: string })[]>`
     WITH f AS (${profitFacts(scope, true)})
     SELECT f.day, ${PROFIT_SUMS} FROM f GROUP BY 1 ORDER BY 1`;
-  return rows.map((row) => ({ day: row.day, ...profitTotals(row), linesNoCost: num(row.nc) }));
+  return rows.map((row) => ({ day: row.day, ...profitTotals(row), linesNoCost: num(row.nc), unitType: rowUnit(row) }));
 }
 
 export type VatRow = {
@@ -661,6 +715,8 @@ export type PurchasesRow = {
   supplierId: string;
   supplierName: string;
   receiptsCount: number;
+  /** Units and returned units: pieces, grams when every line is weighed, or MIXED (W9). */
+  unitType: RowUnit;
   units: number;
   valueMinor: number;
   returnedUnits: number;
@@ -686,11 +742,14 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
       value: Big;
       returnedUnits: Big;
       returnedValue: Big;
+      anykg: boolean | null;
+      allkg: boolean | null;
     }[]
   >`
     WITH received AS (
       SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, g."supplierId",
              COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
+             BOOL_OR(p."unitType" = 'KG') AS anykg, BOOL_AND(p."unitType" = 'KG') AS allkg,
              SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qtyReceived"), col("p", "unitType"))}) AS value
       FROM "GoodsReceipt" g
       JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
@@ -700,6 +759,7 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
     ), returned AS (
       SELECT ${localDay(col("r", "returnedAt"), scope.zone)} AS day, r."supplierId",
              SUM(i."qty") AS units,
+             BOOL_OR(p."unitType" = 'KG') AS anykg, BOOL_AND(p."unitType" = 'KG') AS allkg,
              SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qty"), col("p", "unitType"))}) AS value
       FROM "PurchaseReturn" r
       JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
@@ -708,7 +768,9 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
       GROUP BY 1, 2
     )
     SELECT COALESCE(rc.day, rt.day) AS day, s."id"::text AS "supplierId", s."name" AS "supplierName",
-           rc.n, rc.units, rc.value, rt.units AS "returnedUnits", rt.value AS "returnedValue"
+           rc.n, rc.units, rc.value, rt.units AS "returnedUnits", rt.value AS "returnedValue",
+           COALESCE(rc.anykg, FALSE) OR COALESCE(rt.anykg, FALSE) AS anykg,
+           COALESCE(rc.allkg, TRUE) AND COALESCE(rt.allkg, TRUE) AS allkg
     FROM received rc
     FULL OUTER JOIN returned rt ON rt.day = rc.day AND rt."supplierId" = rc."supplierId"
     JOIN "Supplier" s ON s."orgId" = ${scope.orgId}::uuid AND s."id" = COALESCE(rc."supplierId", rt."supplierId")
@@ -721,6 +783,7 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
       supplierId: row.supplierId,
       supplierName: row.supplierName,
       receiptsCount: num(row.n),
+      unitType: rowUnit(row),
       units: num(row.units),
       valueMinor,
       returnedUnits: num(row.returnedUnits),

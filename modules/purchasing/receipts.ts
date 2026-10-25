@@ -333,6 +333,8 @@ export type DirectReceiptRow = {
   supplier: { id: string; name: string };
   note: string | null;
   units: number;
+  /** A KG line is on it: `units` adds grams to pieces (shown as "—"). */
+  weighed: boolean;
   valueMinor: number;
 };
 
@@ -370,6 +372,7 @@ export async function listDirectReceipts(
       supplier: row.supplier,
       note: row.note,
       units: row.items.reduce((total, item) => total + item.qtyReceived, 0),
+      weighed: row.items.some((item) => item.product.unitType === "KG"),
       valueMinor: row.items.reduce(
         (total, item) => total + lineMinor(item.unitCostMinor, item.qtyReceived, item.product.unitType),
         0,

@@ -68,7 +68,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
 function totalsOf(report: ReportName, rows: ReportRow[]): Record<string, number> {
   const totals: Record<string, number> = {};
   // Pieces and grams do not add up: quantity columns have no total once a row is weighed (weighed-selling-spec W9).
-  const weighed = rows.some((row) => row.unitType === "KG");
+  const weighed = rows.some((row) => row.unitType === "KG" || row.unitType === "MIXED");
   const qtyKeys = new Set(REPORT_COLUMNS[report].filter((col) => col.kind === "qty").map((col) => col.key));
   for (const key of totalledKeys(report)) {
     if (weighed && qtyKeys.has(key)) continue;
@@ -184,6 +184,7 @@ function csvValue(column: Column, row: ReportRow, report: FullReport, locale: Lo
     case "int":
       return value as number;
     case "qty":
+      if (row.unitType === "MIXED") return null;
       return row.unitType === "KG" ? trusted(formatQty(value as number, "KG", locale)) : (value as number);
     case "rate":
       return trusted(formatRateBp(value as number));

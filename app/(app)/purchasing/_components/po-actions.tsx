@@ -17,7 +17,8 @@ type Props = {
   poId: string;
   status: PoStatus;
   receivedUnits: number;
-  outstandingUnits: number;
+  /** Null on a weighed order, where units add grams to pieces. */
+  outstandingUnits: number | null;
   can: { manage: boolean; receive: boolean };
 };
 
@@ -97,7 +98,9 @@ export function PoActions({ locale, poId, status, receivedUnits, outstandingUnit
                   ? tr("purchasing.action.orderBody")
                   : open === "cancel"
                     ? tr("purchasing.action.cancelBody")
-                    : tr("purchasing.action.closeBody", { units: outstandingUnits })}
+                    : outstandingUnits === null
+                      ? tr("purchasing.action.closeBodyWeighed")
+                      : tr("purchasing.action.closeBody", { units: outstandingUnits })}
               </p>
               {open !== "order" ? (
                 <label className="field">

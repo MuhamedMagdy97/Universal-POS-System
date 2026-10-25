@@ -136,6 +136,12 @@ describe("a weighed item in reports", () => {
     expect(report.totals).not.toHaveProperty("qtySold");
     const { body } = await exportReportCsv(owner, "products", { branchId, from: today, to: today });
     expect(body).toContain("0.750 kg");
+    // Tomatoes and pens share "no category": grams and pieces in one row are MIXED, shown "—" and not totalled.
+    const byCategory = await getReport(owner, "categories", { branchId, from: today, to: today });
+    expect(byCategory.rows).toMatchObject([{ categoryId: null, unitType: "MIXED" }]);
+    expect(byCategory.totals).not.toHaveProperty("qtySold");
+    const byDay = await getReport(owner, "profit-days", { branchId, from: today, to: today });
+    expect(byDay.rows[0]).toMatchObject({ unitType: "MIXED" });
   });
 });
 

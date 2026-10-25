@@ -83,11 +83,18 @@ export function canReceive(po: PoState): boolean {
   return po.status === "ORDERED" || po.status === "PARTIALLY_RECEIVED";
 }
 
-export type PoTotals = { lineCount: number; orderedUnits: number; receivedUnits: number; totalMinor: number };
+export type PoTotals = {
+  lineCount: number;
+  orderedUnits: number;
+  receivedUnits: number;
+  totalMinor: number;
+  /** A KG line is on the order: its unit totals add grams to pieces, so screens show "—" for them. */
+  weighed: boolean;
+};
 
 /**
  * Totals from the lines (P13): value is Σ qtyOrdered × unit cost, exact in integers; a KG line is grams × cost per kg
- * ÷ 1000 (weighed-selling-spec W3). Units add pieces and grams as stored.
+ * ÷ 1000 (weighed-selling-spec W3). Units add pieces and grams as stored; `weighed` says when they mix.
  */
 export function poTotals(lines: readonly (LineQty & { unitCostMinor: number; unitType?: QtyUnit })[]): PoTotals {
   return {
@@ -95,6 +102,7 @@ export function poTotals(lines: readonly (LineQty & { unitCostMinor: number; uni
     orderedUnits: sum(lines.map((line) => line.qtyOrdered)),
     receivedUnits: sum(lines.map((line) => line.qtyReceived)),
     totalMinor: sum(lines.map((line) => lineMinor(line.unitCostMinor, line.qtyOrdered, line.unitType ?? "EACH"))),
+    weighed: lines.some((line) => line.unitType === "KG"),
   };
 }
 

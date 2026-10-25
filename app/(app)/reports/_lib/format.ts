@@ -40,6 +40,7 @@ export function cellText(column: Column, row: ReportRow, format: CellFormat): st
     case "int":
       return new Intl.NumberFormat(format.locale, { numberingSystem: "latn" }).format(value as number);
     case "qty":
+      if (row.unitType === "MIXED") return "—";
       return row.unitType === "KG"
         ? formatQty(value as number, "KG", format.locale)
         : new Intl.NumberFormat(format.locale, { numberingSystem: "latn" }).format(value as number);
