@@ -5,6 +5,7 @@ import {
   bumpQty,
   cartKey,
   setLineNote,
+  setLineStaff,
   canCharge,
   discountRaw,
   displayName,
@@ -428,5 +429,24 @@ describe("options and notes on cart lines (restaurant-cafe-spec R7-R9)", () => {
     cart = setLineNote(cart, "c|", "no sugar");
     expect(cart.map((line) => [cartKey(line), line.qty])).toEqual([["c||n:no sugar", 3]]);
     expect(setLineNote(cart, "c||n:no sugar", "   ")[0].note).toBeUndefined();
+  });
+});
+
+describe("staff on cart lines (salon-spec S4)", () => {
+  const cut = item("cut", 15_000);
+  const sara = { id: "sara", name: "Sara" };
+  const omar = { id: "omar", name: "Omar" };
+
+  it("splits one service by staff member and moves a line to another staff member, joining a twin", () => {
+    let cart = addToCart([], cut, 1, undefined, undefined, sara);
+    cart = addToCart(cart, cut, 1, undefined, undefined, omar);
+    cart = addToCart(cart, cut, 1, undefined, undefined, sara);
+    expect(cart.map((line) => [cartKey(line), line.qty, line.staffName])).toEqual([
+      ["cut||s:sara", 2, "Sara"],
+      ["cut||s:omar", 1, "Omar"],
+    ]);
+    cart = setLineStaff(cart, "cut||s:omar", sara);
+    expect(cart.map((line) => [cartKey(line), line.qty])).toEqual([["cut||s:sara", 3]]);
+    expect(setLineStaff(cart, "cut||s:sara", null)[0]).toMatchObject({ staffMemberId: undefined, qty: 3 });
   });
 });

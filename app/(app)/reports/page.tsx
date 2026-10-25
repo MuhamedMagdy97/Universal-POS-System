@@ -20,6 +20,8 @@ import {
   type ReportResult,
 } from "@/modules/reports";
 import { PrintZReportButton } from "../_components/zreport-print";
+import { orgBusinessType } from "@/modules/org";
+import { profileOf } from "@/modules/presets";
 import { cellText, csvHref, isDiscrepancy, isNumeric, reportHref, toQuickRange, toReportName } from "./_lib/format";
 
 /**
@@ -72,7 +74,11 @@ async function ReportsContent({ searchParams }: { searchParams: SearchParams }) 
   const asked = toReportName(one(params.report));
   // A report the role cannot run (purchases without purchases.manage) falls back to the default.
   const report = canRunReport(ctx, asked) ? asked : toReportName(undefined);
-  const names = REPORT_NAMES.filter((name) => canRunReport(ctx, name));
+  // Staff commission is listed for salons (salon-spec S8); elsewhere it would always be empty.
+  const salon = profileOf(await orgBusinessType(ctx.orgId)).appointments;
+  const names = REPORT_NAMES.filter(
+    (name) => canRunReport(ctx, name) && (name !== "staff-commission" || salon || report === name),
+  );
   const branch = one(params.branch);
   const [branches, settings] = await Promise.all([branchesInScope(ctx), reportSettings(ctx.orgId)]);
   const quick = toQuickRange(one(params.range));

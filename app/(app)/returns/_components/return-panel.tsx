@@ -223,11 +223,12 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                         {line.sku}
                       </span>
                       {/* Two lines of one item differ by options or note (restaurant-cafe-spec R9). */}
-                      {line.options.length > 0 || line.note ? (
+                      {line.options.length > 0 || line.note || line.staffName ? (
                         <span className="block text-sm text-muted">
                           {[
                             ...line.options.map((option) => (locale === "ar" && option.nameAr) || option.name),
                             ...(line.note ? [`“${line.note}”`] : []),
+                            ...(line.staffName ? [tr("receipt.by", { name: line.staffName })] : []),
                           ].join(" · ")}
                         </span>
                       ) : null}

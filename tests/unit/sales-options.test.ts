@@ -71,3 +71,12 @@ describe("lineKeyOf", () => {
     expect(lineKeyOf(ref, [], null)).toBe("p|");
   });
 });
+
+describe("lineKeyOf with staff (salon-spec S4)", () => {
+  const ref = { productId: "p", variantId: null };
+  it("keeps one item done by two staff members apart, and is unchanged without staff", () => {
+    expect(lineKeyOf(ref, [], null, "sara")).not.toBe(lineKeyOf(ref, [], null, "omar"));
+    expect(lineKeyOf(ref, [], null, null)).toBe("p|");
+    expect(lineKeyOf(ref, ["a"], "x", "sara")).toBe("p||o:a|n:x|s:sara");
+  });
+});

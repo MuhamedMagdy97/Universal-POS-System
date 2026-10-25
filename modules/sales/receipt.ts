@@ -62,6 +62,8 @@ export type ReceiptDoc = {
     /** Options as sold and the line note, printed under the line (restaurant-cafe-spec R13). */
     options?: OptionSnapshot[];
     note?: string | null;
+    /** "by Sara" (salon-spec S10). */
+    staffName?: string | null;
   }[];
   /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
   discountMinor: number;
@@ -145,6 +147,7 @@ export async function getReceipt(
     lineTotalMinor: item.lineTotalMinor,
     options: optionsOf(item.options),
     note: item.note,
+    staffName: item.staffName,
   }));
   const rates = (bps: number[]) => [...new Set(bps)].sort((a, b) => a - b);
 
@@ -169,6 +172,7 @@ export async function getReceipt(
         lineTotalMinor: item.amountMinor,
         options: optionsOf(source?.options ?? null),
         note: source?.note ?? null,
+        staffName: source?.staffName ?? null,
       };
     });
     doc = {

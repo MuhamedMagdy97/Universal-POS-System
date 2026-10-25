@@ -18,6 +18,7 @@ export const REPORT_NAMES = [
   "profit-products",
   "profit-categories",
   "profit-days",
+  "staff-commission",
 ] as const;
 export type ReportName = (typeof REPORT_NAMES)[number];
 

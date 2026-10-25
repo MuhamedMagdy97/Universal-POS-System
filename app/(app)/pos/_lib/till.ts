@@ -68,15 +68,26 @@ export type CartLine = TillItem & {
   note?: string;
   /** On a ticket: how much of the line went to the kitchen (R10). */
   sentQty?: number;
+  /** Who does the line (salon-spec S4). */
+  staffMemberId?: string;
+  staffName?: string;
 };
+
+/** A staff member as the till picks one (salon-spec S4). */
+export type TillStaff = { id: string; name: string };
 
 /** The item's key: stock, tiles and search results. */
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;
 
 /** A cart line's key: the item, its options and its note (R9). Equal to `lineKey` for a plain line. */
-export const cartKey = (line: { productId: string; variantId: string | null; options?: string[]; note?: string }) =>
-  lineKeyOf(line, line.options ?? [], line.note);
+export const cartKey = (line: {
+  productId: string;
+  variantId: string | null;
+  options?: string[];
+  note?: string;
+  staffMemberId?: string;
+}) => lineKeyOf(line, line.options ?? [], line.note, line.staffMemberId);
 
 /** Options picked at the till for one line (R7). */
 export type PickedOptions = { options: string[]; labels: OptionSnapshot[]; unitPriceMinor: number };
@@ -96,10 +107,14 @@ export function addToCart(
   qty = 1,
   label?: ScaleLabelLine,
   picked?: PickedOptions,
+  staff?: TillStaff | null,
 ): CartLine[] {
-  const fresh: CartLine = picked
-    ? { ...item, qty, unitPriceMinor: picked.unitPriceMinor, options: picked.options, optionLabels: picked.labels }
-    : { ...item, qty };
+  const fresh: CartLine = {
+    ...item,
+    qty,
+    ...(picked && { unitPriceMinor: picked.unitPriceMinor, options: picked.options, optionLabels: picked.labels }),
+    ...(staff && { staffMemberId: staff.id, staffName: staff.name }),
+  };
   const key = cartKey(fresh);
   if (cart.some((line) => cartKey(line) === key)) {
     return cart.map((line) => {
@@ -114,10 +129,22 @@ export function addToCart(
 
 /** Sets or clears one line's note (R8); a line that now matches another one joins it. */
 export function setLineNote(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
-  const note = raw.trim().slice(0, NOTE_MAX) || undefined;
+  return moveLine(cart, key, { note: raw.trim().slice(0, NOTE_MAX) || undefined });
+}
+
+/** Sets or clears (null) who does one line (salon-spec S4); a line that now matches another one joins it. */
+export function setLineStaff(cart: readonly CartLine[], key: string, staff: TillStaff | null): CartLine[] {
+  return moveLine(cart, key, { staffMemberId: staff?.id, staffName: staff?.name });
+}
+
+function moveLine(
+  cart: readonly CartLine[],
+  key: string,
+  patch: Pick<CartLine, "note"> | Pick<CartLine, "staffMemberId" | "staffName">,
+): CartLine[] {
   const line = cart.find((current) => cartKey(current) === key);
   if (!line) return [...cart];
-  const moved = { ...line, note };
+  const moved = { ...line, ...patch };
   const twin = cart.find((current) => current !== line && cartKey(current) === cartKey(moved));
   if (!twin) return cart.map((current) => (current === line ? moved : current));
   return cart.flatMap((current) =>

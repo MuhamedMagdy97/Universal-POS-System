@@ -31,7 +31,9 @@ import {
   cartKey,
   fromScaleLabel,
   setLineNote,
+  setLineStaff,
   type PickedOptions,
+  type TillStaff,
   bumpQty,
   canCharge,
   discountRaw,
@@ -78,6 +80,8 @@ type Props = {
   layout: TillLayout;
   /** Tables, open tickets and order types: a café (restaurant-cafe-spec R1). */
   tickets?: boolean;
+  /** Who can do a line, for a salon (salon-spec S4); empty elsewhere. */
+  staff?: TillStaff[];
   locale: Locale;
   branchId: string;
   registerId: string;
@@ -98,7 +102,17 @@ const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET:
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
  */
-export function Till({ locale, branchId, registerId, userId, settings, offline, layout, tickets = false }: Props) {
+export function Till({
+  locale,
+  branchId,
+  registerId,
+  userId,
+  settings,
+  offline,
+  layout,
+  tickets = false,
+  staff = [],
+}: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -143,6 +157,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     tickets ? { mode: "open", n: 0 } : null,
   );
   const printer = usePrinter();
+  // The staff member new lines are for (salon-spec S4).
+  const [currentStaff, setCurrentStaff] = useState<TillStaff | null>(null);
+  const staffById = (id: string) => staff.find((member) => member.id === id) ?? null;
   // The service charge (R11): on a dine-in order unless taken off this one.
   const [serviceOff, setServiceOff] = useState(false);
   const weightRef = useRef<HTMLInputElement>(null);
@@ -311,8 +328,8 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     }
     setWeighing(null);
     setPicking(null);
-    setCart((current) => addToCart(current, item, grams ?? 1, label, picked));
-    setSelectedKey(cartKey({ ...item, options: picked?.options }));
+    setCart((current) => addToCart(current, item, grams ?? 1, label, picked, currentStaff));
+    setSelectedKey(cartKey({ ...item, options: picked?.options, staffMemberId: currentStaff?.id }));
     setResults(null);
     setQuery("");
     setError(null);
@@ -558,6 +575,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         ...(line.labels ? { labels: line.labels } : {}),
         ...(line.options?.length ? { options: line.options } : {}),
         ...(line.note ? { note: line.note } : {}),
+        ...(line.staffMemberId ? { staffMemberId: line.staffMemberId } : {}),
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
@@ -649,6 +667,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                   </span>
                 ) : null}
                 {line.note ? <span className="block text-sm text-muted">“{line.note}”</span> : null}
+                {line.staff ? (
+                  <span className="block text-sm text-muted">{tr("receipt.by", { name: line.staff.name })}</span>
+                ) : null}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
               {line.unitType === "KG" ? (
@@ -778,6 +799,24 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               className="btn btn-sm"
             />
           </div>
+        ) : null}
+        {staff.length > 0 ? (
+          <label className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">{tr("pos.staff.label")}</span>
+            <select
+              className="input min-h-12"
+              value={currentStaff?.id ?? ""}
+              onChange={(e) => setCurrentStaff(staffById(e.target.value))}
+              data-testid="till-staff"
+            >
+              <option value="">{tr("pos.staff.none")}</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : null}
         <div className="flex gap-2">
           <input
@@ -939,6 +978,23 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                           <span className="badge badge-success ms-1" data-testid="line-sent">
                             {tr("pos.ticket.sent", { qty: line.sentQty })}
                           </span>
+                        ) : null}
+                        {staff.length > 0 ? (
+                          <select
+                            className="input mt-1 min-h-10 w-full"
+                            aria-label={tr("pos.staff.for", { name })}
+                            value={line.staffMemberId ?? ""}
+                            onChange={(e) =>
+                              setCart((current) => setLineStaff(current, key, staffById(e.target.value)))
+                            }
+                          >
+                            <option value="">{tr("pos.staff.none")}</option>
+                            {staff.map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name}
+                              </option>
+                            ))}
+                          </select>
                         ) : null}
                         {line.optionLabels?.length ? (
                           <span className="block text-sm text-muted">
