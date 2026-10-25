@@ -81,6 +81,10 @@ export async function loadPosContext(
         maxCashierDiscountBp: true,
         allowOfflineSales: true,
         inventorySource: true,
+        scaleLabelsEnabled: true,
+        scaleLabelPrefixes: true,
+        scaleItemDigits: true,
+        scaleValueKind: true,
       },
     }),
     db.register.findMany({
@@ -126,6 +130,12 @@ export async function loadPosContext(
       customers: {
         read: hasPermission(ctx.role, "customers.read"),
         create: hasPermission(ctx.role, "customers.create"),
+      },
+      scale: {
+        enabled: org.scaleLabelsEnabled,
+        prefixes: org.scaleLabelPrefixes,
+        itemDigits: org.scaleItemDigits,
+        valueKind: org.scaleValueKind,
       },
     },
     canOpenShift: hasPermission(ctx.role, "registers.open"),

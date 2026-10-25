@@ -31,7 +31,17 @@ export const DiscountInput = z.discriminatedUnion("kind", [
 ]);
 export type DiscountInput = z.infer<typeof DiscountInput>;
 
-export const SaleLineInput = z.object({ ref: ItemRefInput, qty: Qty, discount: DiscountInput.optional() }).strict();
+/** A price scale label on a KG line (weighed-selling-spec W6): its grams and printed total. */
+const ScaleLabelInput = z.strictObject({ grams: Qty, totalMinor: z.int().min(1).max(MAX_STORABLE_MINOR) });
+
+export const SaleLineInput = z
+  .object({
+    ref: ItemRefInput,
+    qty: Qty,
+    discount: DiscountInput.optional(),
+    labels: z.array(ScaleLabelInput).min(1).max(50).optional(),
+  })
+  .strict();
 
 const Money = z.number().int().min(0).max(MAX_STORABLE_MINOR);
 

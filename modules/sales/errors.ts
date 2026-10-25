@@ -28,6 +28,13 @@ export function invalidPayment(message: string, details: Record<string, unknown>
   return new AppError("VALIDATION_FAILED", message, { reason: "PAYMENT_MISMATCH", ...details });
 }
 
+/** Price labels that do not match the item's price per kg and their weights (weighed-selling-spec W6). */
+export function labelMismatch() {
+  return new AppError("VALIDATION_FAILED", "The scale label does not match the price per kg", {
+    reason: "LABEL_MISMATCH",
+  });
+}
+
 /** A discount bigger than the amount it comes off (discounts-spec DC3). */
 export function discountTooLarge(discountMinor: number, baseMinor: number) {
   return new AppError("VALIDATION_FAILED", "The discount is larger than the amount it comes off", {

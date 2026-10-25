@@ -512,6 +512,10 @@ export const en = {
   "pos.weight.add": "Add",
   "pos.weight.invalid": "Enter a weight in kg, up to 3 decimals (for example 0.750).",
   "pos.weight.kg": "kg",
+  "pos.label.badCheck": "This scale label did not scan correctly. Scan it again or type the weight.",
+  "pos.label.unknown": "No item has this scale label's item code. Add the prefix and code as the item's barcode.",
+  "pos.label.notWeighed": "This scale label is for an item not sold by weight.",
+  "pos.label.mismatch": "A scale label's price does not match the item's price per kg. Weigh the item again.",
   "pos.keys.hint":
     "Keys: F2 search · F4 cash · F6 line discount · F7 sale discount · F8 exact cash · F9 customer · + / − quantity of the selected line · Esc close · Enter find or charge",
   "pos.receipt.title": "Sale {number}",

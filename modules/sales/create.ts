@@ -34,7 +34,7 @@ import {
   type OfflineFlags,
 } from "./offline";
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
-import { overDiscountLimit, priceSale, settlePayments, type PricedSale } from "./totals";
+import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
 
 /**
  * Creates a sale (T6, checkout-data-model-and-api.md). One transaction: lock the org counter,
@@ -99,14 +99,25 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-type MergedLine = { ref: { productId: string; variantId: string | null }; qty: number; discount: DiscountInput | null };
+type MergedLine = {
+  ref: { productId: string; variantId: string | null };
+  qty: number;
+  discount: DiscountInput | null;
+  /** Price labels (weighed-selling-spec W6); kept on a repeated item only when every copy has them. */
+  labels?: ScaleLabelLine[];
+};
 
 /**
  * Groups repeated refs (a scanned twice) into one line, keeping first-seen order. A repeated item
  * carrying a line discount is refused: which copy the discount meant is unknown (discounts-spec DC12).
  */
 function mergeLines(
-  lines: { ref: { productId: string; variantId?: string | null }; qty: number; discount?: DiscountInput }[],
+  lines: {
+    ref: { productId: string; variantId?: string | null };
+    qty: number;
+    discount?: DiscountInput;
+    labels?: ScaleLabelLine[];
+  }[],
 ): MergedLine[] {
   const merged = new Map<string, MergedLine>();
   for (const line of lines) {
@@ -118,12 +129,15 @@ function mergeLines(
         productId: line.ref.productId,
       });
     }
-    if (existing) existing.qty += line.qty;
-    else
+    if (existing) {
+      existing.qty += line.qty;
+      existing.labels = existing.labels && line.labels ? [...existing.labels, ...line.labels] : undefined;
+    } else
       merged.set(key, {
         ref: { productId: line.ref.productId, variantId: line.ref.variantId ?? null },
         qty: line.qty,
         discount: line.discount ?? null,
+        ...(line.labels ? { labels: line.labels } : {}),
       });
   }
   return [...merged.values()];
@@ -145,6 +159,7 @@ function priceCart(
       vatApplicable: item.vatApplicable,
       unitType: item.unitType,
       discount: lines[index].discount,
+      labels: lines[index].labels,
     })),
     saleDiscount,
     org.vatRateBp,

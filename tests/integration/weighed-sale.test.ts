@@ -176,3 +176,37 @@ describe("a weighed sale built offline", () => {
     expect(row.offlineFlags).toEqual([]);
   });
 });
+
+describe("a sale from price scale labels (W6)", () => {
+  it("charges the printed totals, merges two labels of one item and refuses a label below the price", async () => {
+    // 437 g at 120.00/kg is 52.44; the scale printed 52.40. 250 g is exactly 30.00.
+    const { sale } = await createSale(
+      cashier,
+      {
+        branchId,
+        registerId,
+        lines: [
+          { ref: ref(tomatoes), qty: 437, labels: [{ grams: 437, totalMinor: 5_240 }] },
+          { ref: ref(tomatoes), qty: 250, labels: [{ grams: 250, totalMinor: 3_000 }] },
+        ],
+        payments: [{ method: "CASH", amountMinor: 8_240 }],
+      },
+      KEY(),
+    );
+    expect(sale.totalMinor).toBe(8_240);
+    const line = await db.saleItem.findFirstOrThrow({ where: { orgId, saleId: sale.id } });
+    expect(line).toMatchObject({ qty: 687, lineTotalMinor: 8_240 });
+
+    const refused = createSale(
+      cashier,
+      {
+        branchId,
+        registerId,
+        lines: [{ ref: ref(tomatoes), qty: 437, labels: [{ grams: 437, totalMinor: 5_230 }] }],
+        payments: [{ method: "CASH", amountMinor: 5_230 }],
+      },
+      KEY(),
+    );
+    await expect(refused).rejects.toMatchObject({ code: "VALIDATION_FAILED", details: { reason: "LABEL_MISMATCH" } });
+  });
+});

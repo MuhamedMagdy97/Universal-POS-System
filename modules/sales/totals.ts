@@ -1,6 +1,6 @@
 import { MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
 import { lineMinor, type QtyUnit } from "@/lib/quantity";
-import { amountTooLarge, discountTooLarge, invalidPayment } from "./errors";
+import { amountTooLarge, discountTooLarge, invalidPayment, labelMismatch } from "./errors";
 
 /**
  * Pure checkout rules (no DB): line pricing, sale totals and payment settlement.
@@ -17,10 +17,28 @@ export type PricedInput = {
   vatApplicable: boolean;
   /** Absent means EACH. A KG price is per kg (W2, W3). */
   unitType?: QtyUnit;
+  /** Price scale labels on a KG line (W6): each label's grams and printed total; the grams add up to `qty`. */
+  labels?: readonly ScaleLabelLine[];
 };
 
-/** `price × qty`, or price per kg × grams ÷ 1000 for a KG item (W3). */
-const shelfOf = (item: PricedInput) => lineMinor(item.unitPriceMinor, item.qty, item.unitType ?? "EACH");
+export type ScaleLabelLine = { grams: number; totalMinor: number };
+
+/**
+ * `price × qty`, or price per kg × grams ÷ 1000 for a KG item (W3). A KG line from price labels is what the labels
+ * say, each within half a gram's worth of price × grams (the scale rounds the weight it prints the price for), else
+ * 422 LABEL_MISMATCH: a label cannot lower the price.
+ */
+export function shelfOf(item: PricedInput): number {
+  const unitType = item.unitType ?? "EACH";
+  if (!item.labels?.length) return lineMinor(item.unitPriceMinor, item.qty, unitType);
+  const tolerance = Math.ceil(item.unitPriceMinor / 2000);
+  const fits = (label: ScaleLabelLine) =>
+    Math.abs(label.totalMinor - lineMinor(item.unitPriceMinor, label.grams, "KG")) <= tolerance;
+  if (unitType !== "KG" || sum(item.labels.map((label) => label.grams)) !== item.qty || !item.labels.every(fits)) {
+    throw labelMismatch();
+  }
+  return sum(item.labels.map((label) => label.totalMinor));
+}
 
 export type PricedLine = {
   netMinor: number;
@@ -70,7 +88,7 @@ export type Discount = { kind: "AMOUNT"; amountMinor: number } | { kind: "PERCEN
 export type SaleLineDraft = PricedInput & { discount?: Discount | null };
 
 export type PricedSaleLine = PricedLine & {
-  /** `unitPriceMinor × qty` (per kg × grams ÷ 1000 for KG), before any discount. */
+  /** `unitPriceMinor × qty` (per kg × grams ÷ 1000 for KG, or its price labels), before any discount. */
   shelfMinor: number;
   /** The line's own discount (DC3). */
   lineDiscountMinor: number;

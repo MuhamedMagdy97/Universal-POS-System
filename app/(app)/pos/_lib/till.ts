@@ -6,8 +6,15 @@ import type { ErrorBody } from "@/lib/errors";
 import type { Locale, MessageKey } from "@/lib/i18n";
 import { AppError } from "@/lib/errors";
 import { MoneyError, parseMajor, parsePercentBp, toMajorString, type CurrencyCode } from "@/lib/money";
-import { MAX_QTY, parseQtyInput, type QtyUnit } from "@/lib/quantity";
-import { overDiscountLimit, priceSale, type Discount, type PayMethod } from "@/modules/sales/totals";
+import { KG_SCALE, MAX_QTY, parseQtyInput, type QtyUnit } from "@/lib/quantity";
+import type { ScaleLabel, ScaleSettings } from "@/lib/scale-label";
+import {
+  overDiscountLimit,
+  priceSale,
+  type Discount,
+  type PayMethod,
+  type ScaleLabelLine,
+} from "@/modules/sales/totals";
 
 export type TillSettings = {
   currency: CurrencyCode;
@@ -17,6 +24,8 @@ export type TillSettings = {
   discount: { allowed: boolean; limitBp: number | null };
   /** Pick a customer (read) and quick-add one (create) at the till (customers-spec CU12). */
   customers: { read: boolean; create: boolean };
+  /** Scale labels read at this till (weighed-selling-spec W6). */
+  scale: ScaleSettings;
 };
 
 /** Offline selling at this till (offline-till-spec OF5, OF16): shop allows it, the user may enrol, a device exists. */
@@ -39,7 +48,13 @@ export type TillItem = {
 };
 
 /** `qty` is pieces, or grams on a KG line; `qtyText` is the kg the cashier is typing on a KG line. */
-export type CartLine = TillItem & { qty: number; qtyText?: string; discount?: Discount | null };
+export type CartLine = TillItem & {
+  qty: number;
+  qtyText?: string;
+  discount?: Discount | null;
+  /** Price scale labels (W6): the line is charged their printed totals. Gone once the weight is changed by hand. */
+  labels?: ScaleLabelLine[];
+};
 
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;
@@ -50,16 +65,35 @@ export function displayName(item: { name: string; nameAr: string | null }, local
 
 /**
  * Adds `qty` (one piece, or the weighed grams of a KG item); the same item again adds to its line (weighed-selling
- * W5). A line capped at `MAX_QTY` stays there.
+ * W5). A line capped at `MAX_QTY` stays there. `label` is a price label for those grams: a line keeps its labels
+ * only while everything on it came from labels.
  */
-export function addToCart(cart: readonly CartLine[], item: TillItem, qty = 1): CartLine[] {
+export function addToCart(cart: readonly CartLine[], item: TillItem, qty = 1, label?: ScaleLabelLine): CartLine[] {
   const key = lineKey(item);
   if (cart.some((line) => lineKey(line) === key)) {
-    return cart.map((line) =>
-      lineKey(line) === key ? { ...line, qty: Math.min(line.qty + qty, MAX_QTY), qtyText: undefined } : line,
-    );
+    return cart.map((line) => {
+      if (lineKey(line) !== key) return line;
+      const total = Math.min(line.qty + qty, MAX_QTY);
+      const labels = line.labels && label && total === line.qty + qty ? [...line.labels, label] : undefined;
+      return { ...line, qty: total, qtyText: undefined, labels };
+    });
   }
-  return [...cart, { ...item, qty }];
+  return [...cart, { ...item, qty, ...(label ? { labels: [label] } : {}) }];
+}
+
+/**
+ * A scanned scale label for its item → the grams to add and, for a price label, the label (W6). Null when the item
+ * is not weighed, or the weight a price works out to is out of range.
+ */
+export function fromScaleLabel(
+  label: Extract<ScaleLabel, { kind: "label" }>,
+  item: TillItem,
+): { grams: number; label?: ScaleLabelLine } | null {
+  if (item.unitType !== "KG") return null;
+  if (label.valueKind === "WEIGHT") return label.value <= MAX_QTY ? { grams: label.value } : null;
+  if (item.unitPriceMinor < 1) return null;
+  const grams = Math.round((label.value * KG_SCALE) / item.unitPriceMinor);
+  return grams >= 1 && grams <= MAX_QTY ? { grams, label: { grams, totalMinor: label.value } } : null;
 }
 
 /**
@@ -69,7 +103,12 @@ export function addToCart(cart: readonly CartLine[], item: TillItem, qty = 1): C
 export function setLineQty(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
   return cart.map((line) =>
     lineKey(line) === key
-      ? { ...line, qty: parseQtyInput(raw, line.unitType) ?? 0, qtyText: line.unitType === "KG" ? raw : undefined }
+      ? {
+          ...line,
+          qty: parseQtyInput(raw, line.unitType) ?? 0,
+          qtyText: line.unitType === "KG" ? raw : undefined,
+          labels: undefined,
+        }
       : line,
   );
 }
@@ -112,6 +151,7 @@ export function previewCart(
         vatApplicable: line.vatApplicable,
         unitType: line.unitType,
         discount: line.discount,
+        labels: line.labels,
       })),
       saleDiscount,
       settings.vatRateBp,
@@ -258,6 +298,8 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.error.tooLarge";
     case "DISCOUNT_TOO_LARGE":
       return "pos.error.discountTooLarge";
+    case "LABEL_MISMATCH":
+      return "pos.label.mismatch";
     // A shop linked to the inventory system (integration spec I17).
     case "INVENTORY_UNAVAILABLE":
       return "pos.error.inventoryUnavailable";
@@ -308,7 +350,12 @@ export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): 
   return cart.map((line) => {
     if (lineKey(line) !== key) return line;
     const step = line.unitType === "KG" ? 100 : 1;
-    return { ...line, qty: Math.min(Math.max(line.qty + delta * step, 1), MAX_QTY), qtyText: undefined };
+    return {
+      ...line,
+      qty: Math.min(Math.max(line.qty + delta * step, 1), MAX_QTY),
+      qtyText: undefined,
+      labels: undefined,
+    };
   });
 }
 

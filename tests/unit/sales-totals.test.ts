@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { priceLine, settlePayments, totalsOf } from "@/modules/sales/totals";
+import { priceLine, settlePayments, shelfOf, totalsOf } from "@/modules/sales/totals";
 
 /** Checkout pricing and payment rules (checkout-data-model-and-api.md §2–§3). Pure, no DB. */
 
@@ -118,5 +118,39 @@ describe("edge amounts", () => {
   it("refuses a sale whose total does not fit, even when each line does", () => {
     const line = priceLine({ unitPriceMinor: 1_000_000_000, qty: 1, vatApplicable: false }, 1400, true);
     expect(() => totalsOf([line, line, line])).toThrow(/too large/);
+  });
+});
+
+describe("shelfOf with price scale labels (weighed-selling-spec W6)", () => {
+  // EGP 123.45 per kg: half a gram's worth rounds up to 7 minor units.
+  const kg = { unitPriceMinor: 12_345, vatApplicable: true, unitType: "KG" as const };
+  const reason = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (err) {
+      return (err as { details?: { reason?: string } }).details?.reason;
+    }
+    return null;
+  };
+
+  it("keeps each printed total when it is within half a gram's worth of price × grams", () => {
+    // 812 g → 10,024.14; the scale printed 10,020 for its own weighing.
+    const labels = [
+      { grams: 812, totalMinor: 10_020 },
+      { grams: 500, totalMinor: 6_173 },
+    ];
+    expect(shelfOf({ ...kg, qty: 1_312, labels })).toBe(16_193);
+  });
+
+  it("refuses a label off by more, one on a piece item, or grams that do not add up", () => {
+    expect(reason(() => shelfOf({ ...kg, qty: 812, labels: [{ grams: 812, totalMinor: 10_016 }] }))).toBe(
+      "LABEL_MISMATCH",
+    );
+    expect(
+      reason(() => shelfOf({ ...kg, unitType: "EACH", qty: 812, labels: [{ grams: 812, totalMinor: 10_024 }] })),
+    ).toBe("LABEL_MISMATCH");
+    expect(reason(() => shelfOf({ ...kg, qty: 900, labels: [{ grams: 812, totalMinor: 10_024 }] }))).toBe(
+      "LABEL_MISMATCH",
+    );
   });
 });
