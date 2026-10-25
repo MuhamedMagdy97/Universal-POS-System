@@ -1,6 +1,6 @@
 # Weighed Selling (UI Refresh C): Specification
 
-Status: **Draft for the owner's review (2026-10-24).** Design approved in conversation with every choice as
+Status: **Approved by the owner (2026-10-24); built 2026-10-25 ([as built](weighed-selling-as-built.md)).** Design approved with every choice as
 recommended.
 
 Source: [overview](README.md), [business profiles as built](business-profiles-as-built.md),
