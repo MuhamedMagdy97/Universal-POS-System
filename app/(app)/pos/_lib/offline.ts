@@ -229,6 +229,7 @@ export function buildOfflineSale(input: {
       nameAr: line.nameAr,
       qty: line.qty,
       unitType: line.unitType,
+      unitPriceMinor: line.unitPriceMinor,
       discountMinor: priced.lines[index].discountMinor,
       lineTotalMinor: priced.lines[index].lineTotalMinor,
     })),

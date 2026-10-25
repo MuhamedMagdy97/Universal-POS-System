@@ -17,11 +17,6 @@ import type { useOfflineTill } from "../_lib/use-offline";
 export type DiscountDraft = { target: string | "SALE"; kind: Discount["kind"]; raw: string; invalid: boolean };
 
 /**
- * The discount box (F6 / F7): a number and a percent-or-amount switch. Enter applies, Esc cancels
- * (handled by the till's key listener), an empty box removes the discount. Not a form: the sale
- * discount opens from inside the charge form.
- */
-/**
  * The weight box (weighed-selling-spec W5): a KG item asks for its weight in kg (up to 3 decimals) before it joins the
  * cart. Enter adds, Esc or Cancel drops it. `onAdd` gets grams.
  */
@@ -97,6 +92,11 @@ export function WeightBox({
   );
 }
 
+/**
+ * The discount box (F6 / F7): a number and a percent-or-amount switch. Enter applies, Esc cancels
+ * (handled by the till's key listener), an empty box removes the discount. Not a form: the sale
+ * discount opens from inside the charge form.
+ */
 export function DiscountBox({
   locale,
   draft,

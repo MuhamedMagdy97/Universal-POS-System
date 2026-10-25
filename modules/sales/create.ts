@@ -226,6 +226,17 @@ async function sell(
       ctx.orgId,
       lines.map((line) => line.ref),
     );
+    // The inventory system's quantities are not grams yet: a kg item synced before weighed selling is refused
+    // here until the next sync marks it not sellable (weighed-selling-spec W11).
+    const weighed = items.findIndex((item) => item.unitType === "KG");
+    if (weighed >= 0) {
+      throw new AppError("VALIDATION_FAILED", "This item cannot be sold", {
+        reason: "ITEM_NOT_SELLABLE",
+        index: weighed,
+        cause: "UNIT",
+        productId: items[weighed].productId,
+      });
+    }
     if (parsed.discount || lines.some((line) => line.discount)) {
       const org = await db.organization.findUniqueOrThrow({
         where: { id: ctx.orgId },

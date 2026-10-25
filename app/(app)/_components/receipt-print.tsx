@@ -74,13 +74,28 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
             <Fragment key={index}>
               <tr>
                 <td>
-                  {locale === "ar" && line.nameAr ? line.nameAr : line.name} ×{" "}
-                  <bdi>{formatQty(line.qty, line.unitType ?? "EACH", locale)}</bdi>
+                  {locale === "ar" && line.nameAr ? line.nameAr : line.name}
+                  {line.unitType === "KG" ? null : (
+                    <>
+                      {" × "}
+                      <bdi>{line.qty}</bdi>
+                    </>
+                  )}
                 </td>
                 <td dir="ltr" className="receipt-end">
                   {money(line.lineTotalMinor)}
                 </td>
               </tr>
+              {line.unitType === "KG" ? (
+                // A weighed line: its weight and price per kg, so the customer can check it (W9).
+                <tr>
+                  <td className="receipt-indent" colSpan={2}>
+                    <bdi>
+                      {formatQty(line.qty, "KG", locale)} × {money(line.unitPriceMinor ?? 0)}
+                    </bdi>
+                  </td>
+                </tr>
+              ) : null}
               {line.discountMinor > 0 ? (
                 <tr>
                   <td className="receipt-indent">{tr("receipt.lineDiscount")}</td>

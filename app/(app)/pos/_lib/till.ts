@@ -303,7 +303,6 @@ export function stockShort(onHand: number, qty: number): boolean {
   return onHand < Math.max(qty, 1);
 }
 
-/** +/- on the selected line; the quantity never drops below 1 (use × to remove a line). */
 /** `+` / `-`: one piece, or 0.1 kg (100 g) on a KG line; never below the smallest amount (W5). */
 export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): CartLine[] {
   return cart.map((line) => {

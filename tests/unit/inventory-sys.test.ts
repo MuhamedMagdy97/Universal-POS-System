@@ -120,11 +120,18 @@ describe("mapImsProduct (spec I7–I9)", () => {
     expect(item).toMatchObject({ isActive: false, notSellableReason: reason });
   });
 
-  it("maps kg, flags rounded prices and drops unprintable barcodes", () => {
+  it("maps kg as not sellable yet, flags rounded prices and drops unprintable barcodes", () => {
     const { item, notes } = mapImsProduct(
       product({ baseUom: "kg", variants: [variant({ sellPrice: "9.995", barcode: "bad code" })] }),
     );
-    expect(item).toMatchObject({ unitType: "KG", priceMinor: 1000, barcodes: [] });
+    // The inventory system's quantities are not grams yet (weighed-selling-spec W11).
+    expect(item).toMatchObject({
+      unitType: "KG",
+      priceMinor: 1000,
+      barcodes: [],
+      isActive: false,
+      notSellableReason: "UNIT",
+    });
     expect(notes).toEqual(["PRICE_ROUNDED:COLA-330", "BARCODE_INVALID:COLA-330"]);
   });
 

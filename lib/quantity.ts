@@ -41,7 +41,7 @@ export function parseQtyInput(raw: string, unitType: QtyUnit): number | null {
 
 /** The number for an input box: `"3"`, or kg with 3 decimals (`"0.750"`). */
 export function qtyInputValue(qty: number, unitType: QtyUnit): string {
-  if (unitType === "EACH") return String(qty);
+  if (unitType !== "KG") return String(qty);
   const sign = qty < 0 ? "-" : "";
   const grams = Math.abs(qty);
   return `${sign}${Math.floor(grams / KG_SCALE)}.${String(grams % KG_SCALE).padStart(3, "0")}`;
@@ -49,6 +49,6 @@ export function qtyInputValue(qty: number, unitType: QtyUnit): string {
 
 /** A quantity for reading: `"3"`, or `"0.750 kg"` / `"0.750 كجم"` (Latin digits, as amounts are shown). */
 export function formatQty(qty: number, unitType: QtyUnit, locale: "en" | "ar"): string {
-  if (unitType === "EACH") return String(qty);
+  if (unitType !== "KG") return String(qty);
   return `${qtyInputValue(qty, unitType)} ${locale === "ar" ? "كجم" : "kg"}`;
 }

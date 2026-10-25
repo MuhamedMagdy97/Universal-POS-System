@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMoney, toMajorString } from "@/lib/money";
+import { formatQty, qtyInputValue } from "@/lib/quantity";
 import type { ReceiptDoc, SaleDetail } from "@/modules/sales";
 import type { Discount, PayMethod } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
@@ -51,7 +52,6 @@ import {
   WeightBox,
   type DiscountDraft,
 } from "./till-parts";
-import { formatQty, qtyInputValue, type QtyUnit } from "@/lib/quantity";
 
 type Props = {
   /** Scan-first or tap tiles under the scan box (business-profiles-spec BP6). */
@@ -222,6 +222,11 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       const action = tillShortcut(event.key, inField);
       if (!action) return;
       if (action === "close") {
+        if (weighing) {
+          setWeighing(null);
+          focusSearch();
+          return;
+        }
         if (discountDraft) {
           closeDiscount();
           return;
@@ -400,9 +405,16 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           {receipt.lines.map((line) => (
             <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
               <span>
-                {displayName(line, locale)} × <bdi>{formatQty(line.qty, line.unitType as QtyUnit, locale)}</bdi>
+                {displayName(line, locale)}
+                {line.unitType === "KG" ? null : ` × ${line.qty}`}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
+              {line.unitType === "KG" ? (
+                // A weighed line: its weight and price per kg (W9).
+                <bdi className="w-full ps-4 text-sm text-muted">
+                  {formatQty(line.qty, "KG", locale)} × {money(line.unitPriceMinor)}
+                </bdi>
+              ) : null}
               {line.discountMinor > 0 ? (
                 <span className="w-full ps-4 text-sm text-muted">
                   {tr("pos.discount.lineNote", { amount: money(line.discountMinor) })}
@@ -542,7 +554,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                   </span>
                   <span className="flex items-center gap-2">
                     <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} unitType={item.unitType} />
-                    <span dir="ltr">{money(item.unitPriceMinor)}</span>
+                    <span dir="ltr">
+                      {money(item.unitPriceMinor)}
+                      {item.unitType === "KG" ? <span className="text-muted">/{tr("pos.weight.kg")}</span> : null}
+                    </span>
                     <button
                       type="button"
                       onClick={() => add(item)}

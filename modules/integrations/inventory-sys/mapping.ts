@@ -85,7 +85,14 @@ export function mapImsProduct(product: ImsProduct): MapResult {
   const unitType = UNITS[product.baseUom.toLowerCase()];
   if (!unitType) notes.push(`UNIT_UNSUPPORTED:${product.baseUom}`);
   const productReason: NotSellableReason | null =
-    product.status !== "active" ? "STATUS" : product.isSerialized ? "SERIALIZED" : !unitType ? "UNIT" : null;
+    product.status !== "active"
+      ? "STATUS"
+      : product.isSerialized
+        ? "SERIALIZED"
+        : // kg: the inventory system's quantities are not grams yet (weighed-selling-spec W11).
+          !unitType || unitType === "KG"
+          ? "UNIT"
+          : null;
   const variants = product.variants.map((v) => mapVariant(v, productReason, notes));
   const base = {
     externalProductId: product.id,

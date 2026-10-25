@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@/lib/errors";
 import { normalizeDigits } from "@/lib/money";
+import { MAX_QTY } from "@/lib/quantity";
 
 /**
  * Inventory input schemas and pure rules (T4.2). No DB access.
@@ -11,8 +12,8 @@ import { normalizeDigits } from "@/lib/money";
 
 export const Uuid = z.uuid();
 
-/** Quantities are whole numbers of EACH units, 1 … 1,000,000 per line (KG is deferred). */
-export const MAX_QTY = 1_000_000;
+/** Quantities are pieces, or grams for KG (weighed-selling-spec W1), 1 … MAX_QTY per line. */
+export { MAX_QTY };
 export const Qty = z.number().int().min(1).max(MAX_QTY);
 export type Qty = z.infer<typeof Qty>;
 

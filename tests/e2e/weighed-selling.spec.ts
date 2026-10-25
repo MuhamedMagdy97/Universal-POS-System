@@ -76,7 +76,8 @@ test("a grocery sells by weight, steps the weight and refunds part of it", async
   await page.getByRole("button", { name: /^Charge/ }).click();
   const heading = page.getByRole("heading", { name: /^Sale \d{6}$/ });
   await expect(heading).toBeVisible();
-  await expect(page.getByText(/Tomatoes × 0\.850 kg/)).toBeVisible();
+  // A weighed line shows its weight and price per kg (W9).
+  await expect(page.getByText("0.850 kg × EGP 12.00")).toBeVisible();
   expect(await onHand(orgId, branchId, productId)).toBe(9_150);
   const number = ((await heading.textContent()) ?? "").replace(/\D/g, "");
 

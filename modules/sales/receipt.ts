@@ -52,6 +52,8 @@ export type ReceiptDoc = {
     /** Pieces, or grams when `unitType` is KG (printed in kg, weighed-selling-spec W9). */
     qty: number;
     unitType?: "EACH" | "KG";
+    /** Per kg for KG: a weighed line prints `0.750 kg × 120.00` (W9). */
+    unitPriceMinor?: number;
     discountMinor: number;
     lineTotalMinor: number;
   }[];
@@ -122,6 +124,7 @@ export async function getReceipt(
     nameAr: item.nameArSnapshot,
     qty: item.qty,
     unitType: item.unitType,
+    unitPriceMinor: item.unitPriceMinor,
     discountMinor: item.discountMinor,
     lineTotalMinor: item.lineTotalMinor,
   }));
@@ -143,6 +146,7 @@ export async function getReceipt(
         nameAr: source?.nameArSnapshot ?? null,
         qty: item.qty,
         unitType: source?.unitType ?? "EACH",
+        unitPriceMinor: source?.unitPriceMinor,
         discountMinor: 0,
         lineTotalMinor: item.amountMinor,
       };
