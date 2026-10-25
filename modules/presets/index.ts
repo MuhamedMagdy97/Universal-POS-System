@@ -36,6 +36,8 @@ export type BusinessPreset = {
   itemWord: ItemWord;
   /** Which dashboard tiles show, in order (BP10). */
   dashboardTiles: readonly DashboardTile[];
+  /** Tables, open tickets, order types and service charge (restaurant-cafe-spec R1). */
+  tickets: boolean;
 };
 
 export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
@@ -47,6 +49,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "scan",
     itemWord: "products",
     dashboardTiles: ["netSales", "sales", "refunds", "openShifts", "lowStock"],
+    tickets: false,
   },
   {
     id: "GROCERY",
@@ -56,6 +59,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "scan",
     itemWord: "products",
     dashboardTiles: ["netSales", "sales", "lowStock", "refunds", "openShifts"],
+    tickets: false,
   },
   {
     id: "FRUIT_VEG",
@@ -65,6 +69,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "tiles",
     itemWord: "items",
     dashboardTiles: ["netSales", "sales", "lowStock", "topItems", "openShifts"],
+    tickets: false,
   },
   {
     id: "BAKERY_BUTCHER",
@@ -74,6 +79,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "tiles",
     itemWord: "items",
     dashboardTiles: ["netSales", "sales", "topItems", "lowStock", "openShifts"],
+    tickets: false,
   },
   {
     id: "RESTAURANT_CAFE",
@@ -83,6 +89,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "tiles",
     itemWord: "menuItems",
     dashboardTiles: ["netSales", "sales", "averageTicket", "topItems", "openShifts"],
+    tickets: true,
   },
   {
     id: "SALON",
@@ -92,6 +99,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     tillLayout: "tiles",
     itemWord: "services",
     dashboardTiles: ["netSales", "sales", "averageTicket", "topItems", "openShifts"],
+    tickets: false,
   },
 ];
 

@@ -20,6 +20,7 @@ import {
   updateReceiptSettings,
   updateRegister,
   updateScaleSettings,
+  saveTables,
   updateStaff,
   type ReceiptSettings,
   type ReceiptSettingsInput,
@@ -173,6 +174,14 @@ export async function retryInventoryPostingAction(
 export async function saveBusinessTypeAction(businessType: string): Promise<ActionResult<null>> {
   return run("/settings/shop", async (ctx, meta) => {
     await updateBusinessType(ctx, { businessType }, meta);
+    return null;
+  });
+}
+
+/** Settings → Tables (restaurant-cafe-spec R3): one branch's tables. Owner and Admin. */
+export async function saveTablesAction(input: unknown): Promise<ActionResult<null>> {
+  return run("/settings/tables", async (ctx, meta) => {
+    await saveTables(ctx, input, meta);
     return null;
   });
 }

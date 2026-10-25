@@ -115,6 +115,19 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+// Restaurant and café orders (restaurant-cafe-spec R2): NULL on the sales of other shops and on older sales.
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum TicketStatus {
+  OPEN
+  PAID
+  CANCELLED
+}
+
 enum SaleStatus {
   COMPLETED
   VOIDED
@@ -281,6 +294,8 @@ model Organization {
   pricesIncludeVat     Boolean         @default(true)
   // Last issued sale number (checkout): bumped in the sale transaction, gap-free on rollback.
   lastSaleNo           Int             @default(0)
+  // Ticket numbers (restaurant-cafe-spec R4), one series per shop.
+  lastTicketNo         Int             @default(0)
   // Last issued purchase order number (T5): bumped in the PO create transaction, like lastSaleNo.
   lastPoNo             Int             @default(0)
   // Most a cashier (discounts.apply only) may take off, in basis points; 1000 = 10% (discounts-spec DC8).
@@ -313,6 +328,9 @@ model Organization {
   membershipBranches         MembershipBranch[]
   categories                 Category[]
   products                   Product[]
+  diningTables               DiningTable[]
+  tickets                    Ticket[]
+  ticketLines                TicketLine[]
   optionGroups               OptionGroup[]
   optionChoices              OptionChoice[]
   productOptionGroups        ProductOptionGroup[]
@@ -427,6 +445,8 @@ model Branch {
   goodsReceipts      GoodsReceipt[]
   purchaseReturns    PurchaseReturn[]
   sales              Sale[]
+  diningTables       DiningTable[]
+  tickets            Ticket[]
   refunds            Refund[]
   shifts             RegisterShift[]
 
@@ -580,6 +600,7 @@ model Product {
   returnItems   PurchaseReturnItem[]
   saleItems     SaleItem[]
   optionGroups  ProductOptionGroup[]
+  ticketLines   TicketLine[]
 
   @@unique([orgId, id])
   @@unique([orgId, sku])
@@ -1163,8 +1184,9 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org   Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
-  sales Sale[]
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  sales   Sale[]
+  tickets Ticket[]
 
   @@unique([orgId, id])
   @@unique([orgId, phone])
@@ -1203,6 +1225,13 @@ model Sale {
   // got it (NULL = sold online), and the review flags set at replay (PRICE_CHANGED, STOCK_NEGATIVE, ...).
   receivedAt        DateTime?
   offlineFlags      String[]   @default([])
+  // A café sale (restaurant-cafe-spec R2, R5, R13): its order type, the ticket it paid and the table's name then,
+  // and the delivery address and note as typed.
+  orderType         OrderType?
+  ticketId          String?    @db.Uuid
+  tableName         String?
+  deliveryAddress   String?
+  deliveryNote      String?
 
   org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
@@ -1222,6 +1251,78 @@ model Sale {
 }
 
 // Snapshot of product data at sale time; later price edits never touch it.
+// A branch's tables (restaurant-cafe-spec R3). Deactivated, never deleted, once a ticket used one.
+model DiningTable {
+  id        String   @id @default(uuid()) @db.Uuid
+  orgId     String   @db.Uuid
+  branchId  String   @db.Uuid
+  name      String
+  area      String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch  Branch       @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  tickets Ticket[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, branchId, name])
+}
+
+// An order not yet paid (restaurant-cafe-spec R4-R6). At most one OPEN ticket per table (partial unique index in
+// SQL). `version` goes up on every change, so a till saving over a newer ticket is refused.
+model Ticket {
+  id              String       @id @default(uuid()) @db.Uuid
+  orgId           String       @db.Uuid
+  branchId        String       @db.Uuid
+  number          Int
+  orderType       OrderType
+  tableId         String?      @db.Uuid
+  customerId      String?      @db.Uuid
+  deliveryAddress String?
+  deliveryNote    String?
+  status          TicketStatus @default(OPEN)
+  version         Int          @default(1)
+  openedById      String       @db.Uuid
+  openedAt        DateTime     @default(now())
+  closedAt        DateTime?
+  saleId          String?      @db.Uuid
+  cancelReason    String?
+  updatedAt       DateTime     @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branch   Branch       @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+  table    DiningTable? @relation(fields: [orgId, tableId], references: [orgId, id], onDelete: Restrict)
+  customer Customer?    @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
+  lines    TicketLine[]
+
+  @@unique([orgId, id])
+  @@unique([orgId, number])
+  @@index([orgId, branchId, status])
+}
+
+// A ticket's line: replaced while unsent; `sentAt` once it went to the kitchen (R10).
+model TicketLine {
+  id        String    @id @default(uuid()) @db.Uuid
+  orgId     String    @db.Uuid
+  ticketId  String    @db.Uuid
+  productId String    @db.Uuid
+  variantId String?   @db.Uuid
+  qty       Int
+  options   String[]  @default([])
+  note      String?
+  sentAt    DateTime?
+  sortOrder Int       @default(0)
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  ticket  Ticket       @relation(fields: [orgId, ticketId], references: [orgId, id], onDelete: Cascade)
+  product Product      @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Restrict)
+
+  @@index([orgId, ticketId])
+}
+
 model SaleItem {
   id             String   @id @default(uuid()) @db.Uuid
   orgId          String   @db.Uuid

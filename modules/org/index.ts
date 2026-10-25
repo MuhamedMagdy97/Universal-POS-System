@@ -31,3 +31,4 @@ export {
 } from "./offline";
 export { BusinessTypeInput, getBusinessType, orgBusinessType, updateBusinessType } from "./business";
 export { getScaleSettings, ScaleSettingsInput, updateScaleSettings } from "./scale";
+export { listTables, saveTables, SaveTablesInput, type DiningTableRow } from "./tables";

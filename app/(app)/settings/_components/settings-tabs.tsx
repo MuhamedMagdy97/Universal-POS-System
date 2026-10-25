@@ -10,16 +10,18 @@ const TABS = [
   { href: "/settings/receipt", label: "settings.tab.receipt" },
   { href: "/settings/staff", label: "settings.tab.staff" },
   { href: "/settings/branches", label: "settings.tab.branches" },
+  { href: "/settings/tables", label: "settings.tab.tables" },
   { href: "/settings/inventory", label: "settings.tab.inventory" },
   { href: "/settings/offline", label: "settings.tab.offline" },
 ] as const;
 
-export function SettingsTabs() {
+/** `tables`: the shop is a café (restaurant-cafe-spec R1, R3). */
+export function SettingsTabs({ tables = false }: { tables?: boolean }) {
   const tr = translator(useClientLocale());
   const pathname = usePathname();
   return (
-    <nav aria-label={tr("settings.nav")} className="flex gap-4 border-b border-border">
-      {TABS.map((tab) => (
+    <nav aria-label={tr("settings.nav")} className="flex flex-wrap gap-4 border-b border-border">
+      {TABS.filter((tab) => tables || tab.href !== "/settings/tables").map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}

@@ -1,12 +1,22 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { currentProfile } from "../_lib/business";
 import { SettingsTabs } from "./_components/settings-tabs";
 
-/** Settings menu (onboarding O13): Receipt, Staff, Branches, Inventory system (Phase 13). Each page checks its own permission. */
+/**
+ * Settings menu (onboarding O13): Shop, Receipt, Staff, Branches, Tables (cafés, restaurant-cafe-spec R3), Inventory
+ * system (Phase 13), Offline. Each page checks its own permission.
+ */
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4">
-      <SettingsTabs />
+      <Suspense fallback={<SettingsTabs />}>
+        <ProfileTabs />
+      </Suspense>
       {children}
     </div>
   );
+}
+
+async function ProfileTabs() {
+  return <SettingsTabs tables={(await currentProfile())?.tickets ?? false} />;
 }
