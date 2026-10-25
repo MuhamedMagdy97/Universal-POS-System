@@ -1299,6 +1299,18 @@ export const ar: Messages = {
   "settings.shop.saved": "تم الحفظ",
   "settings.shop.error": "تعذر الحفظ. حاول مرة أخرى.",
   "settings.tab.tables": "الطاولات",
+  "settings.tab.team": "فريق العمل",
+  "settings.team.title": "فريق العمل",
+  "settings.team.intro":
+    "من يؤدون الخدمات، والفروع التي يعملون بها، وعمولتهم. لا يحتاجون لتسجيل الدخول. من يغادر يصبح غير نشط، وتبقى أسماؤهم على المبيعات السابقة.",
+  "settings.team.notSalon": "فريق العمل للصالونات. غيّر نوع النشاط من الإعدادات ← المتجر.",
+  "settings.team.none": "لا يوجد أحد في الفريق بعد.",
+  "settings.team.new": "إضافة شخص",
+  "settings.team.add": "إضافة",
+  "settings.team.commission": "العمولة %",
+  "settings.team.branches": "يعمل في",
+  "settings.team.active": "نشط",
+  "settings.team.invalid": "أدخل الاسم وعمولة من 0 إلى 100 وفرعًا واحدًا على الأقل.",
   "settings.tables.title": "الطاولات",
   "settings.tables.intro":
     "طاولات كل فرع كما تظهر في نقطة البيع. جمّعها حسب المنطقة مثل التراس. تبقى الطاولة المحذوفة على طلباتها القديمة.",

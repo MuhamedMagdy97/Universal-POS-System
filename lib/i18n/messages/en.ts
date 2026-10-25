@@ -1313,6 +1313,19 @@ export const en = {
   "settings.shop.saved": "Saved",
   "settings.shop.error": "Could not save. Try again.",
   "settings.tab.tables": "Tables",
+  "settings.tab.team": "Team",
+  "settings.team.title": "Team",
+  "settings.team.intro":
+    "The people who do the services, the branches they work in and their commission. They do not need to sign in. Someone who leaves is set inactive; past sales keep their name.",
+  "settings.team.notSalon":
+    "The team is for barbershops and beauty salons. Change the kind of business in Settings → Shop.",
+  "settings.team.none": "No one in the team yet.",
+  "settings.team.new": "Add someone",
+  "settings.team.add": "Add",
+  "settings.team.commission": "Commission %",
+  "settings.team.branches": "Works in",
+  "settings.team.active": "Active",
+  "settings.team.invalid": "Give a name, a commission from 0 to 100 and at least one branch.",
   "settings.tables.title": "Tables",
   "settings.tables.intro":
     "The tables of each branch, as the till shows them. Group them by area, such as Terrace. A removed table stays on its old tickets.",
