@@ -8,6 +8,9 @@ import { AppError } from "@/lib/errors";
 import { MoneyError, parseMajor, parsePercentBp, toMajorString, type CurrencyCode } from "@/lib/money";
 import { KG_SCALE, MAX_QTY, parseQtyInput, type QtyUnit } from "@/lib/quantity";
 import type { ScaleLabel, ScaleSettings } from "@/lib/scale-label";
+import type { OptionGroupView } from "@/modules/catalog/schemas";
+import { lineKeyOf, type OptionSnapshot } from "@/modules/sales/options";
+import { NOTE_MAX } from "@/modules/sales/schemas";
 import {
   overDiscountLimit,
   priceSale,
@@ -45,6 +48,8 @@ export type TillItem = {
   unitPriceMinor: number;
   vatApplicable: boolean;
   unitType: QtyUnit;
+  /** Option groups to pick from (restaurant-cafe-spec R7); absent when the item has none. */
+  optionGroups?: OptionGroupView[];
 };
 
 /** `qty` is pieces, or grams on a KG line; `qtyText` is the kg the cashier is typing on a KG line. */
@@ -54,10 +59,23 @@ export type CartLine = TillItem & {
   discount?: Discount | null;
   /** Price scale labels (W6): the line is charged their printed totals. Gone once the weight is changed by hand. */
   labels?: ScaleLabelLine[];
+  /** Chosen option ids and their labels (restaurant-cafe-spec R7); `unitPriceMinor` already includes them. */
+  options?: string[];
+  optionLabels?: OptionSnapshot[];
+  /** The line note (R8), up to 140 characters. */
+  note?: string;
 };
 
+/** The item's key: stock, tiles and search results. */
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;
+
+/** A cart line's key: the item, its options and its note (R9). Equal to `lineKey` for a plain line. */
+export const cartKey = (line: { productId: string; variantId: string | null; options?: string[]; note?: string }) =>
+  lineKeyOf(line, line.options ?? [], line.note);
+
+/** Options picked at the till for one line (R7). */
+export type PickedOptions = { options: string[]; labels: OptionSnapshot[]; unitPriceMinor: number };
 
 export function displayName(item: { name: string; nameAr: string | null }, locale: Locale): string {
   return locale === "ar" && item.nameAr ? item.nameAr : item.name;
@@ -68,17 +86,43 @@ export function displayName(item: { name: string; nameAr: string | null }, local
  * W5). A line capped at `MAX_QTY` stays there. `label` is a price label for those grams: a line keeps its labels
  * only while everything on it came from labels.
  */
-export function addToCart(cart: readonly CartLine[], item: TillItem, qty = 1, label?: ScaleLabelLine): CartLine[] {
-  const key = lineKey(item);
-  if (cart.some((line) => lineKey(line) === key)) {
+export function addToCart(
+  cart: readonly CartLine[],
+  item: TillItem,
+  qty = 1,
+  label?: ScaleLabelLine,
+  picked?: PickedOptions,
+): CartLine[] {
+  const fresh: CartLine = picked
+    ? { ...item, qty, unitPriceMinor: picked.unitPriceMinor, options: picked.options, optionLabels: picked.labels }
+    : { ...item, qty };
+  const key = cartKey(fresh);
+  if (cart.some((line) => cartKey(line) === key)) {
     return cart.map((line) => {
-      if (lineKey(line) !== key) return line;
+      if (cartKey(line) !== key) return line;
       const total = Math.min(line.qty + qty, MAX_QTY);
       const labels = line.labels && label && total === line.qty + qty ? [...line.labels, label] : undefined;
       return { ...line, qty: total, qtyText: undefined, labels };
     });
   }
-  return [...cart, { ...item, qty, ...(label ? { labels: [label] } : {}) }];
+  return [...cart, { ...fresh, ...(label ? { labels: [label] } : {}) }];
+}
+
+/** Sets or clears one line's note (R8); a line that now matches another one joins it. */
+export function setLineNote(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
+  const note = raw.trim().slice(0, NOTE_MAX) || undefined;
+  const line = cart.find((current) => cartKey(current) === key);
+  if (!line) return [...cart];
+  const moved = { ...line, note };
+  const twin = cart.find((current) => current !== line && cartKey(current) === cartKey(moved));
+  if (!twin) return cart.map((current) => (current === line ? moved : current));
+  return cart.flatMap((current) =>
+    current === line
+      ? []
+      : current === twin
+        ? [{ ...twin, qty: Math.min(twin.qty + line.qty, MAX_QTY), qtyText: undefined }]
+        : [current],
+  );
 }
 
 /**
@@ -102,7 +146,7 @@ export function fromScaleLabel(
  */
 export function setLineQty(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
   return cart.map((line) =>
-    lineKey(line) === key
+    cartKey(line) === key
       ? {
           ...line,
           qty: parseQtyInput(raw, line.unitType) ?? 0,
@@ -114,12 +158,12 @@ export function setLineQty(cart: readonly CartLine[], key: string, raw: string):
 }
 
 export function removeLine(cart: readonly CartLine[], key: string): CartLine[] {
-  return cart.filter((line) => lineKey(line) !== key);
+  return cart.filter((line) => cartKey(line) !== key);
 }
 
 /** Sets or clears (null) one line's discount. */
 export function setLineDiscount(cart: readonly CartLine[], key: string, discount: Discount | null): CartLine[] {
-  return cart.map((line) => (lineKey(line) === key ? { ...line, discount } : line));
+  return cart.map((line) => (cartKey(line) === key ? { ...line, discount } : line));
 }
 
 export type CartPreview =
@@ -160,8 +204,8 @@ export function previewCart(
     const lineTotals: Record<string, number> = {};
     const lineDiscounts: Record<string, number> = {};
     cart.forEach((line, index) => {
-      lineTotals[lineKey(line)] = sale.lines[index].lineTotalMinor;
-      lineDiscounts[lineKey(line)] = sale.lines[index].discountMinor;
+      lineTotals[cartKey(line)] = sale.lines[index].lineTotalMinor;
+      lineDiscounts[cartKey(line)] = sale.lines[index].discountMinor;
     });
     const { limitBp } = settings.discount;
     return {
@@ -348,7 +392,7 @@ export function stockShort(onHand: number, qty: number): boolean {
 /** `+` / `-`: one piece, or 0.1 kg (100 g) on a KG line; never below the smallest amount (W5). */
 export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): CartLine[] {
   return cart.map((line) => {
-    if (lineKey(line) !== key) return line;
+    if (cartKey(line) !== key) return line;
     const step = line.unitType === "KG" ? 100 : 1;
     return {
       ...line,

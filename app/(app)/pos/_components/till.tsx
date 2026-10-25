@@ -15,7 +15,10 @@ import { createSaleAction, tillStockAction } from "../actions";
 import { CustomerPicker } from "./customer-picker";
 import {
   addToCart,
+  cartKey,
   fromScaleLabel,
+  setLineNote,
+  type PickedOptions,
   bumpQty,
   canCharge,
   discountRaw,
@@ -45,6 +48,7 @@ import { useOfflineTill } from "../_lib/use-offline";
 import { Icon } from "@/app/_ui/icons";
 import type { TillLayout } from "@/modules/presets";
 import { TilePanel } from "./tile-panel";
+import { OptionsPicker } from "./options-picker";
 import {
   DiscountBox,
   ExactCashButton,
@@ -113,6 +117,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
   // A KG item waiting for its weight (weighed-selling-spec W5).
   const [weighing, setWeighing] = useState<TillItem | null>(null);
+  // An item with option groups waiting for its options (restaurant-cafe-spec R7), and the line whose note is open.
+  const [picking, setPicking] = useState<TillItem | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
@@ -142,10 +149,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         });
   const ready = canCharge(cart, preview, plan) && !pending;
   const selected =
-    selectedKey && cart.some((line) => lineKey(line) === selectedKey)
+    selectedKey && cart.some((line) => cartKey(line) === selectedKey)
       ? selectedKey
       : cart.length > 0
-        ? lineKey(cart[cart.length - 1])
+        ? cartKey(cart[cart.length - 1])
         : null;
 
   function focusSearch() {
@@ -173,7 +180,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   /** Opens the discount box (F6 line, F7 sale) on what is set now. */
   function openDiscount(target: string | "SALE") {
     if (!settings.discount.allowed || cart.length === 0) return;
-    const current = target === "SALE" ? saleDiscount : cart.find((line) => lineKey(line) === target)?.discount;
+    const current = target === "SALE" ? saleDiscount : cart.find((line) => cartKey(line) === target)?.discount;
     setDiscountDraft({
       target,
       kind: current?.kind ?? "PERCENT",
@@ -262,17 +269,19 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
    * `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. A KG item asks for its
    * weight first (weighed-selling-spec W5); `grams` is that weight.
    */
-  function add(item: TillItem, refocus = true, grams?: number, label?: ScaleLabelLine) {
-    if (item.unitType === "KG" && grams === undefined) {
-      setWeighing(item);
+  function add(item: TillItem, refocus = true, grams?: number, label?: ScaleLabelLine, picked?: PickedOptions) {
+    if ((item.unitType === "KG" && grams === undefined) || (item.optionGroups?.length && !picked)) {
+      if (item.unitType === "KG") setWeighing(item);
+      else setPicking(item);
       setResults(null);
       setQuery("");
       setError(null);
       return;
     }
     setWeighing(null);
-    setCart((current) => addToCart(current, item, grams ?? 1, label));
-    setSelectedKey(lineKey(item));
+    setPicking(null);
+    setCart((current) => addToCart(current, item, grams ?? 1, label, picked));
+    setSelectedKey(cartKey({ ...item, options: picked?.options }));
     setResults(null);
     setQuery("");
     setError(null);
@@ -403,6 +412,8 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         qty: line.qty,
         ...(line.discount ? { discount: line.discount } : {}),
         ...(line.labels ? { labels: line.labels } : {}),
+        ...(line.options?.length ? { options: line.options } : {}),
+        ...(line.note ? { note: line.note } : {}),
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
@@ -467,11 +478,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           </p>
         ) : null}
         <ul className="flex flex-col gap-1">
-          {receipt.lines.map((line) => (
-            <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
+          {receipt.lines.map((line, index) => (
+            <li key={index} className="flex flex-wrap justify-between gap-x-4">
               <span>
                 {displayName(line, locale)}
                 {line.unitType === "KG" ? null : ` × ${line.qty}`}
+                {line.options.length > 0 ? (
+                  <span className="block text-sm text-muted">
+                    {line.options.map((option) => (locale === "ar" && option.nameAr) || option.name).join(" · ")}
+                  </span>
+                ) : null}
+                {line.note ? <span className="block text-sm text-muted">“{line.note}”</span> : null}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
               {line.unitType === "KG" ? (
@@ -654,6 +671,20 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           />
         ) : null}
 
+        {picking ? (
+          <OptionsPicker
+            key={lineKey(picking)}
+            locale={locale}
+            item={picking}
+            money={money}
+            onAdd={(picked) => add(picking, true, undefined, undefined, picked)}
+            onCancel={() => {
+              setPicking(null);
+              focusSearch();
+            }}
+          />
+        ) : null}
+
         {layout === "tiles" ? (
           <TilePanel
             locale={locale}
@@ -686,7 +717,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               </thead>
               <tbody>
                 {cart.map((line) => {
-                  const key = lineKey(line);
+                  const key = cartKey(line);
                   const name = displayName(line, locale);
                   return (
                     <tr
@@ -699,7 +730,48 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                         <span dir="ltr" className="text-muted">
                           {line.sku}
                         </span>
-                        <StockNote locale={locale} onHand={stock[key]} qty={line.qty} unitType={line.unitType} block />
+                        <StockNote
+                          locale={locale}
+                          onHand={stock[lineKey(line)]}
+                          qty={line.qty}
+                          unitType={line.unitType}
+                          block
+                        />
+                        {line.optionLabels?.length ? (
+                          <span className="block text-sm text-muted">
+                            {line.optionLabels
+                              .map((option) => (locale === "ar" && option.nameAr) || option.name)
+                              .join(" · ")}
+                          </span>
+                        ) : null}
+                        {noteFor === key ? (
+                          <input
+                            autoFocus
+                            className="input mt-1 min-h-10 w-full"
+                            maxLength={140}
+                            aria-label={tr("pos.note.for", { name })}
+                            defaultValue={line.note ?? ""}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") setNoteFor(null);
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                const value = event.currentTarget.value;
+                                setCart((current) => setLineNote(current, key, value));
+                                setNoteFor(null);
+                                focusSearch();
+                              }
+                            }}
+                            onBlur={(event) => {
+                              const value = event.currentTarget.value;
+                              setCart((current) => setLineNote(current, key, value));
+                              setNoteFor(null);
+                            }}
+                          />
+                        ) : line.note ? (
+                          <span className="block text-sm" data-testid="line-note">
+                            “{line.note}”
+                          </span>
+                        ) : null}
                         {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
                           <span className="block text-sm text-muted" data-testid="line-discount">
                             {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
@@ -752,6 +824,14 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                         ) : null}
                         <button
                           type="button"
+                          onClick={() => setNoteFor(key)}
+                          aria-label={tr("pos.note.add", { name })}
+                          className="btn btn-sm me-1"
+                        >
+                          {tr("pos.note.button")}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setCart((current) => removeLine(current, key))}
                           aria-label={tr("pos.cart.remove", { name })}
                           className="btn btn-sm"
@@ -777,7 +857,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               discountDraft.target === "SALE"
                 ? tr("pos.discount.titleSale")
                 : tr("pos.discount.titleLine", {
-                    name: displayName(cart.find((line) => lineKey(line) === discountDraft.target) ?? cart[0], locale),
+                    name: displayName(cart.find((line) => cartKey(line) === discountDraft.target) ?? cart[0], locale),
                   })
             }
             onChange={setDiscountDraft}

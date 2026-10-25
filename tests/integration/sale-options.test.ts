@@ -3,8 +3,12 @@ import type { Db } from "@/lib/db";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { createOptionGroup, setProductOptionGroups, type OptionGroupDetail } from "@/modules/catalog";
 import * as inventory from "@/modules/inventory";
+import { enrolOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { openShift } from "@/modules/registers";
-import { createSale, getReceipt, getSaleForReturns, refundSale } from "@/modules/sales";
+import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
+import { addToCart } from "@/app/(app)/pos/_lib/till";
+import { resolveOptions } from "@/modules/sales/options";
+import { createSale, getReceipt, getSaleForReturns, getTillSnapshot, refundSale } from "@/modules/sales";
 import { createMember, createProduct, createTenant, expectAppError, expectReconciled, testDb } from "./helpers";
 
 /**
@@ -142,5 +146,40 @@ describe("options on a sale", () => {
       "OPTIONS_INVALID",
     );
     await expect(sell([{ ref: ref(croissant), qty: 1, note: "x".repeat(141) }], 2_000)).rejects.toThrow();
+  });
+});
+
+describe("options on an offline sale", () => {
+  it("are on the snapshot, priced on the device and the same on replay", async () => {
+    await updateOfflineSettings(owner, { allowOfflineSales: true });
+    const enrolled = await enrolOfflineDevice(owner, registerId);
+    const snap = await getTillSnapshot(cashier, branchId, registerId, null);
+    const [found] = searchSnapshot(snap.items, "OPT-COFFEE");
+    expect(found.optionGroups?.map((group) => group.name)).toEqual(["Size", "Extras"]);
+    const options = [choice(size, "Large")];
+    const { unitPriceMinor, snapshot } = resolveOptions(found, options);
+    const cart = addToCart([], found, 2, undefined, { options, labels: snapshot, unitPriceMinor });
+    const body = {
+      branchId,
+      registerId,
+      lines: [{ ref: ref(coffee), qty: 2, options, note: "to go" }],
+      payments: [{ method: "CASH" as const, amountMinor: 7_000 }],
+    };
+    const built = buildOfflineSale({
+      body,
+      cart: cart.map((line) => ({ ...line, note: "to go" })),
+      saleDiscount: null,
+      plan: { payments: body.payments, changeMinor: 0 },
+      snapshot: snap,
+      device: enrolled,
+      seq: enrolled.lastOfflineSaleNo + 1,
+      soldAt: new Date(),
+    });
+    expect(built.receipt.totalMinor).toBe(7_000);
+    expect(built.receipt.lines[0]).toMatchObject({ note: "to go", options: [{ name: "Large" }] });
+    const { sale } = await createSale(cashier, built.body, KEY());
+    expect(sale.lines).toMatchObject([{ qty: 2, unitPriceMinor: 3_500, note: "to go" }]);
+    const row = await db.sale.findUniqueOrThrow({ where: { id: sale.id }, select: { offlineFlags: true } });
+    expect(row.offlineFlags).toEqual([]);
   });
 });
