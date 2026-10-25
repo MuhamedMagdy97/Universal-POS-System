@@ -8,7 +8,7 @@ import { openShift } from "@/modules/registers";
 import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
 import { addToCart } from "@/app/(app)/pos/_lib/till";
 import { resolveOptions } from "@/modules/sales/options";
-import { createSale, getReceipt, getSaleForReturns, getTillSnapshot, refundSale } from "@/modules/sales";
+import { createSale, getReceipt, getSaleForReturns, getTillSnapshot, refundSale, voidSale } from "@/modules/sales";
 import { createMember, createProduct, createTenant, expectAppError, expectReconciled, testDb } from "./helpers";
 
 /**
@@ -146,6 +146,33 @@ describe("options on a sale", () => {
       "OPTIONS_INVALID",
     );
     await expect(sell([{ ref: ref(croissant), qty: 1, note: "x".repeat(141) }], 2_000)).rejects.toThrow();
+  });
+});
+
+describe("two option lines of one item after the sale", () => {
+  it("refund together in one refund and void together, moving stock once", async () => {
+    const two = () =>
+      sell(
+        [
+          { ref: ref(coffee), qty: 1, options: [choice(size, "Large")] },
+          { ref: ref(coffee), qty: 1, options: [choice(size, "Regular")] },
+        ],
+        6_500,
+      );
+    const before = await onHand(coffee);
+    const { sale } = await two();
+    const view = await getSaleForReturns(owner, sale.number);
+    const { refund } = await refundSale(owner, sale.id, KEY(), {
+      lines: view.lines.map((line) => ({ saleItemId: line.saleItemId, qty: 1 })),
+      method: "CASH",
+      reason: "Wrong order",
+    });
+    expect(refund.totalMinor).toBe(6_500);
+    expect(await onHand(coffee)).toBe(before);
+
+    const voided = (await two()).sale;
+    await voidSale(owner, voided.id, { reason: "Rang twice" });
+    expect(await onHand(coffee)).toBe(before);
   });
 });
 

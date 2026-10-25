@@ -14,6 +14,7 @@ import { isUniqueViolation, requireBranch, requirePermission, requireRegister } 
 import { loadSale, requestHashOf, type SaleDetail } from "./create";
 import { salesConflict } from "./errors";
 import { IdempotencyKey, RefundInput, VoidInput } from "./schemas";
+import { stockLinesOf } from "./options";
 
 /**
  * Refunds of some lines of a completed sale and voids of whole sales (T8, returns-void-spec.md).
@@ -131,7 +132,9 @@ export async function voidSale(
         refType: "Sale",
         refId: saleId,
         policy: "allow",
-        lines: items.map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
+        lines: stockLinesOf(
+          items.map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
+        ),
       });
     }
     await tx.sale.update({
@@ -275,10 +278,12 @@ async function writeRefund(
       refType: "Refund",
       refId: refund.id,
       policy: "allow",
-      lines: lines.map((line) => {
-        const item = byId.get(line.saleItemId) as (typeof items)[number];
-        return { ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty };
-      }),
+      lines: stockLinesOf(
+        lines.map((line) => {
+          const item = byId.get(line.saleItemId) as (typeof items)[number];
+          return { ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty };
+        }),
+      ),
     });
   }
   await record(tx, {

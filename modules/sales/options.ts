@@ -65,3 +65,20 @@ export function lineKeyOf(
   const options = optionIds.length > 0 ? `|o:${[...optionIds].sort().join(",")}` : "";
   return `${base}${options}${note ? `|n:${note}` : ""}`;
 }
+
+type ItemRef = { productId: string; variantId: string | null };
+
+/**
+ * Stock moves once per item (R9): lines of one item with different options or notes are one movement, their
+ * quantities added up, in first-seen order. The stock ledger refuses an item twice in one movement.
+ */
+export function stockLinesOf(lines: readonly { ref: ItemRef; qty: number }[]): { ref: ItemRef; qty: number }[] {
+  const byRef = new Map<string, { ref: ItemRef; qty: number }>();
+  for (const line of lines) {
+    const key = lineKeyOf(line.ref, [], null);
+    const current = byRef.get(key);
+    if (current) current.qty += line.qty;
+    else byRef.set(key, { ref: line.ref, qty: line.qty });
+  }
+  return [...byRef.values()];
+}

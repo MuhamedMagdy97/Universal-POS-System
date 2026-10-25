@@ -35,7 +35,7 @@ import {
 } from "./offline";
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
-import { lineKeyOf, resolveOptions, type OptionSnapshot } from "./options";
+import { lineKeyOf, resolveOptions, stockLinesOf, type OptionSnapshot } from "./options";
 import { NOTE_MAX } from "./schemas";
 
 /**
@@ -177,18 +177,6 @@ function withOptions<T extends SellableItem>(
     items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
     options: resolved.map((result) => result.snapshot),
   };
-}
-
-/** Stock moves once per item (R9): the quantities of its lines added up, in first-seen order. */
-function stockLines(lines: readonly MergedLine[]): { ref: MergedLine["ref"]; qty: number }[] {
-  const byRef = new Map<string, { ref: MergedLine["ref"]; qty: number }>();
-  for (const line of lines) {
-    const key = lineKeyOf(line.ref, [], null);
-    const current = byRef.get(key);
-    if (current) current.qty += line.qty;
-    else byRef.set(key, { ref: line.ref, qty: line.qty });
-  }
-  return [...byRef.values()];
 }
 
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
@@ -457,7 +445,7 @@ async function writeSale(
       // An offline sale already left the shop: it may take stock below zero (OF13).
       policy: org.blockNegativeStock && !offline ? "block" : "allow",
       allowArchived: offline !== null,
-      lines: stockLines(lines),
+      lines: stockLinesOf(lines),
     });
     const itemOf = (ref: MergedLine["ref"]) =>
       items[lines.findIndex((line) => lineKeyOf(line.ref, [], null) === lineKeyOf(ref, [], null))];
