@@ -26,6 +26,8 @@ export type SalesSummaryRow = {
   grossMinor: number;
   vatMinor: number;
   netMinor: number;
+  /** Service charge on the day's sales less what refunds gave back (restaurant-cafe-spec R11); inside `grossMinor`. */
+  serviceChargeMinor: number;
   refundsCount: number;
   refundsMinor: number;
   voidsCount: number;
@@ -35,16 +37,31 @@ export type SalesSummaryRow = {
 
 export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[]> {
   const rows = await getDb().$queryRaw<
-    { day: string; sn: Big; sd: Big; sg: Big; sv: Big; snet: Big; rn: Big; ra: Big; vn: Big; va: Big }[]
+    {
+      day: string;
+      sn: Big;
+      sd: Big;
+      sg: Big;
+      sv: Big;
+      snet: Big;
+      ssc: Big;
+      rn: Big;
+      ra: Big;
+      rsc: Big;
+      vn: Big;
+      va: Big;
+    }[]
   >`
     WITH s AS (
       SELECT ${localDay(col("s", "createdAt"), scope.zone)} AS day, COUNT(*) AS n, SUM(s."totalMinor") AS gross,
-             SUM(s."discountMinor") AS disc, SUM(s."vatMinor") AS vat, SUM(s."subtotalMinor") AS net
+             SUM(s."discountMinor") AS disc, SUM(s."vatMinor") AS vat, SUM(s."subtotalMinor") AS net,
+             SUM(s."serviceChargeMinor") AS service
       FROM "Sale" s
       WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
       GROUP BY 1
     ), r AS (
-      SELECT ${localDay(col("r", "createdAt"), scope.zone)} AS day, COUNT(*) AS n, SUM(r."totalMinor") AS amount
+      SELECT ${localDay(col("r", "createdAt"), scope.zone)} AS day, COUNT(*) AS n, SUM(r."totalMinor") AS amount,
+             SUM(r."serviceChargeMinor") AS service
       FROM "Refund" r
       WHERE ${inScope("r", scope)} AND ${inRange(col("r", "createdAt"), scope)}
       GROUP BY 1
@@ -54,7 +71,8 @@ export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[
       WHERE ${inScope("s", scope)} AND s."status" = 'VOIDED' AND ${inRange(col("s", "voidedAt"), scope)}
       GROUP BY 1
     ), days AS (SELECT day FROM s UNION SELECT day FROM r UNION SELECT day FROM v)
-    SELECT d.day, s.n AS sn, s.disc AS sd, s.gross AS sg, s.vat AS sv, s.net AS snet, r.n AS rn, r.amount AS ra, v.n AS vn, v.amount AS va
+    SELECT d.day, s.n AS sn, s.disc AS sd, s.gross AS sg, s.vat AS sv, s.net AS snet, s.service AS ssc,
+           r.n AS rn, r.amount AS ra, r.service AS rsc, v.n AS vn, v.amount AS va
     FROM days d LEFT JOIN s USING (day) LEFT JOIN r USING (day) LEFT JOIN v USING (day)
     ORDER BY d.day`;
   return rows.map((row) => {
@@ -67,6 +85,7 @@ export async function salesSummary(scope: ReportScope): Promise<SalesSummaryRow[
       grossMinor,
       vatMinor: num(row.sv),
       netMinor: num(row.snet),
+      serviceChargeMinor: num(row.ssc) - num(row.rsc),
       refundsCount: num(row.rn),
       refundsMinor,
       voidsCount: num(row.vn),

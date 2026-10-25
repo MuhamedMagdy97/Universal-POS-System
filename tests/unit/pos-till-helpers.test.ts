@@ -86,6 +86,7 @@ describe("previewCart", () => {
       lineTotals: { "a|": 2000 },
       lineDiscounts: { "a|": 0 },
       discountMinor: 0,
+      serviceChargeMinor: 0,
       subtotalMinor: 1754,
       vatMinor: 246,
       totalMinor: 2000,

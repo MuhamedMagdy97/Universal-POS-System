@@ -141,6 +141,14 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
               </td>
             </tr>
           ) : null}
+          {doc.serviceChargeMinor ? (
+            <tr data-testid="receipt-service-charge">
+              <td>{tr("receipt.serviceCharge")}</td>
+              <td dir="ltr" className="receipt-end">
+                {money(doc.serviceChargeMinor)}
+              </td>
+            </tr>
+          ) : null}
           <tr>
             <td>{tr("receipt.subtotal")}</td>
             <td dir="ltr" className="receipt-end">

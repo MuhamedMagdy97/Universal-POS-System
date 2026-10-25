@@ -224,6 +224,8 @@ export function priceOfflineSale(
     totalMinor: offline.totalMinor,
     shelfMinor: sum(shelf),
     discountMinor: sum(sold.map((line) => line.discountMinor)),
+    // No service charge offline (restaurant-cafe-spec R12).
+    serviceCharge: null,
     lines: sold.map((line, index) => ({
       netMinor: line.lineTotalMinor - vat[index],
       vatRateBp: items[index].vatApplicable ? org.vatRateBp : 0,

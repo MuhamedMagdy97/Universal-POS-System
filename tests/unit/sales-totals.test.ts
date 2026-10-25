@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { priceLine, settlePayments, shelfOf, totalsOf } from "@/modules/sales/totals";
+import { priceLine, priceSale, settlePayments, shelfOf, totalsOf } from "@/modules/sales/totals";
 
 /** Checkout pricing and payment rules (checkout-data-model-and-api.md §2–§3). Pure, no DB. */
 
@@ -159,5 +159,31 @@ describe("shelfOf with price scale labels (weighed-selling-spec W6)", () => {
     expect(reason(() => shelfOf({ ...kg, qty: 900, labels: [{ grams: 812, totalMinor: 10_024 }] }))).toBe(
       "LABEL_MISMATCH",
     );
+  });
+});
+
+describe("service charge (restaurant-cafe-spec R11)", () => {
+  const tea = { unitPriceMinor: 1_000, qty: 3, vatApplicable: true };
+
+  it("is a share of the amount after discounts, with VAT inside when prices include it", () => {
+    // 30.00 less 10% = 27.00; 12% of that is 3.24, of which VAT at 14% is 0.40.
+    const sale = priceSale([tea], { kind: "PERCENT", percentBp: 1_000 }, 1_400, true, 1_200);
+    expect(sale.serviceCharge).toMatchObject({ lineTotalMinor: 324, vatMinor: 40, netMinor: 284 });
+    expect(sale.totalMinor).toBe(2_700 + 324);
+    expect(sale.vatMinor).toBe(sale.lines[0].vatMinor + 40);
+  });
+
+  it("adds VAT on top when prices exclude it", () => {
+    // Net 30.00; 12% is 3.60 net and 0.50 VAT.
+    const sale = priceSale([tea], null, 1_400, false, 1_200);
+    expect(sale.serviceCharge).toMatchObject({ netMinor: 360, vatMinor: 50, lineTotalMinor: 410 });
+    expect(sale.subtotalMinor).toBe(3_000 + 360);
+    expect(sale.totalMinor).toBe(3_000 + 420 + 410);
+  });
+
+  it("is absent at 0", () => {
+    const sale = priceSale([tea], null, 1_400, true, 0);
+    expect(sale.serviceCharge).toBeNull();
+    expect(sale.totalMinor).toBe(3_000);
   });
 });

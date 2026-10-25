@@ -187,7 +187,10 @@ async function writeRefund(
   if (!shift) throw salesConflict("SHIFT_NOT_OPEN", "Open a shift on this register to refund");
 
   await lockSale(tx, ctx.orgId, saleId);
-  const sale = await tx.sale.findFirstOrThrow({ where: { id: saleId, orgId: ctx.orgId }, select: { status: true } });
+  const sale = await tx.sale.findFirstOrThrow({
+    where: { id: saleId, orgId: ctx.orgId },
+    select: { status: true, serviceChargeMinor: true, serviceChargeVatMinor: true },
+  });
   if (sale.status !== "COMPLETED") throw salesConflict("SALE_NOT_COMPLETED", "A voided sale cannot be refunded");
 
   const items = await tx.saleItem.findMany({
@@ -230,8 +233,10 @@ async function writeRefund(
       vatMinor: isLast ? item.vatMinor - before.vatMinor : share(item.vatMinor, line.qty, item.qty),
     };
   });
-  const totalMinor = lines.reduce((total, line) => total + line.amountMinor, 0);
-  const vatMinor = lines.reduce((total, line) => total + line.vatMinor, 0);
+  const goodsMinor = lines.reduce((total, line) => total + line.amountMinor, 0);
+  const service = await serviceChargeShare(tx, ctx.orgId, saleId, sale, items, prior, lines);
+  const totalMinor = goodsMinor + service.amountMinor;
+  const vatMinor = lines.reduce((total, line) => total + line.vatMinor, 0) + service.vatMinor;
   // A free item, or a share that rounds to nothing, has no money to give back. The database
   // requires a refund total above zero (`Refund_money_valid`), so say so before writing.
   if (totalMinor === 0) {
@@ -254,6 +259,8 @@ async function writeRefund(
       reason: input.reason,
       totalMinor,
       vatMinor,
+      serviceChargeMinor: service.amountMinor,
+      serviceChargeVatMinor: service.vatMinor,
     },
     select: { id: true },
   });
@@ -295,6 +302,41 @@ async function writeRefund(
     metadata: { saleId, shiftId: open.id, method: input.method, totalMinor, vatMinor, lines: lines.length },
   });
   return { refund: await loadRefund(tx, ctx.orgId, refund.id), created: true };
+}
+
+/**
+ * The service charge a refund gives back (restaurant-cafe-spec R11): in proportion to the goods refunded so far,
+ * counted cumulatively so repeated part refunds never give back more than was charged; the refund that returns the
+ * last of the goods gives back exactly what is left.
+ */
+async function serviceChargeShare(
+  tx: Tx,
+  orgId: string,
+  saleId: string,
+  sale: { serviceChargeMinor: number; serviceChargeVatMinor: number },
+  items: readonly { id: string; qty: number; lineTotalMinor: number }[],
+  prior: ReadonlyMap<string, Prior>,
+  lines: readonly { saleItemId: string; qty: number; amountMinor: number }[],
+): Promise<{ amountMinor: number; vatMinor: number }> {
+  if (sale.serviceChargeMinor === 0) return { amountMinor: 0, vatMinor: 0 };
+  const given = await tx.refund.aggregate({
+    where: { orgId, saleId },
+    _sum: { serviceChargeMinor: true, serviceChargeVatMinor: true },
+  });
+  const givenMinor = given._sum.serviceChargeMinor ?? 0;
+  const givenVatMinor = given._sum.serviceChargeVatMinor ?? 0;
+  const goodsMinor = items.reduce((total, item) => total + item.lineTotalMinor, 0);
+  const refundedBefore = [...prior.values()].reduce((total, row) => total + row.amountMinor, 0);
+  const refundedAfter = refundedBefore + lines.reduce((total, line) => total + line.amountMinor, 0);
+  const qtyNow = new Map(lines.map((line) => [line.saleItemId, line.qty]));
+  const allBack = items.every((item) => (prior.get(item.id)?.qty ?? 0) + (qtyNow.get(item.id) ?? 0) === item.qty);
+  if (allBack || goodsMinor === 0) {
+    return { amountMinor: sale.serviceChargeMinor - givenMinor, vatMinor: sale.serviceChargeVatMinor - givenVatMinor };
+  }
+  const upTo = (whole: number) => Number(divideRoundHalfUp(BigInt(whole) * BigInt(refundedAfter), BigInt(goodsMinor)));
+  const amountMinor = Math.max(upTo(sale.serviceChargeMinor) - givenMinor, 0);
+  const vatMinor = Math.min(Math.max(upTo(sale.serviceChargeVatMinor) - givenVatMinor, 0), amountMinor);
+  return { amountMinor, vatMinor };
 }
 
 /** Lines of a refund: `amount = round(lineTotal × qty ÷ soldQty)`, and the same for VAT. */

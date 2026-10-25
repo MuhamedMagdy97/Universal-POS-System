@@ -375,6 +375,8 @@ export type ZReport = CashBreakdown & {
   lateOfflineSales: number;
   lateOfflineCashMinor: number;
   correctedExpectedCashMinor: number;
+  /** Service charge on the shift's sales less what its refunds gave back (restaurant-cafe-spec R11); 0 when none. */
+  serviceChargeMinor: number;
 };
 
 /** Offline sales replayed into a shift after it closed (flag LATE_FOR_CLOSED_SHIFT): count and applied cash. */
@@ -403,10 +405,15 @@ export async function getZReport(ctx: TenantContext, shiftId: string): Promise<Z
     include: { register: { select: { name: true } }, branch: { select: { name: true } }, org: true },
   });
   if (!shift || !shift.closedAt || !shift.closedById) throw notFound("Shift");
-  const [cash, late, users] = await Promise.all([
+  const [cash, late, users, charged, givenBack] = await Promise.all([
     db.$transaction((tx) => cashBreakdown(tx, ctx.orgId, shiftId, shift.openingFloatMinor)),
     lateOfflineCash(db, ctx.orgId, shiftId),
     db.user.findMany({ where: { id: { in: [shift.openedById, shift.closedById] } }, select: { id: true, name: true } }),
+    db.sale.aggregate({
+      where: { orgId: ctx.orgId, shiftId, status: "COMPLETED" },
+      _sum: { serviceChargeMinor: true },
+    }),
+    db.refund.aggregate({ where: { orgId: ctx.orgId, shiftId }, _sum: { serviceChargeMinor: true } }),
   ]);
   const nameOf = (id: string) => users.find((user) => user.id === id)?.name ?? "";
   // The stored figure is the authority for a closed shift (as the Shifts report).
@@ -431,6 +438,7 @@ export async function getZReport(ctx: TenantContext, shiftId: string): Promise<Z
     countedCashMinor: shift.countedCashMinor ?? 0,
     discrepancyMinor: shift.discrepancyMinor ?? 0,
     discrepancyNote: shift.discrepancyNote,
+    serviceChargeMinor: (charged._sum.serviceChargeMinor ?? 0) - (givenBack._sum.serviceChargeMinor ?? 0),
   };
 }
 

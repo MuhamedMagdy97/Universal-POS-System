@@ -311,6 +311,8 @@ model Organization {
   inventorySource      InventorySource @default(BUILT_IN)
   // Offline till (offline-till-spec OF5): Owner only, off by default, refused while linked to the inventory system.
   allowOfflineSales    Boolean         @default(false)
+  // Service charge on dine-in orders (restaurant-cafe-spec R11): basis points, 0 = off. Owner only.
+  serviceChargeBp      Int             @default(0)
   // Scale labels (weighed-selling-spec W6): Owner only, off by default. A label is prefix + item code + value + check.
   scaleLabelsEnabled   Boolean         @default(false)
   scaleLabelPrefixes   String[]        @default(["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"])
@@ -1194,44 +1196,47 @@ model Customer {
 }
 
 model Sale {
-  id                String     @id @default(uuid()) @db.Uuid
-  orgId             String     @db.Uuid
-  branchId          String     @db.Uuid
-  registerId        String     @db.Uuid
-  shiftId           String     @db.Uuid
-  cashierId         String     @db.Uuid
-  number            String
-  idempotencyKey    String
-  status            SaleStatus @default(COMPLETED)
-  currency          Currency
-  subtotalMinor     Int
-  discountMinor     Int        @default(0)
-  vatMinor          Int
-  totalMinor        Int
+  id                    String     @id @default(uuid()) @db.Uuid
+  orgId                 String     @db.Uuid
+  branchId              String     @db.Uuid
+  registerId            String     @db.Uuid
+  shiftId               String     @db.Uuid
+  cashierId             String     @db.Uuid
+  number                String
+  idempotencyKey        String
+  status                SaleStatus @default(COMPLETED)
+  currency              Currency
+  subtotalMinor         Int
+  discountMinor         Int        @default(0)
+  vatMinor              Int
+  totalMinor            Int
   // Cash handed back to the customer (tendered cash minus the cash applied to the sale).
-  changeMinor       Int        @default(0)
+  changeMinor           Int        @default(0)
+  // The service charge as charged (R11), inside subtotal, VAT and total; its VAT is inside vatMinor.
+  serviceChargeMinor    Int        @default(0)
+  serviceChargeVatMinor Int        @default(0)
   // SHA-256 of the canonical request body; a replayed Idempotency-Key must match it.
-  requestHash       String?
-  createdAt         DateTime   @default(now())
-  voidedAt          DateTime?
-  voidedById        String?    @db.Uuid
-  voidReason        String?
+  requestHash           String?
+  createdAt             DateTime   @default(now())
+  voidedAt              DateTime?
+  voidedById            String?    @db.Uuid
+  voidReason            String?
   // Optional customer (customers-spec CU7, CU8). The snapshot is what receipts print; NULL = walk-in.
-  customerId        String?    @db.Uuid
-  customerName      String?
-  customerPhone     String?
-  customerTaxNumber String?
+  customerId            String?    @db.Uuid
+  customerName          String?
+  customerPhone         String?
+  customerTaxNumber     String?
   // Offline sales (offline-till-spec OF12, OF20): `createdAt` is the device's soldAt, `receivedAt` when the server
   // got it (NULL = sold online), and the review flags set at replay (PRICE_CHANGED, STOCK_NEGATIVE, ...).
-  receivedAt        DateTime?
-  offlineFlags      String[]   @default([])
+  receivedAt            DateTime?
+  offlineFlags          String[]   @default([])
   // A café sale (restaurant-cafe-spec R2, R5, R13): its order type, the ticket it paid and the table's name then,
   // and the delivery address and note as typed.
-  orderType         OrderType?
-  ticketId          String?    @db.Uuid
-  tableName         String?
-  deliveryAddress   String?
-  deliveryNote      String?
+  orderType             OrderType?
+  ticketId              String?    @db.Uuid
+  tableName             String?
+  deliveryAddress       String?
+  deliveryNote          String?
 
   org      Organization  @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch   Branch        @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
@@ -1375,22 +1380,25 @@ model Payment {
 }
 
 model Refund {
-  id             String        @id @default(uuid()) @db.Uuid
-  orgId          String        @db.Uuid
-  branchId       String        @db.Uuid
-  saleId         String        @db.Uuid
-  shiftId        String?       @db.Uuid
-  processedById  String        @db.Uuid
-  idempotencyKey String
+  id                    String        @id @default(uuid()) @db.Uuid
+  orgId                 String        @db.Uuid
+  branchId              String        @db.Uuid
+  saleId                String        @db.Uuid
+  shiftId               String?       @db.Uuid
+  processedById         String        @db.Uuid
+  idempotencyKey        String
   // Hash of the canonical request body, so a replay with another body is refused (as on Sale).
-  requestHash    String?
-  method         PaymentMethod
+  requestHash           String?
+  method                PaymentMethod
   // Manual reference (card slip / wallet transaction id). Never raw card data.
-  reference      String?
-  reason         String
-  totalMinor     Int
-  vatMinor       Int
-  createdAt      DateTime      @default(now())
+  reference             String?
+  reason                String
+  totalMinor            Int
+  vatMinor              Int
+  // The service charge given back (R11), inside totalMinor; its VAT is inside vatMinor.
+  serviceChargeMinor    Int           @default(0)
+  serviceChargeVatMinor Int           @default(0)
+  createdAt             DateTime      @default(now())
 
   org    Organization   @relation(fields: [orgId], references: [id], onDelete: Restrict)
   branch Branch         @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)

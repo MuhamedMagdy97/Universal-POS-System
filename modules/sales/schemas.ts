@@ -106,6 +106,8 @@ export const SaleInput = z
     // order type of a counter sale. Delivery details come from the ticket.
     ticket: z.strictObject({ id: Uuid, version: z.int().min(1) }).optional(),
     orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).optional(),
+    // false: the cashier took the shop's service charge off this dine-in order (R11). Absent = charged.
+    serviceCharge: z.boolean().optional(),
   })
   .strict()
   .refine((sale) => !sale.offline || !sale.ticket, { message: "An offline sale pays no ticket" })

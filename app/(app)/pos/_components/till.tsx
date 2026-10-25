@@ -143,6 +143,8 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     tickets ? { mode: "open", n: 0 } : null,
   );
   const printer = usePrinter();
+  // The service charge (R11): on a dine-in order unless taken off this one.
+  const [serviceOff, setServiceOff] = useState(false);
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
@@ -153,7 +155,13 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   const sellingOffline = off.offline && off.block === null;
   const limitLabel = settings.discount.limitBp === null ? null : `${settings.discount.limitBp / 100}%`;
 
-  const preview = previewCart(cart, settings, saleDiscount);
+  const servicePossible = tickets && !sellingOffline && (settings.serviceChargeBp ?? 0) > 0 && orderType === "DINE_IN";
+  const preview = previewCart(
+    cart,
+    settings,
+    saleDiscount,
+    servicePossible && !serviceOff ? (settings.serviceChargeBp ?? 0) : 0,
+  );
   const totalMinor = preview.ok ? preview.totalMinor : 0;
   const splitTenders = METHODS.map(({ value }) => ({
     method: value,
@@ -422,6 +430,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     setTicket(null);
     setOrderType("TAKEAWAY");
     setDeliveryAddress("");
+    setServiceOff(false);
     if (tickets) showFloor("open");
     focusSearch();
   }
@@ -551,6 +560,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
       ...(paying ? { ticket: { id: paying.id, version: paying.version } } : tickets ? { orderType } : {}),
+      ...(servicePossible && serviceOff ? { serviceCharge: false } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
@@ -1053,6 +1063,19 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                 <dt>{tr("pos.totals.discount")}</dt>
                 <dd dir="ltr" className="text-end" data-testid="till-discount">
                   −{money(preview.discountMinor)}
+                </dd>
+              </>
+            ) : null}
+            {servicePossible ? (
+              <>
+                <dt className="flex flex-wrap items-center gap-2">
+                  {tr("pos.service.row", { rate: `${(settings.serviceChargeBp ?? 0) / 100}%` })}
+                  <button type="button" className="btn btn-sm" onClick={() => setServiceOff((off) => !off)}>
+                    {tr(serviceOff ? "pos.service.restore" : "pos.service.remove")}
+                  </button>
+                </dt>
+                <dd dir="ltr" className="text-end" data-testid="till-service-charge">
+                  {money(preview.serviceChargeMinor)}
                 </dd>
               </>
             ) : null}

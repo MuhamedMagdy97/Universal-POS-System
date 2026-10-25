@@ -103,7 +103,13 @@ export type PricedSaleLine = PricedLine & {
   discountMinor: number;
 };
 
-export type PricedSale = SaleTotals & { lines: PricedSaleLine[]; shelfMinor: number; discountMinor: number };
+export type PricedSale = SaleTotals & {
+  lines: PricedSaleLine[];
+  shelfMinor: number;
+  discountMinor: number;
+  /** The service charge (restaurant-cafe-spec R11), inside the totals; null when none. */
+  serviceCharge: PricedLine | null;
+};
 
 /** A discount's amount on `baseMinor`: percent rounded half-up, amount as given. Never more than the base (DC3). */
 export function discountOf(discount: Discount | null | undefined, baseMinor: number): number {
@@ -134,12 +140,17 @@ export function allocate(totalMinor: number, weights: readonly number[]): number
   return shares.map(Number);
 }
 
-/** Prices a whole sale: line discounts, then the sale discount allocated across lines, then VAT per line (DC3–DC5). */
+/**
+ * Prices a whole sale: line discounts, then the sale discount allocated across lines, then VAT per line (DC3–DC5).
+ * `serviceChargeBp` (R11) is a share of the lines after every discount, priced like one more line with VAT at the
+ * shop's rate (inside it when prices include VAT, on top otherwise).
+ */
 export function priceSale(
   lines: readonly SaleLineDraft[],
   saleDiscount: Discount | null | undefined,
   rateBp: number,
   pricesIncludeVat: boolean,
+  serviceChargeBp = 0,
 ): PricedSale {
   const shelf = lines.map(shelfOf);
   const own = lines.map((line, index) => discountOf(line.discount, shelf[index]));
@@ -154,11 +165,21 @@ export function priceSale(
       discountMinor,
     };
   });
+  const charged = sum(shelf) - sum(priced.map((line) => line.discountMinor));
+  const serviceCharge =
+    serviceChargeBp > 0
+      ? priceLine(
+          { unitPriceMinor: percentOfBp(charged, serviceChargeBp), qty: 1, vatApplicable: true },
+          rateBp,
+          pricesIncludeVat,
+        )
+      : null;
   return {
-    ...totalsOf(priced),
+    ...totalsOf(serviceCharge ? [...priced, serviceCharge] : priced),
     lines: priced,
     shelfMinor: sum(shelf),
     discountMinor: sum(priced.map((line) => line.discountMinor)),
+    serviceCharge,
   };
 }
 

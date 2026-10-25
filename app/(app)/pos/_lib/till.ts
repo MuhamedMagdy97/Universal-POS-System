@@ -29,6 +29,8 @@ export type TillSettings = {
   customers: { read: boolean; create: boolean };
   /** Scale labels read at this till (weighed-selling-spec W6). */
   scale: ScaleSettings;
+  /** The shop's service charge on dine-in orders, in basis points; 0 = none (restaurant-cafe-spec R11). */
+  serviceChargeBp?: number;
 };
 
 /** Offline selling at this till (offline-till-spec OF5, OF16): shop allows it, the user may enrol, a device exists. */
@@ -175,6 +177,8 @@ export type CartPreview =
       /** Each line's own discount plus its share of the sale discount. */
       lineDiscounts: Record<string, number>;
       discountMinor: number;
+      /** With its VAT (R11); 0 when none. */
+      serviceChargeMinor: number;
       subtotalMinor: number;
       vatMinor: number;
       totalMinor: number;
@@ -188,6 +192,7 @@ export function previewCart(
   cart: readonly CartLine[],
   settings: TillSettings,
   saleDiscount: Discount | null = null,
+  serviceChargeBp = 0,
 ): CartPreview {
   try {
     const sale = priceSale(
@@ -202,6 +207,7 @@ export function previewCart(
       saleDiscount,
       settings.vatRateBp,
       settings.pricesIncludeVat,
+      serviceChargeBp,
     );
     const lineTotals: Record<string, number> = {};
     const lineDiscounts: Record<string, number> = {};
@@ -215,6 +221,7 @@ export function previewCart(
       lineTotals,
       lineDiscounts,
       discountMinor: sale.discountMinor,
+      serviceChargeMinor: sale.serviceCharge?.lineTotalMinor ?? 0,
       subtotalMinor: sale.subtotalMinor,
       vatMinor: sale.vatMinor,
       totalMinor: sale.totalMinor,

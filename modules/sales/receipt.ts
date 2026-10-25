@@ -68,6 +68,8 @@ export type ReceiptDoc = {
   subtotalMinor: number;
   vatMinor: number;
   totalMinor: number;
+  /** The service charge with its VAT (restaurant-cafe-spec R11, R13), its own row; 0 when none. */
+  serviceChargeMinor?: number;
   vatRatesBp: number[];
   payments: { method: string; amountMinor: number }[];
   changeMinor: number;
@@ -176,6 +178,7 @@ export async function getReceipt(
       reason: refund.reason,
       lines,
       discountMinor: 0,
+      serviceChargeMinor: refund.serviceChargeMinor,
       subtotalMinor: refund.totalMinor - refund.vatMinor,
       vatMinor: refund.vatMinor,
       totalMinor: refund.totalMinor,
@@ -194,6 +197,7 @@ export async function getReceipt(
       reason: isVoid ? sale.voidReason : null,
       lines: saleLines,
       discountMinor: sale.discountMinor,
+      serviceChargeMinor: sale.serviceChargeMinor,
       subtotalMinor: sale.subtotalMinor,
       vatMinor: sale.vatMinor,
       totalMinor: sale.totalMinor,

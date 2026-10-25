@@ -58,6 +58,7 @@ describe("sales summary", () => {
       grossMinor: 42_480,
       vatMinor: vat,
       netMinor: 42_480 - vat,
+      serviceChargeMinor: 0,
       refundsCount: 1,
       refundsMinor: 11_400,
       voidsCount: 1,

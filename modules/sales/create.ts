@@ -83,6 +83,8 @@ export type SaleDetail = {
     note: string | null;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
+  /** The service charge with its VAT, inside the totals (R11); 0 when none. */
+  serviceChargeMinor: number;
   /** A café sale (restaurant-cafe-spec R2, R13); null elsewhere. */
   orderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null;
   tableName: string | null;
@@ -191,6 +193,7 @@ function priceCart(
   lines: MergedLine[],
   saleDiscount: DiscountInput | undefined,
   org: SaleSettings,
+  serviceChargeBp = 0,
 ): PricedSale {
   return priceSale(
     items.map((item, index) => ({
@@ -204,6 +207,7 @@ function priceCart(
     saleDiscount,
     org.vatRateBp,
     org.pricesIncludeVat,
+    serviceChargeBp,
   );
 }
 
@@ -414,12 +418,13 @@ async function writeSale(
       blockNegativeStock: boolean;
       maxCashierDiscountBp: number;
       linked: boolean;
+      serviceChargeBp: number;
     }[]
   >`
     UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + ${offline ? 0 : 1}
     WHERE "id" = ${ctx.orgId}::uuid
     RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat",
-      "blockNegativeStock", "maxCashierDiscountBp", "inventorySource" = 'EXTERNAL' AS "linked"`;
+      "blockNegativeStock", "maxCashierDiscountBp", "inventorySource" = 'EXTERNAL' AS "linked", "serviceChargeBp"`;
   // The source cannot change with a shift open (setInventorySource); refuse rather than post wrong.
   if (org.linked !== (held !== null)) {
     throw new AppError("CONFLICT", "The shop's inventory source changed; try again", {
@@ -454,7 +459,10 @@ async function writeSale(
     ({ items, totals } = priceOfflineSale(current, lines, input, offline, org, role, flags));
   } else {
     ({ items, options } = withOptions(await getSellableItems(tx, ctx.orgId, refs), lines));
-    totals = priceCart(items, lines, input.discount, org);
+    // Service charge (R11): dine-in only, unless the cashier took it off this order.
+    const dineIn = (ticket?.orderType ?? input.orderType) === "DINE_IN";
+    const serviceChargeBp = dineIn && input.serviceCharge !== false ? org.serviceChargeBp : 0;
+    totals = priceCart(items, lines, input.discount, org, serviceChargeBp);
     requireDiscountAllowed(ctx, totals, org);
   }
   const priced = totals.lines;
@@ -501,6 +509,10 @@ async function writeSale(
       vatMinor: totals.vatMinor,
       totalMinor: totals.totalMinor,
       changeMinor: settlement.changeMinor,
+      ...(totals.serviceCharge && {
+        serviceChargeMinor: totals.serviceCharge.lineTotalMinor,
+        serviceChargeVatMinor: totals.serviceCharge.vatMinor,
+      }),
       ...(ticket
         ? {
             orderType: ticket.orderType,
@@ -566,6 +578,8 @@ async function writeSale(
       paymentMethods: settlement.payments.map((payment) => payment.method),
       ...(customer && { customerId: customer.id }),
       ...(ticket && { ticketId: ticket.id, orderType: ticket.orderType }),
+      ...(totals.serviceCharge && { serviceChargeMinor: totals.serviceCharge.lineTotalMinor }),
+      ...(input.serviceCharge === false && org.serviceChargeBp > 0 && { serviceChargeRemoved: true }),
       // What was asked for and what each line got (DC10).
       ...(totals.discountMinor > 0 && {
         discount: {
@@ -649,6 +663,7 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       amountMinor: payment.amountMinor,
       reference: payment.reference,
     })),
+    serviceChargeMinor: sale.serviceChargeMinor,
     orderType: sale.orderType,
     tableName: sale.tableName,
     ticketId: sale.ticketId,
