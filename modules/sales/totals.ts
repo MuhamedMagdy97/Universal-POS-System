@@ -28,16 +28,23 @@ export type ScaleLabelLine = { grams: number; totalMinor: number };
  * say, each within half a gram's worth of price × grams (the scale rounds the weight it prints the price for), else
  * 422 LABEL_MISMATCH: a label cannot lower the price.
  */
+/** At most this many labels' worth of rounding on one line. */
+const MAX_LABEL_SLACK = 5;
+
 export function shelfOf(item: PricedInput): number {
   const unitType = item.unitType ?? "EACH";
   if (!item.labels?.length) return lineMinor(item.unitPriceMinor, item.qty, unitType);
   const tolerance = Math.ceil(item.unitPriceMinor / 2000);
   const fits = (label: ScaleLabelLine) =>
     Math.abs(label.totalMinor - lineMinor(item.unitPriceMinor, label.grams, "KG")) <= tolerance;
-  if (unitType !== "KG" || sum(item.labels.map((label) => label.grams)) !== item.qty || !item.labels.every(fits)) {
-    throw labelMismatch();
-  }
-  return sum(item.labels.map((label) => label.totalMinor));
+  const total = sum(item.labels.map((label) => label.totalMinor));
+  // The whole line too, so many tiny labels cannot add their tolerances up into a discount.
+  const lineFits =
+    Math.abs(total - lineMinor(item.unitPriceMinor, item.qty, "KG")) <=
+    tolerance * Math.min(item.labels.length, MAX_LABEL_SLACK);
+  const grams = sum(item.labels.map((label) => label.grams));
+  if (unitType !== "KG" || grams !== item.qty || !item.labels.every(fits) || !lineFits) throw labelMismatch();
+  return total;
 }
 
 export type PricedLine = {

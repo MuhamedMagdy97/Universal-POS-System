@@ -144,6 +144,16 @@ test("scale labels: the owner turns them on, the till reads weight and price lab
   const qty = page.getByRole("textbox", { name: "Quantity for Tomatoes" });
   await expect(qty).toHaveValue("0.750");
   await expect(page.getByTestId("till-total")).toContainText("9.00");
+  // The shop's own in-store barcode in the same range is not a weighed item's label: it scans as usual.
+  const ownCode = ean13("200000012345");
+  const jarId = await createRunProduct(orgId, `JAR-${run().toUpperCase()}`, "Jam jar");
+  await e2eQuery(`INSERT INTO "Barcode" ("id", "orgId", "code", "productId") VALUES (gen_random_uuid(), $1, $2, $3)`, [
+    orgId,
+    ownCode,
+    jarId,
+  ]);
+  await scan(ownCode);
+  await expect(page.getByRole("textbox", { name: "Quantity for Jam jar" })).toHaveValue("1");
 
   // Price labels: EGP 5.25 at 12.00 per kg is 438 g (437.5 rounded); the till charges the printed 5.25.
   await page.goto("/settings/shop");

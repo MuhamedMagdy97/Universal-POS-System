@@ -283,10 +283,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     const q = query.trim();
     if (!q) return;
     const label = parseScaleLabel(q, settings.scale);
-    if (label) {
-      await addScaleLabel(label);
-      return;
-    }
+    // Not a weighed item's label: the code may be one of the shop's own barcodes in the same range.
+    const labelMiss = label ? await addScaleLabel(label) : null;
+    if (label && !labelMiss) return;
     const params = new URLSearchParams({ q, limit: "10" });
     let items: TillItem[];
     if (sellingOffline && off.snapshot) {
@@ -307,6 +306,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         items = searchSnapshot(off.snapshot.items, q);
       }
     }
+    if (items.length === 0 && labelMiss) {
+      setError(tr(labelMiss));
+      return;
+    }
     // A scan that finds exactly one item goes straight into the cart.
     if (items.length === 1) add(items[0]);
     else setResults(items);
@@ -314,10 +317,11 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   }
 
   /** A scale label (weighed-selling-spec W6): prefix + item code is the barcode of a KG item. */
-  async function addScaleLabel(label: ScaleLabel) {
+  /** Null once handled (added, or refused with a message); otherwise why it is not a weighed item's label. */
+  async function addScaleLabel(label: ScaleLabel): Promise<"pos.label.unknown" | "pos.label.notWeighed" | null> {
     if (label.kind === "bad-check-digit") {
       setError(tr("pos.label.badCheck"));
-      return;
+      return null;
     }
     const fromSnapshot = (): TillItem | null => {
       const hit = off.snapshot?.items.find((item) => item.barcodes.includes(label.lookupCode));
@@ -335,7 +339,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           const found = (await response.json()) as LookupResult;
           if (!found.sellable) {
             setError(tr("pos.error.notSellable"));
-            return;
+            return null;
           }
           item = {
             productId: found.productId,
@@ -351,23 +355,18 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       } catch (err) {
         if (!(err instanceof TypeError) || !off.snapshot || off.block !== null) {
           setError(tr("pos.error.generic"));
-          return;
+          return null;
         }
         off.markUnreachable();
         item = fromSnapshot();
       }
     }
-    if (!item) {
-      setError(tr("pos.label.unknown"));
-      return;
-    }
+    if (!item) return "pos.label.unknown";
     const weighed = fromScaleLabel(label, item);
-    if (!weighed) {
-      setError(tr("pos.label.notWeighed"));
-      return;
-    }
+    if (!weighed) return "pos.label.notWeighed";
     add(item, true, weighed.grams, weighed.label);
     void loadStock([item]);
+    return null;
   }
 
   function newSale() {

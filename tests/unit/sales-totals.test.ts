@@ -142,6 +142,13 @@ describe("shelfOf with price scale labels (weighed-selling-spec W6)", () => {
     expect(shelfOf({ ...kg, qty: 1_312, labels })).toBe(16_193);
   });
 
+  it("refuses many tiny labels that each round down", () => {
+    // 1,000.00 per kg: 1 g is 1.00 and half a gram's worth is 0.50, so each 1 g label for 0.50 fits alone.
+    const labels = Array.from({ length: 50 }, () => ({ grams: 1, totalMinor: 50 }));
+    const dear = { ...kg, unitPriceMinor: 100_000 };
+    expect(reason(() => shelfOf({ ...dear, qty: 50, labels }))).toBe("LABEL_MISMATCH");
+  });
+
   it("refuses a label off by more, one on a piece item, or grams that do not add up", () => {
     expect(reason(() => shelfOf({ ...kg, qty: 812, labels: [{ grams: 812, totalMinor: 10_016 }] }))).toBe(
       "LABEL_MISMATCH",
