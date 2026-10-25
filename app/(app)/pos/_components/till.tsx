@@ -7,10 +7,23 @@ import { formatMoney, toMajorString } from "@/lib/money";
 import { formatQty, qtyInputValue } from "@/lib/quantity";
 import { parseScaleLabel, type ScaleLabel } from "@/lib/scale-label";
 import type { LookupResult } from "@/modules/catalog/schemas";
-import type { ReceiptDoc, SaleDetail } from "@/modules/sales";
+import type { ReceiptDoc, SaleDetail, TicketView } from "@/modules/sales";
+import type { ErrorBody } from "@/lib/errors";
 import type { Discount, PayMethod, ScaleLabelLine } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
+import { usePrinter } from "../../_components/printing";
+import { KitchenSlipView } from "../../_components/kitchen-print";
+import {
+  cancelTicketAction,
+  moveTicketAction,
+  openTicketAction,
+  saveTicketAction,
+  sendTicketAction,
+} from "../ticket-actions";
+import { cartFromTicket, ticketErrorKey, ticketLinesOf } from "../_lib/tickets";
+import { TablesView } from "./tables-view";
+import { TicketBar, type OrderType } from "./ticket-bar";
 import { createSaleAction, tillStockAction } from "../actions";
 import { CustomerPicker } from "./customer-picker";
 import {
@@ -63,6 +76,8 @@ import {
 type Props = {
   /** Scan-first or tap tiles under the scan box (business-profiles-spec BP6). */
   layout: TillLayout;
+  /** Tables, open tickets and order types: a café (restaurant-cafe-spec R1). */
+  tickets?: boolean;
   locale: Locale;
   branchId: string;
   registerId: string;
@@ -83,7 +98,7 @@ const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET:
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
  */
-export function Till({ locale, branchId, registerId, userId, settings, offline, layout }: Props) {
+export function Till({ locale, branchId, registerId, userId, settings, offline, layout, tickets = false }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -120,6 +135,14 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   // An item with option groups waiting for its options (restaurant-cafe-spec R7), and the line whose note is open.
   const [picking, setPicking] = useState<TillItem | null>(null);
   const [noteFor, setNoteFor] = useState<string | null>(null);
+  // The café floor (restaurant-cafe-spec R2-R6, R10): the open ticket, the type of a new order, the Tables view.
+  const [ticket, setTicket] = useState<TicketView | null>(null);
+  const [orderType, setOrderType] = useState<OrderType>("TAKEAWAY");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [floor, setFloor] = useState<{ mode: "open" | "move"; n: number } | null>(
+    tickets ? { mode: "open", n: 0 } : null,
+  );
+  const printer = usePrinter();
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
@@ -396,7 +419,111 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     setOfflineReceipt(null);
     setError(null);
     setSaleKey(crypto.randomUUID());
+    setTicket(null);
+    setOrderType("TAKEAWAY");
+    setDeliveryAddress("");
+    if (tickets) showFloor("open");
     focusSearch();
+  }
+
+  function showFloor(mode: "open" | "move") {
+    // A new key each time: the floor reloads the tables and tickets when shown.
+    setFloor((current) => ({ mode, n: (current?.n ?? 0) + 1 }));
+  }
+
+  function ticketError(err: ErrorBody) {
+    setError(plain(locale, ticketErrorKey(err)));
+  }
+
+  /** A ticket picked on the floor: its lines in the cart. A new, empty one keeps what is already rung up. */
+  function loadTicket(next: TicketView) {
+    setTicket(next);
+    setOrderType(next.orderType);
+    if (next.lines.length > 0 || ticket) setCart(cartFromTicket(next));
+    if (next.customer) setCustomer({ ...next.customer, taxNumber: null });
+    setFloor(null);
+    setSelectedKey(null);
+    setError(null);
+    setSaleKey(crypto.randomUUID());
+    focusSearch();
+  }
+
+  /** Saves the cart to the ticket, opening one for a takeaway or delivery order. Null when it could not. */
+  async function saveTicket(): Promise<TicketView | null> {
+    let current = ticket;
+    if (!current) {
+      if (orderType === "DINE_IN") {
+        showFloor("open");
+        setError(tr("pos.ticket.pickTable"));
+        return null;
+      }
+      const opened = await openTicketAction({
+        branchId,
+        orderType,
+        ...(customer ? { customerId: customer.id } : {}),
+        ...(deliveryAddress.trim() ? { deliveryAddress: deliveryAddress.trim() } : {}),
+      });
+      if (!opened.ok) {
+        ticketError(opened.error);
+        return null;
+      }
+      current = opened.data;
+    }
+    const saved = await saveTicketAction(current.id, { version: current.version, lines: ticketLinesOf(cart) });
+    if (!saved.ok) {
+      ticketError(saved.error);
+      return null;
+    }
+    if (saved.data.cancelled) printer.print(<KitchenSlipView slip={saved.data.cancelled} locale={locale} />);
+    setTicket(saved.data.ticket);
+    setCart(cartFromTicket(saved.data.ticket));
+    return saved.data.ticket;
+  }
+
+  async function holdTicket() {
+    setPending(true);
+    setError(null);
+    const saved = await saveTicket();
+    setPending(false);
+    if (saved) newSale();
+  }
+
+  async function sendTicket() {
+    setPending(true);
+    setError(null);
+    const saved = await saveTicket();
+    if (!saved) {
+      setPending(false);
+      return;
+    }
+    const sent = await sendTicketAction(saved.id, saved.version);
+    setPending(false);
+    if (!sent.ok) {
+      ticketError(sent.error);
+      return;
+    }
+    if (sent.data.slip) printer.print(<KitchenSlipView slip={sent.data.slip} locale={locale} />);
+    setTicket(sent.data.ticket);
+    setCart(cartFromTicket(sent.data.ticket));
+  }
+
+  async function moveTicket(tableId: string) {
+    if (!ticket) return;
+    setPending(true);
+    const moved = await moveTicketAction(ticket.id, { version: ticket.version, tableId });
+    setPending(false);
+    setFloor(null);
+    if (moved.ok) setTicket(moved.data);
+    else ticketError(moved.error);
+  }
+
+  async function cancelTicket(reason: string | undefined) {
+    if (!ticket) return;
+    setPending(true);
+    const cancelled = await cancelTicketAction(ticket.id, { version: ticket.version, ...(reason ? { reason } : {}) });
+    setPending(false);
+    if (cancelled.ok) newSale();
+    else ticketError(cancelled.error);
   }
 
   async function charge(event: FormEvent) {
@@ -404,6 +531,12 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     if (!ready || !plan) return;
     setPending(true);
     setError(null);
+    // A ticket is saved first, so the sale is exactly its lines at its newest version (R5).
+    const paying = ticket && !sellingOffline ? await saveTicket() : null;
+    if (ticket && !sellingOffline && !paying) {
+      setPending(false);
+      return;
+    }
     const body = {
       branchId,
       registerId,
@@ -417,6 +550,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
+      ...(paying ? { ticket: { id: paying.id, version: paying.version } } : tickets ? { orderType } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
@@ -570,6 +704,36 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         canEnrol={offline.allowed && offline.canEnrol && !offline.registerHasDevice}
       />
       <section aria-labelledby="cart-title" className="card flex flex-col gap-4">
+        {tickets && !sellingOffline ? (
+          <TicketBar
+            locale={locale}
+            ticket={ticket}
+            orderType={orderType}
+            onOrderType={setOrderType}
+            deliveryAddress={deliveryAddress}
+            onDeliveryAddress={setDeliveryAddress}
+            hasLines={cart.length > 0}
+            pending={pending}
+            onTables={() => (ticket ? void holdTicket() : showFloor("open"))}
+            onHold={() => void holdTicket()}
+            onSend={() => void sendTicket()}
+            onMove={() => showFloor("move")}
+            onCancel={(reason) => void cancelTicket(reason)}
+          />
+        ) : null}
+        {tickets && !sellingOffline && floor ? (
+          <TablesView
+            key={floor.n}
+            locale={locale}
+            branchId={branchId}
+            money={money}
+            mode={floor.mode}
+            onOpen={loadTicket}
+            onMove={(tableId) => void moveTicket(tableId)}
+            onError={setError}
+          />
+        ) : null}
+        {printer.portal}
         {lastSaleId && cart.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <PrintReceiptButton
@@ -737,6 +901,11 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                           unitType={line.unitType}
                           block
                         />
+                        {line.sentQty ? (
+                          <span className="badge badge-success ms-1" data-testid="line-sent">
+                            {tr("pos.ticket.sent", { qty: line.sentQty })}
+                          </span>
+                        ) : null}
                         {line.optionLabels?.length ? (
                           <span className="block text-sm text-muted">
                             {line.optionLabels

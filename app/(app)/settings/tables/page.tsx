@@ -31,7 +31,7 @@ async function TablesContent() {
       <p className="max-w-2xl text-muted">{tr("settings.tables.intro")}</p>
       {branches.map((branch, index) => (
         <TablesManager
-          key={`${branch.id}:${tables[index].map((table) => `${table.id}${table.name}${table.isActive}`).join("|")}`}
+          key={branch.id}
           locale={page.locale}
           branch={{ id: branch.id, name: branch.name }}
           tables={tables[index].filter((table) => table.isActive)}

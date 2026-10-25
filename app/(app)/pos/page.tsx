@@ -8,6 +8,7 @@ import { CloseShift } from "./_components/close-shift";
 import { CashMovement } from "./_components/cash-movement";
 import { orgBusinessType } from "@/modules/org";
 import { profileOf } from "@/modules/presets";
+import { listOpenTickets } from "@/modules/sales";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -62,6 +63,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
     canCloseShift,
     offline,
   } = page;
+  const profile = profileOf(await orgBusinessType(ctx.orgId));
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -123,6 +125,7 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
                   registerId={register.id}
                   currency={settings.currency}
                   cash={shiftCash}
+                  openTickets={profile.tickets ? (await listOpenTickets(ctx, branch.id)).length : 0}
                 />
               ) : null}
             </div>
@@ -133,7 +136,8 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
             branchId={branch.id}
             registerId={register.id}
             userId={ctx.userId}
-            layout={profileOf(await orgBusinessType(ctx.orgId)).tillLayout}
+            layout={profile.tillLayout}
+            tickets={profile.tickets}
             settings={settings}
             offline={offline}
           />

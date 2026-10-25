@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { DiningTableRow } from "@/modules/org";
 import { safeAction } from "../../inventory/_lib/form";
@@ -20,7 +19,6 @@ export function TablesManager({
   tables: DiningTableRow[];
 }) {
   const tr = translator(locale);
-  const router = useRouter();
   const [rows, setRows] = useState<Draft[]>(
     tables.map((table) => ({ id: table.id, name: table.name, area: table.area ?? "" })),
   );
@@ -54,8 +52,13 @@ export function TablesManager({
         });
         return;
       }
+      // The saved rows, with the ids of new tables, so a second save keeps them.
+      setRows(
+        result.data
+          .filter((table) => table.isActive)
+          .map((table) => ({ id: table.id, name: table.name, area: table.area ?? "" })),
+      );
       setNotice({ ok: true, text: tr("settings.shop.saved") });
-      router.refresh();
     });
   }
 

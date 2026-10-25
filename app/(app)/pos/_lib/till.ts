@@ -64,6 +64,8 @@ export type CartLine = TillItem & {
   optionLabels?: OptionSnapshot[];
   /** The line note (R8), up to 140 characters. */
   note?: string;
+  /** On a ticket: how much of the line went to the kitchen (R10). */
+  sentQty?: number;
 };
 
 /** The item's key: stock, tiles and search results. */
@@ -344,6 +346,13 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.error.discountTooLarge";
     case "LABEL_MISMATCH":
       return "pos.label.mismatch";
+    case "OPTIONS_INVALID":
+      return "pos.options.invalid";
+    // Paying a ticket (restaurant-cafe-spec R5).
+    case "TICKET_CHANGED":
+      return "pos.ticket.error.changed";
+    case "TICKET_CLOSED":
+      return "pos.ticket.error.closed";
     // A shop linked to the inventory system (integration spec I17).
     case "INVENTORY_UNAVAILABLE":
       return "pos.error.inventoryUnavailable";

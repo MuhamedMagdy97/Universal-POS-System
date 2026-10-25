@@ -21,6 +21,7 @@ import {
   updateRegister,
   updateScaleSettings,
   saveTables,
+  type DiningTableRow,
   updateStaff,
   type ReceiptSettings,
   type ReceiptSettingsInput,
@@ -179,11 +180,8 @@ export async function saveBusinessTypeAction(businessType: string): Promise<Acti
 }
 
 /** Settings → Tables (restaurant-cafe-spec R3): one branch's tables. Owner and Admin. */
-export async function saveTablesAction(input: unknown): Promise<ActionResult<null>> {
-  return run("/settings/tables", async (ctx, meta) => {
-    await saveTables(ctx, input, meta);
-    return null;
-  });
+export async function saveTablesAction(input: unknown): Promise<ActionResult<DiningTableRow[]>> {
+  return run("/settings/tables", (ctx, meta) => saveTables(ctx, input, meta));
 }
 
 /** Settings → Shop (weighed-selling-spec W6): scale labels. Owner only. */
