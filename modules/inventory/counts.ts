@@ -62,6 +62,8 @@ export type CountLineView = {
   nameAr: string | null;
   variantName: string | null;
   sku: string;
+  /** Every quantity on the line is pieces, or grams for KG (weighed-selling-spec W7). */
+  unitType: "EACH" | "KG";
   countedQty: number | null;
   expectedQty: number | null;
   /** Live on-hand (open counts) or on-hand when posted. */
@@ -228,7 +230,7 @@ export async function getCount(ctx: TenantContext, id: string): Promise<CountDet
     include: {
       lines: {
         include: {
-          product: { select: { name: true, nameAr: true, sku: true } },
+          product: { select: { name: true, nameAr: true, sku: true, unitType: true } },
           variant: { select: { name: true, sku: true } },
         },
       },
@@ -246,6 +248,7 @@ export async function getCount(ctx: TenantContext, id: string): Promise<CountDet
         nameAr: line.product.nameAr,
         variantName: line.variant?.name ?? null,
         sku: line.variant?.sku ?? line.product.sku,
+        unitType: line.product.unitType,
         countedQty: line.countedQty,
         expectedQty: line.expectedQty,
         onHand: open ? live[index] : (line.onHandAtPost ?? 0),
@@ -305,6 +308,8 @@ export type CountSheetItem = {
   barcode: string | null;
   categoryName: string | null;
   categoryNameAr: string | null;
+  /** `expected` is pieces, or grams for KG. */
+  unitType: "EACH" | "KG";
   /** Live on-hand at printing; null unless asked for (blind count by default). */
   expected: number | null;
 };
@@ -334,7 +339,8 @@ export async function getCountSheet(
             : Prisma.empty
         } AND ((CASE WHEN v.id IS NULL THEN p."isActive" ELSE p."isActive" AND v."isActive" END) OR COALESCE(b.qty, 0) <> 0)`;
   const rows = await getDb().$queryRaw<(Omit<CountSheetItem, "expected"> & { onHand: number })[]>`
-    SELECT p.name, p."nameAr", v.name AS "variantName", COALESCE(v.sku, p.sku) AS sku, bc.code AS barcode,
+    SELECT p.name, p."nameAr", p."unitType"::text AS "unitType", v.name AS "variantName",
+      COALESCE(v.sku, p.sku) AS sku, bc.code AS barcode,
       c.name AS "categoryName", c."nameAr" AS "categoryNameAr", COALESCE(b.qty, 0)::int AS "onHand"
     FROM "Product" p
     LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id

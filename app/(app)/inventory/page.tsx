@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { listStock } from "@/modules/inventory";
 import { isLowStock } from "@/modules/inventory/schemas";
 import { loadInventoryContext, type InventoryPageContext } from "./_lib/context";
@@ -168,16 +169,16 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                     </td>
                     <td dir="ltr">{row.sku}</td>
                     <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
-                      {row.qty}
+                      {formatQty(row.qty, row.unitType, locale)}
                       {row.qty < 0 ? (
                         <span className="badge badge-danger ms-2">{tr("inventory.badge.oversold")}</span>
                       ) : null}
                     </td>
                     <td dir="ltr" data-testid="incoming">
-                      {row.incoming || "—"}
+                      {row.incoming ? formatQty(row.incoming, row.unitType, locale) : "—"}
                     </td>
                     <td dir="ltr">
-                      {row.reorderPoint ?? "—"}
+                      {row.reorderPoint === null ? "—" : formatQty(row.reorderPoint, row.unitType, locale)}
                       {isLowStock(row.qty, row.reorderPoint) ? (
                         <span className="badge badge-warning ms-2">{tr("inventory.badge.low")}</span>
                       ) : null}
@@ -190,6 +191,7 @@ async function InventoryContent({ searchParams }: { searchParams: SearchParams }
                         itemRef={{ productId: row.productId, variantId: row.variantId }}
                         itemLabel={label}
                         onHand={row.qty}
+                        unitType={row.unitType}
                         reorderPoint={row.reorderPoint}
                         archived={row.archived}
                         canAdjust={can.adjust}

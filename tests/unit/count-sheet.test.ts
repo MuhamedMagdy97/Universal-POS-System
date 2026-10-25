@@ -10,6 +10,7 @@ const item = (over: Partial<CountSheetItem>): CountSheetItem => ({
   barcode: null,
   categoryName: null,
   categoryNameAr: null,
+  unitType: "EACH",
   expected: null,
   ...over,
 });
@@ -32,7 +33,7 @@ describe("count sheet rows (C15)", () => {
       ["Fruit", "Apple"],
       [null, "Pen"],
     ]);
-    expect(rows[1]).toMatchObject({ sku: "C1", expected: 4 });
+    expect(rows[1]).toMatchObject({ sku: "C1", expected: "4" });
     expect(rows[3].barcode).toBe("111");
   });
 
@@ -42,5 +43,12 @@ describe("count sheet rows (C15)", () => {
     expect(rows.find((row) => row.sku === "T1")).toMatchObject({ name: "Tea", category: "مشروبات" });
     // Coffee has no Arabic category, so "Drinks" sorts with the Arabic names, uncategorised still last.
     expect(rows.at(-1)?.sku).toBe("P1");
+  });
+});
+
+describe("count sheet in kg (weighed-selling-spec W7)", () => {
+  it("prints a weighed item's expected stock in kg", () => {
+    const rows = sheetRows([item({ name: "Rice", sku: "R1", unitType: "KG", expected: 12_500 })], "en");
+    expect(rows[0].expected).toBe("12.500 kg");
   });
 });

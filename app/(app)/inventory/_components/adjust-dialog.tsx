@@ -3,7 +3,8 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
-import { normalizeQty, type AdjustmentReasonValue } from "@/modules/inventory/schemas";
+import { formatQty, parseQtyInput, type QtyUnit } from "@/lib/quantity";
+import type { AdjustmentReasonValue } from "@/modules/inventory/schemas";
 import { adjustStockAction } from "../actions";
 import {
   adjustReasonsFor,
@@ -26,6 +27,8 @@ type Props = {
   itemRef: ItemRef;
   itemLabel: string;
   onHand: number;
+  /** Pieces, or grams for KG: typed and shown in kg (weighed-selling-spec W7). */
+  unitType?: QtyUnit;
   /** Archived items may only lose stock: increase reasons are hidden and the sign is fixed to "remove". */
   archived?: boolean;
 };
@@ -37,7 +40,18 @@ const DEFAULT_REASON: AdjustmentReasonValue = "COUNT_CORRECTION";
  * the user to confirm again. The sign is fixed by the reason, except for reasons that allow both.
  * The form starts empty every time it opens, so a second open cannot repeat the last adjustment.
  */
-export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLabel, onHand, archived = false }: Props) {
+export function AdjustDialog({
+  locale,
+  open,
+  onClose,
+  branchId,
+  itemRef,
+  itemLabel,
+  onHand,
+  unitType = "EACH",
+  archived = false,
+}: Props) {
+  const show = (qty: number) => formatQty(qty, unitType, locale);
   const tr = translator(locale);
   const router = useRouter();
   const titleId = useId();
@@ -72,8 +86,8 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
   const effectiveMode = isCount ? mode : "delta";
   const effectiveSign = archived ? "-" : sign;
   // Counted quantities may be 0; a change must be at least 1. Arabic-Indic digits are read by the parsers.
-  const counted = qty.trim() === "" ? null : normalizeCount(qty);
-  const amount = normalizeQty(qty);
+  const counted = qty.trim() === "" ? null : normalizeCount(qty, unitType);
+  const amount = parseQtyInput(qty, unitType);
   const delta =
     effectiveMode === "counted"
       ? counted === null
@@ -112,7 +126,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
     if (result.error.code === "CONFLICT" && (result.error.details as { reason?: string })?.reason === "STALE_STOCK") {
       const latest = (result.error.details as { onHand: number }).onHand;
       setCurrent(latest);
-      setError(tr("inventory.adjust.stale", { onHand: latest }));
+      setError(tr("inventory.adjust.stale", { onHand: show(latest) }));
       return;
     }
     setError(plain(locale, errorMessageKey(result.error)));
@@ -175,7 +189,8 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
             <span>{effectiveMode === "counted" ? tr("inventory.adjust.counted") : tr("inventory.adjust.qty")}</span>
             <input
               dir="ltr"
-              inputMode="numeric"
+              inputMode={unitType === "KG" ? "decimal" : "numeric"}
+              placeholder={unitType === "KG" ? "0.000" : undefined}
               value={qty}
               onChange={(e) => setQty(e.target.value)}
               className="input"
@@ -195,7 +210,7 @@ export function AdjustDialog({ locale, open, onClose, branchId, itemRef, itemLab
         </label>
 
         <p className="text-muted">
-          {after === null ? null : tr("inventory.adjust.preview", { from: current, to: after })}
+          {after === null ? null : tr("inventory.adjust.preview", { from: show(current), to: show(after) })}
         </p>
 
         {error ? (

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
+import { formatQty, qtyInputValue, type QtyUnit } from "@/lib/quantity";
 import type { CountDetail, CountLineView, StockPage, StockRow } from "@/modules/inventory";
 import {
   addCountItemsAction,
@@ -226,6 +227,7 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
                         key={`${keyOf(line.ref)}:${line.countedQty ?? ""}`}
                         label={`${tr("inventory.count.column.counted")}: ${nameOf(line)}`}
                         value={line.countedQty}
+                        unitType={line.unitType}
                         disabled={pending}
                         onCommit={(value) => void setCounted(line, value)}
                       />
@@ -309,23 +311,29 @@ export function CountSession({ locale, count, canEdit }: { locale: Locale; count
   );
 }
 
-/** Typed quantity: Enter or leaving the box replaces the counted quantity (0 … 1,000,000, Arabic-Indic digits ok). */
+/**
+ * Typed quantity: Enter or leaving the box replaces the counted quantity (0 … 1,000,000, or kg with up to 3 decimals
+ * for KG; Arabic-Indic digits ok).
+ */
 function QtyCell({
   label,
   value,
+  unitType,
   disabled,
   onCommit,
 }: {
   label: string;
   value: number | null;
+  unitType: QtyUnit;
   disabled: boolean;
   onCommit: (value: number) => void;
 }) {
-  const [text, setText] = useState(value === null ? "" : String(value));
+  const shown = value === null ? "" : qtyInputValue(value, unitType);
+  const [text, setText] = useState(shown);
   const commit = () => {
-    const next = normalizeCount(text);
+    const next = normalizeCount(text, unitType);
     if (next === null || next === value) {
-      setText(value === null ? "" : String(value));
+      setText(shown);
       return;
     }
     onCommit(next);
@@ -333,7 +341,7 @@ function QtyCell({
   return (
     <input
       dir="ltr"
-      inputMode="numeric"
+      inputMode={unitType === "KG" ? "decimal" : "numeric"}
       aria-label={label}
       value={text}
       disabled={disabled}
@@ -362,7 +370,8 @@ function ReviewTable({
 }) {
   const tr = translator(locale);
   const open = count.status === "DRAFT" || count.status === "COUNTING";
-  const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
+  const signed = (value: number, unitType: QtyUnit) => `${value > 0 ? "+" : ""}${formatQty(value, unitType, locale)}`;
+  const q = (value: number, unitType: QtyUnit) => formatQty(value, unitType, locale);
   return (
     <div className="flex flex-col gap-2">
       {open ? <p className="text-sm text-muted">{tr("inventory.count.review.help")}</p> : null}
@@ -388,16 +397,22 @@ function ReviewTable({
               <tr key={keyOf(line.ref)} data-testid="review-line">
                 <td>{nameOf(line)}</td>
                 <td dir="ltr">{line.sku}</td>
-                <td dir="ltr">{line.expectedQty ?? "—"}</td>
+                <td dir="ltr">{line.expectedQty === null ? "—" : q(line.expectedQty, line.unitType)}</td>
                 <td dir="ltr">
-                  {open ? (line.expectedQty === null ? "—" : signed(line.onHand - line.expectedQty)) : line.onHand}
+                  {open
+                    ? line.expectedQty === null
+                      ? "—"
+                      : signed(line.onHand - line.expectedQty, line.unitType)
+                    : q(line.onHand, line.unitType)}
                 </td>
-                <td dir="ltr">{line.countedQty ?? tr("inventory.count.notCounted")}</td>
+                <td dir="ltr">
+                  {line.countedQty === null ? tr("inventory.count.notCounted") : q(line.countedQty, line.unitType)}
+                </td>
                 <td
                   dir="ltr"
                   className={line.qtyDelta && line.qtyDelta < 0 ? "text-danger" : line.qtyDelta ? "text-success" : ""}
                 >
-                  {line.qtyDelta === null ? "—" : signed(line.qtyDelta)}
+                  {line.qtyDelta === null ? "—" : signed(line.qtyDelta, line.unitType)}
                 </td>
               </tr>
             ))}

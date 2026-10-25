@@ -39,6 +39,14 @@ export function parseQtyInput(raw: string, unitType: QtyUnit): number | null {
   return value >= 1 && value <= MAX_QTY ? value : null;
 }
 
+/** A signed change (`-3`, `+5`, `-0.250` kg) as pieces or grams; non-zero, at most `MAX_QTY` either way. */
+export function parseSignedQtyInput(raw: string, unitType: QtyUnit): number | null {
+  const match = /^([+\-−]?)(.*)$/.exec(normalizeDigits(raw).trim());
+  const size = match ? parseQtyInput(match[2], unitType) : null;
+  if (size === null) return null;
+  return match?.[1] === "-" || match?.[1] === "−" ? -size : size;
+}
+
 /** The number for an input box: `"3"`, or kg with 3 decimals (`"0.750"`). */
 export function qtyInputValue(qty: number, unitType: QtyUnit): string {
   if (unitType !== "KG") return String(qty);

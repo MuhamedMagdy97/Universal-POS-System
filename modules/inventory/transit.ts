@@ -61,6 +61,8 @@ export type TransferLineView = {
   nameAr: string | null;
   variantName: string | null;
   sku: string;
+  /** `qtySent` / `qtyReceived` are pieces, or grams for KG (weighed-selling-spec W7). */
+  unitType: "EACH" | "KG";
   qtySent: number;
   qtyReceived: number | null;
   shortfallReason: ShortfallReason | null;
@@ -452,7 +454,7 @@ export async function getTransfer(ctx: TenantContext, id: string): Promise<Trans
           qtySent: true,
           qtyReceived: true,
           shortfallReason: true,
-          product: { select: { name: true, nameAr: true, sku: true } },
+          product: { select: { name: true, nameAr: true, sku: true, unitType: true } },
           variant: { select: { name: true, sku: true } },
         },
       },
@@ -478,6 +480,7 @@ export async function getTransfer(ctx: TenantContext, id: string): Promise<Trans
         nameAr: line.product.nameAr,
         variantName: line.variant?.name ?? null,
         sku: line.variant?.sku ?? line.product.sku,
+        unitType: line.product.unitType,
         qtySent: line.qtySent,
         qtyReceived: line.qtyReceived,
         shortfallReason: line.shortfallReason as ShortfallReason | null,

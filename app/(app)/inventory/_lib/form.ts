@@ -5,12 +5,8 @@
 import type { ErrorBody } from "@/lib/errors";
 import { MESSAGES, interpolate, type Locale, type MessageKey } from "@/lib/i18n";
 import { normalizeDigits } from "@/lib/money";
-import {
-  ADJUSTMENT_REASON_VALUES,
-  MAX_QTY,
-  normalizeQty,
-  type AdjustmentReasonValue,
-} from "@/modules/inventory/schemas";
+import { parseQtyInput, type QtyUnit } from "@/lib/quantity";
+import { ADJUSTMENT_REASON_VALUES, type AdjustmentReasonValue } from "@/modules/inventory/schemas";
 
 export type ItemRef = { productId: string; variantId: string | null };
 export type Line = { ref: ItemRef; qty: number };
@@ -32,18 +28,20 @@ export function signedDelta(input: { reason: AdjustmentReasonValue; qty: number;
   return input.sign === "-" ? -input.qty : input.qty;
 }
 
-/** Reads a counted quantity: a whole number from 0, Arabic-Indic digits accepted; null otherwise. */
-export function normalizeCount(input: string): number | null {
-  const digits = normalizeDigits(input).trim();
-  if (!/^\d+$/.test(digits)) return null;
-  const value = Number(digits);
-  return Number.isSafeInteger(value) && value <= MAX_QTY ? value : null;
+/**
+ * Reads a counted quantity from 0: whole pieces, or kg with up to 3 decimals for KG (as grams, weighed-selling-spec
+ * W7). Arabic-Indic digits accepted; null otherwise.
+ */
+export function normalizeCount(input: string, unitType: QtyUnit = "EACH"): number | null {
+  const text = normalizeDigits(input).trim();
+  if (/^0+([.,]0*)?$/.test(text)) return 0;
+  return parseQtyInput(text, unitType);
 }
 
 /** Reorder-point box: empty clears it (null), 0 … MAX_QTY sets it, anything else is undefined (invalid). */
-export function parseReorderPoint(input: string): number | null | undefined {
+export function parseReorderPoint(input: string, unitType: QtyUnit = "EACH"): number | null | undefined {
   if (input.trim() === "") return null;
-  return normalizeCount(input) ?? undefined;
+  return normalizeCount(input, unitType) ?? undefined;
 }
 
 export function previewAfter(onHand: number, delta: number): number {
@@ -62,8 +60,8 @@ export function overSourceLines(
   return lines.map((line) => ({ ...line, onHand: onHandOf(line.ref) })).filter((line) => line.qty > line.onHand);
 }
 
-/** Opening-grid rows: blank is skipped, anything that is not a whole quantity from 1 is reported. */
-export function openingRowsToSave(rows: readonly { ref: ItemRef; raw: string }[]): {
+/** Opening-grid rows: blank is skipped, anything that is not a quantity from 1 (or 0.001 kg) is reported. */
+export function openingRowsToSave(rows: readonly { ref: ItemRef; raw: string; unitType?: QtyUnit }[]): {
   lines: Line[];
   invalid: ItemRef[];
 } {
@@ -71,7 +69,7 @@ export function openingRowsToSave(rows: readonly { ref: ItemRef; raw: string }[]
   const invalid: ItemRef[] = [];
   for (const row of rows) {
     if (row.raw.trim() === "") continue;
-    const qty = normalizeQty(row.raw);
+    const qty = parseQtyInput(row.raw, row.unitType ?? "EACH");
     if (qty === null) invalid.push(row.ref);
     else lines.push({ ref: row.ref, qty });
   }
@@ -181,7 +179,7 @@ export function pickScanned<R extends { primaryBarcode: string | null; sku: stri
 }
 
 /** Received-quantity box on the receive form: 0 … sent, Arabic-Indic digits accepted; null otherwise. */
-export function parseReceived(input: string, qtySent: number): number | null {
-  const value = normalizeCount(input);
+export function parseReceived(input: string, qtySent: number, unitType: QtyUnit = "EACH"): number | null {
+  const value = normalizeCount(input, unitType);
   return value !== null && value <= qtySent ? value : null;
 }

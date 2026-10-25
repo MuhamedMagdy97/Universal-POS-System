@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AppError } from "@/lib/errors";
 import { translator, type MessageKey } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { Uuid, getItemLedger } from "@/modules/inventory";
 import { transferReference } from "@/modules/inventory/schemas";
 import { itemLabel, loadInventoryContext } from "../../_lib/context";
@@ -92,13 +93,16 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <p className="text-lg">{tr("inventory.history.current", { qty: history.qty })}</p>
+        <p className="text-lg">
+          {tr("inventory.history.current", { qty: formatQty(history.qty, history.unitType, locale) })}
+        </p>
         <StockRowActions
           locale={locale}
           branchId={branch.id}
           itemRef={{ productId: rawProductId, variantId: variantId }}
           itemLabel={displayName}
           onHand={history.qty}
+          unitType={history.unitType}
           reorderPoint={history.reorderPoint}
           archived={label.archived}
           canAdjust={can.adjust}
@@ -143,9 +147,10 @@ async function ItemHistoryContent({ params, searchParams }: Props) {
                   ) : null}
                 </td>
                 <td dir="ltr" className={row.qtyDelta < 0 ? "text-danger" : ""}>
-                  {row.qtyDelta > 0 ? `+${row.qtyDelta}` : row.qtyDelta}
+                  {row.qtyDelta > 0 ? "+" : ""}
+                  {formatQty(row.qtyDelta, history.unitType, locale)}
                 </td>
-                <td dir="ltr">{row.balanceAfter}</td>
+                <td dir="ltr">{formatQty(row.balanceAfter, history.unitType, locale)}</td>
                 <td>{row.actor.name}</td>
                 <td>{row.note ?? ""}</td>
               </tr>

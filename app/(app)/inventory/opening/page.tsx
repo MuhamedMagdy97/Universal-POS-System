@@ -53,6 +53,7 @@ async function OpeningContent({ searchParams }: { searchParams: SearchParams }) 
     name: row.name,
     variantName: row.variantName,
     sku: row.sku,
+    unitType: row.unitType,
   }));
 
   return (
