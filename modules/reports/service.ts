@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import { t, type Locale } from "@/lib/i18n";
 import { sum, toMajorString, type CurrencyCode } from "@/lib/money";
+import { formatQty } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import {
   branchesInScope,
@@ -66,7 +67,11 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
 
 function totalsOf(report: ReportName, rows: ReportRow[]): Record<string, number> {
   const totals: Record<string, number> = {};
+  // Pieces and grams do not add up: quantity columns have no total once a row is weighed (weighed-selling-spec W9).
+  const weighed = rows.some((row) => row.unitType === "KG");
+  const qtyKeys = new Set(REPORT_COLUMNS[report].filter((col) => col.kind === "qty").map((col) => col.key));
   for (const key of totalledKeys(report)) {
+    if (weighed && qtyKeys.has(key)) continue;
     totals[key] = sum(rows.map((row) => (typeof row[key] === "number" ? (row[key] as number) : 0)));
   }
   // Margin is a ratio: recomputed from the totals, never summed (P12 §5).
@@ -178,6 +183,8 @@ function csvValue(column: Column, row: ReportRow, report: FullReport, locale: Lo
       return trusted(toMajorString(value as number, report.currency));
     case "int":
       return value as number;
+    case "qty":
+      return row.unitType === "KG" ? trusted(formatQty(value as number, "KG", locale)) : (value as number);
     case "rate":
       return trusted(formatRateBp(value as number));
     case "margin":
@@ -229,7 +236,8 @@ export async function getDashboardTiles(ctx: TenantContext): Promise<DashboardTi
   };
 }
 
-export type TopItem = { sku: string; name: string; nameAr: string | null; qty: number };
+/** `qty` is pieces, or grams for KG (shown in kg). */
+export type TopItem = { sku: string; name: string; nameAr: string | null; unitType: "EACH" | "KG"; qty: number };
 
 /**
  * Dashboard "Top items today" (business-profiles-spec BP10): the Products report for today over the caller's branches,
@@ -241,10 +249,22 @@ export async function getTopItemsToday(ctx: TenantContext, limit = 5): Promise<T
   if (branchIds.length === 0) return [];
   const { zone } = await orgSettings(ctx.orgId);
   const today = todayIn(zone);
-  const rows = await q.products({ orgId: ctx.orgId, branchIds, zone, from: today, to: today });
+  const scope = { orgId: ctx.orgId, branchIds, zone, from: today, to: today };
+  const [rows, weighedLines] = await Promise.all([q.products(scope), q.weighedSaleLines(scope)]);
+  // A weighed item ranks by how many times it sold, not by grams (weighed-selling-spec W9).
+  const rank = (row: { productId: string; unitType: string; qty: number }) =>
+    row.unitType === "KG" ? (weighedLines.get(row.productId) ?? 0) : row.qty;
   return rows
-    .map((row) => ({ sku: row.sku, name: row.name, nameAr: row.nameAr, qty: row.qtySold - row.qtyRefunded }))
+    .map((row) => ({
+      productId: row.productId,
+      sku: row.sku,
+      name: row.name,
+      nameAr: row.nameAr,
+      unitType: row.unitType,
+      qty: row.qtySold - row.qtyRefunded,
+    }))
     .filter((row) => row.qty > 0)
-    .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name))
-    .slice(0, limit);
+    .sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(({ productId: _productId, ...row }) => row);
 }

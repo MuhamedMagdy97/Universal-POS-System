@@ -393,7 +393,9 @@ async function writeSale(
       allowArchived: offline !== null,
       lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
     });
-    const negative = after.flatMap((line, index) => (line.qty < 0 ? [{ sku: items[index].sku, qty: line.qty }] : []));
+    const negative = after.flatMap((line, index) =>
+      line.qty < 0 ? [{ sku: items[index].sku, qty: line.qty, unitType: items[index].unitType }] : [],
+    );
     if (offline && negative.length > 0) flags.set("STOCK_NEGATIVE", { lines: negative });
   }
 

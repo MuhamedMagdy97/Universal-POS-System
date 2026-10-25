@@ -157,6 +157,8 @@ export type ProductsRow = LineTotals & {
   sku: string;
   name: string;
   nameAr: string | null;
+  /** Quantities are pieces, or grams for KG (shown in kg, weighed-selling-spec W9). */
+  unitType: "EACH" | "KG";
 };
 
 const byNetDesc = <T extends { netMinor: number; name: string }>(a: T, b: T) =>
@@ -175,6 +177,7 @@ export async function products(scope: ReportScope): Promise<ProductsRow[]> {
       psku: string;
       pname: string;
       pnameAr: string | null;
+      unitType: "EACH" | "KG";
       vsku: string | null;
       vname: string | null;
       vnameAr: string | null;
@@ -185,7 +188,7 @@ export async function products(scope: ReportScope): Promise<ProductsRow[]> {
       SELECT "productId", "variantId", SUM(sq) AS sq, SUM(sa) AS sa, SUM(rq) AS rq, SUM(ra) AS ra
       FROM f GROUP BY 1, 2
     )
-    SELECT k.*, p."sku" AS psku, p."name" AS pname, p."nameAr" AS "pnameAr",
+    SELECT k.*, p."sku" AS psku, p."name" AS pname, p."nameAr" AS "pnameAr", p."unitType"::text AS "unitType",
            v."sku" AS vsku, v."name" AS vname, v."nameAr" AS "vnameAr"
     FROM k
     JOIN "Product" p ON p."orgId" = ${scope.orgId}::uuid AND p."id" = k."productId"
@@ -195,6 +198,7 @@ export async function products(scope: ReportScope): Promise<ProductsRow[]> {
       productId: row.productId,
       variantId: row.variantId,
       sku: row.vsku ?? row.psku,
+      unitType: row.unitType,
       name: row.vname === null ? row.pname : `${row.pname} — ${row.vname}`,
       nameAr:
         row.pnameAr === null ? null : row.vname === null ? row.pnameAr : `${row.pnameAr} — ${row.vnameAr ?? row.vname}`,
@@ -294,6 +298,7 @@ export type ProfitProductsRow = ProfitTotals & {
   sku: string;
   name: string;
   nameAr: string | null;
+  unitType: "EACH" | "KG";
 };
 
 /** Names and SKU are the current catalog ones, as in `products`. */
@@ -305,6 +310,7 @@ export async function profitProducts(scope: ReportScope): Promise<ProfitProducts
       psku: string;
       pname: string;
       pnameAr: string | null;
+      unitType: "EACH" | "KG";
       vsku: string | null;
       vname: string | null;
       vnameAr: string | null;
@@ -312,7 +318,7 @@ export async function profitProducts(scope: ReportScope): Promise<ProfitProducts
   >`
     WITH f AS (${profitFacts(scope, false)}),
     k AS (SELECT f."productId", f."variantId", ${PROFIT_SUMS} FROM f GROUP BY 1, 2)
-    SELECT k.*, p."sku" AS psku, p."name" AS pname, p."nameAr" AS "pnameAr",
+    SELECT k.*, p."sku" AS psku, p."name" AS pname, p."nameAr" AS "pnameAr", p."unitType"::text AS "unitType",
            v."sku" AS vsku, v."name" AS vname, v."nameAr" AS "vnameAr"
     FROM k
     JOIN "Product" p ON p."orgId" = ${scope.orgId}::uuid AND p."id" = k."productId"
@@ -322,6 +328,7 @@ export async function profitProducts(scope: ReportScope): Promise<ProfitProducts
       productId: row.productId,
       variantId: row.variantId,
       sku: row.vsku ?? row.psku,
+      unitType: row.unitType,
       name: row.vname === null ? row.pname : `${row.pname} — ${row.vname}`,
       nameAr:
         row.pnameAr === null ? null : row.vname === null ? row.pnameAr : `${row.pnameAr} — ${row.vnameAr ?? row.vname}`,
@@ -912,4 +919,18 @@ export async function inputVat(scope: ReportScope): Promise<InputVatRow[]> {
       netVatMinor: outputVatMinor - inputVatMinor,
     };
   });
+}
+
+/**
+ * Completed sale lines per weighed product in the range: how often it sold, for ranking weighed items next to pieces
+ * (dashboard Top items, weighed-selling-spec W9). Pieces rank by quantity instead.
+ */
+export async function weighedSaleLines(scope: ReportScope): Promise<Map<string, number>> {
+  const rows = await getDb().$queryRaw<{ productId: string; n: Big }[]>`
+    SELECT si."productId", COUNT(*) AS n
+    FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
+    WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
+      AND si."unitType" = 'KG'
+    GROUP BY 1`;
+  return new Map(rows.map((row) => [row.productId, num(row.n)]));
 }

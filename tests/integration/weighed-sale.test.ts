@@ -4,7 +4,7 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import * as inventory from "@/modules/inventory";
 import { enrolOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { openShift } from "@/modules/registers";
-import { getReport, todayIn } from "@/modules/reports";
+import { exportReportCsv, getReport, todayIn } from "@/modules/reports";
 import { createSale, getTillSnapshot, refundSale, voidSale } from "@/modules/sales";
 import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
 import type { CartLine } from "@/app/(app)/pos/_lib/till";
@@ -125,6 +125,17 @@ describe("a weighed sale", () => {
       qtyRefunded: 250,
       costMinor: 4_000,
     });
+  });
+});
+
+describe("a weighed item in reports", () => {
+  it("shows kg in the products CSV and leaves pieces and grams out of one total", async () => {
+    const today = todayIn("Africa/Cairo");
+    const report = await getReport(owner, "products", { branchId, from: today, to: today });
+    expect(report.rows.find((row) => row.productId === tomatoes)).toMatchObject({ unitType: "KG", qtySold: 750 });
+    expect(report.totals).not.toHaveProperty("qtySold");
+    const { body } = await exportReportCsv(owner, "products", { branchId, from: today, to: today });
+    expect(body).toContain("0.750 kg");
   });
 });
 

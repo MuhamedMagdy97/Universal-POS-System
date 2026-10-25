@@ -8,6 +8,7 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { getLocale } from "@/lib/i18n/server";
 import { PageHeader } from "@/app/_ui/page-header";
 import { StatTile } from "@/app/_ui/stat-tile";
@@ -90,7 +91,11 @@ async function DashboardContent() {
           title={tr(profile.itemWord === "services" ? "dashboard.tile.topServices" : "dashboard.tile.topItems")}
           empty={tr("dashboard.tile.topEmpty")}
           href={today("products")}
-          rows={top.map((row) => ({ sku: row.sku, name: (locale === "ar" && row.nameAr) || row.name, qty: row.qty }))}
+          rows={top.map((row) => ({
+            sku: row.sku,
+            name: (locale === "ar" && row.nameAr) || row.name,
+            qty: formatQty(row.qty, row.unitType, locale),
+          }))}
         />
       ) : null;
     }
@@ -161,7 +166,8 @@ function TopItemsCard({
   title: string;
   empty: string;
   href: string;
-  rows: { sku: string; name: string; qty: number }[];
+  /** `qty` as shown: pieces, or kg for a weighed item. */
+  rows: { sku: string; name: string; qty: string }[];
 }) {
   return (
     <Link href={href} className="card flex flex-col gap-2 transition-colors hover:border-border-strong">

@@ -38,6 +38,10 @@ beforeAll(async () => {
         KEY(),
       )
     ).sale;
+  // A weighed item: 1.5 kg in one sale ranks as one sale, not 1,500 (weighed-selling-spec W9).
+  const kg = await createProduct(db, orgId, "TOP-KG");
+  await db.product.update({ where: { id: kg.id }, data: { unitType: "KG", priceMinor: 1_000 } });
+  await sell(kg.id, 1, 1_500);
   await sell(a.id, a.priceMinor, 3);
   await sell(b.id, b.priceMinor, 1);
   const refunded = await sell(b.id, b.priceMinor, 2);
@@ -56,9 +60,10 @@ afterAll(async () => {
 describe("top items today", () => {
   it("lists best sellers by net quantity", async () => {
     const top = await getTopItemsToday(owner);
-    expect(top?.map((row) => [row.qty, row.sku])).toEqual([
-      [3, "TOP-A"],
-      [2, "TOP-B"],
+    expect(top?.map((row) => [row.sku, row.unitType, row.qty])).toEqual([
+      ["TOP-A", "EACH", 3],
+      ["TOP-B", "EACH", 2],
+      ["TOP-KG", "KG", 1_500],
     ]);
   });
 

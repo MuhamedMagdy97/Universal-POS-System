@@ -8,6 +8,7 @@ import { requireTenant, type TenantContext } from "@/lib/auth/tenant";
 import { translator, type Locale } from "@/lib/i18n";
 import { getLocale } from "@/lib/i18n/server";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
+import { formatQty } from "@/lib/quantity";
 import { formatLocalDateTime, formatRateBp } from "@/modules/reports";
 import { listOfflineReview, type OfflineReviewPage, type OfflineReviewRow } from "@/modules/sales";
 import { markReviewedAction } from "./actions";
@@ -66,7 +67,12 @@ function flagLines(row: OfflineReviewRow, flag: string, details: Details, locale
         tr("review.detail.archived", { item: item(sku) }),
       );
     case "STOCK_NEGATIVE":
-      return list(details.lines).map((line) => tr("review.detail.stock", { item: item(line.sku), qty: n(line.qty) }));
+      return list(details.lines).map((line) =>
+        tr("review.detail.stock", {
+          item: item(line.sku),
+          qty: formatQty(n(line.qty), line.unitType === "KG" ? "KG" : "EACH", locale),
+        }),
+      );
     case "DISCOUNT_OVER_LIMIT":
       return [
         tr("review.detail.discount", {
