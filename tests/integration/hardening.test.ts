@@ -162,7 +162,15 @@ describe("receipts (H2, H4)", () => {
       changeMinor: 500,
     });
     expect(doc.lines).toEqual([
-      { name: product.name, nameAr: "شاي", qty: 2, unitType: "EACH", discountMinor: 0, lineTotalMinor: 2000 },
+      {
+        name: product.name,
+        nameAr: "شاي",
+        qty: 2,
+        unitType: "EACH",
+        unitPriceMinor: 1000,
+        discountMinor: 0,
+        lineTotalMinor: 2000,
+      },
     ]);
     expect(doc.staffName).toMatch(/^CASHIER/);
     // An original print is not audited.
