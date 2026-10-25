@@ -18,6 +18,8 @@ type Props = {
   registerId: string;
   currency: CurrencyCode;
   cash: CashBreakdown;
+  /** Open café tickets in the branch: they stay open after the close (restaurant-cafe-spec R4). */
+  openTickets?: number;
 };
 
 /**
@@ -27,7 +29,7 @@ type Props = {
 /** What the server said about the register's offline device (OF14). */
 type Unsynced = { offlineCode: string | null; queued: number; reportedAt: string | null };
 
-export function CloseShift({ locale, shiftId, registerId, currency, cash }: Props) {
+export function CloseShift({ locale, shiftId, registerId, currency, cash, openTickets = 0 }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const money = (minor: number) => formatMoney(minor, currency, locale);
@@ -216,6 +218,11 @@ export function CloseShift({ locale, shiftId, registerId, currency, cash }: Prop
           {money(cash.expectedCashMinor)}
         </dd>
       </dl>
+      {openTickets > 0 ? (
+        <p className="notice" data-testid="close-open-tickets">
+          {tr("pos.ticket.openTickets", { count: openTickets })}
+        </p>
+      ) : null}
 
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="field">

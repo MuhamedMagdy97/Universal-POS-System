@@ -111,6 +111,9 @@ test.describe("cashier till", () => {
 
     // A retail till has no tiles (business-profiles-spec §2).
     await expect(page.getByTestId("till-tiles")).toHaveCount(0);
+    // Nor tables, tickets or an order type (restaurant-cafe-spec R1).
+    await expect(page.getByTestId("ticket-bar")).toHaveCount(0);
+    await expect(page.getByTestId("tables-view")).toHaveCount(0);
 
     await page.setViewportSize({ width: 1280, height: 520 });
     await page.getByText("Split", { exact: true }).click();

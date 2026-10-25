@@ -64,6 +64,19 @@ export function ZReportSlip({ report, locale }: { report: ZReport; locale: Local
           </tbody>
         </table>
       ) : null}
+      {report.serviceChargeMinor ? (
+        // The service charge inside this shift's sales (restaurant-cafe-spec R11): not item revenue.
+        <table className="receipt-rule" data-testid="zreport-service-charge">
+          <tbody>
+            <tr>
+              <td>{tr("zreport.serviceCharge")}</td>
+              <td dir="ltr" className="receipt-end">
+                {money(report.serviceChargeMinor)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      ) : null}
       {report.discrepancyNote ? (
         <p className="receipt-rule">{tr("zreport.note", { note: report.discrepancyNote })}</p>
       ) : null}

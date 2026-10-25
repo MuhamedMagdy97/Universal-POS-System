@@ -1,4 +1,4 @@
-import { MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
+import { divideRoundHalfUp, MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
 import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { amountTooLarge, discountTooLarge, invalidPayment, labelMismatch } from "./errors";
 
@@ -103,7 +103,13 @@ export type PricedSaleLine = PricedLine & {
   discountMinor: number;
 };
 
-export type PricedSale = SaleTotals & { lines: PricedSaleLine[]; shelfMinor: number; discountMinor: number };
+export type PricedSale = SaleTotals & {
+  lines: PricedSaleLine[];
+  shelfMinor: number;
+  discountMinor: number;
+  /** The service charge (restaurant-cafe-spec R11), inside the totals; null when none. */
+  serviceCharge: PricedLine | null;
+};
 
 /** A discount's amount on `baseMinor`: percent rounded half-up, amount as given. Never more than the base (DC3). */
 export function discountOf(discount: Discount | null | undefined, baseMinor: number): number {
@@ -134,12 +140,17 @@ export function allocate(totalMinor: number, weights: readonly number[]): number
   return shares.map(Number);
 }
 
-/** Prices a whole sale: line discounts, then the sale discount allocated across lines, then VAT per line (DC3–DC5). */
+/**
+ * Prices a whole sale: line discounts, then the sale discount allocated across lines, then VAT per line (DC3–DC5).
+ * `serviceChargeBp` (R11) is a share of the lines after every discount, priced like one more line with VAT at the
+ * shop's rate (inside it when prices include VAT, on top otherwise).
+ */
 export function priceSale(
   lines: readonly SaleLineDraft[],
   saleDiscount: Discount | null | undefined,
   rateBp: number,
   pricesIncludeVat: boolean,
+  serviceChargeBp = 0,
 ): PricedSale {
   const shelf = lines.map(shelfOf);
   const own = lines.map((line, index) => discountOf(line.discount, shelf[index]));
@@ -154,11 +165,21 @@ export function priceSale(
       discountMinor,
     };
   });
+  const charged = sum(shelf) - sum(priced.map((line) => line.discountMinor));
+  const serviceCharge =
+    serviceChargeBp > 0
+      ? priceLine(
+          { unitPriceMinor: percentOfBp(charged, serviceChargeBp), qty: 1, vatApplicable: true },
+          rateBp,
+          pricesIncludeVat,
+        )
+      : null;
   return {
-    ...totalsOf(priced),
+    ...totalsOf(serviceCharge ? [...priced, serviceCharge] : priced),
     lines: priced,
     shelfMinor: sum(shelf),
     discountMinor: sum(priced.map((line) => line.discountMinor)),
+    serviceCharge,
   };
 }
 
@@ -206,4 +227,34 @@ export function settlePayments(totalMinor: number, tenders: readonly TenderInput
   if (cash.amountMinor < due) throw invalidPayment("Cash tendered is less than the amount due", { due });
   payments.push({ method: "CASH", amountMinor: due, reference: null });
   return { payments, changeMinor: cash.amountMinor - due };
+}
+
+/**
+ * The service charge a refund gives back (restaurant-cafe-spec R11): in proportion to the goods refunded so far,
+ * counted cumulatively so repeated part refunds never give back more than was charged; the refund that returns the
+ * last of the goods gives back exactly what is left. The server books it and the Returns screen shows it.
+ */
+export function serviceRefundShare(input: {
+  chargedMinor: number;
+  chargedVatMinor: number;
+  /** Already given back by earlier refunds. */
+  givenMinor: number;
+  givenVatMinor: number;
+  /** The sale's goods (its lines' totals) and how much of them is refunded once this refund is done. */
+  goodsMinor: number;
+  refundedAfterMinor: number;
+  allBack: boolean;
+}): { amountMinor: number; vatMinor: number } {
+  if (input.chargedMinor === 0) return { amountMinor: 0, vatMinor: 0 };
+  if (input.allBack || input.goodsMinor === 0) {
+    return {
+      amountMinor: input.chargedMinor - input.givenMinor,
+      vatMinor: input.chargedVatMinor - input.givenVatMinor,
+    };
+  }
+  const upTo = (whole: number) =>
+    Number(divideRoundHalfUp(BigInt(whole) * BigInt(input.refundedAfterMinor), BigInt(input.goodsMinor)));
+  const amountMinor = Math.max(upTo(input.chargedMinor) - input.givenMinor, 0);
+  const vatMinor = Math.min(Math.max(upTo(input.chargedVatMinor) - input.givenVatMinor, 0), amountMinor);
+  return { amountMinor, vatMinor };
 }

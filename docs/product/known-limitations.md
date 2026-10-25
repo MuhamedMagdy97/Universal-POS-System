@@ -47,6 +47,13 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 - A cashier can reprint only the last sale on their screen; older receipts are reprinted by a Manager or Owner from
   Returns. [phase-11/hardening-spec, user guide review]
 
+## Restaurants and cafés
+
+- No split bills, merged tickets, tips, kitchen screen, printing by station, courses, floor plan, reservations,
+  delivery zones or drivers, recipes or ingredient stock, or happy-hour prices. [ui-refresh/restaurant-cafe-spec §3]
+- Options are not available on weighed items or items with variants, nor in a shop linked to the inventory system.
+- Tables and open tickets need the server; offline, the till sells at the counter only.
+
 ## Shifts and cash
 
 - No manager approval or threshold for a cash difference at close (recorded and shown only). A closed shift cannot

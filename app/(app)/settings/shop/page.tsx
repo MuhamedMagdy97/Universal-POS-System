@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/permissions";
 import { translator } from "@/lib/i18n";
-import { getBusinessType, getScaleSettings } from "@/modules/org";
+import { getBusinessType, getScaleSettings, getServiceCharge } from "@/modules/org";
+import { profileOf } from "@/modules/presets";
 import { SettingsDenied } from "../_components/denied";
 import { loadSettingsPage } from "../_lib/context";
 import { ScaleSettingsForm } from "./scale-settings";
+import { ServiceChargeForm } from "./service-charge";
 import { ShopSettingsForm } from "./shop-settings";
 
 /**
@@ -32,6 +34,13 @@ async function ShopSettingsContent() {
         businessType={await getBusinessType(page.ctx)}
         canManage={hasPermission(page.ctx.role, "shop.manage")}
       />
+      {profileOf(await getBusinessType(page.ctx)).tickets ? (
+        <ServiceChargeForm
+          locale={page.locale}
+          serviceChargeBp={(await getServiceCharge(page.ctx)).serviceChargeBp}
+          canManage={hasPermission(page.ctx.role, "shop.manage")}
+        />
+      ) : null}
       <ScaleSettingsForm
         locale={page.locale}
         settings={await getScaleSettings(page.ctx)}

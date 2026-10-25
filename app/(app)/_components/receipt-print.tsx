@@ -68,6 +68,13 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
         <p dir="auto">{tr("receipt.customerVatNo", { number: doc.customer.taxNumber })}</p>
       ) : null}
       {doc.reason ? <p>{tr("receipt.reason", { reason: doc.reason })}</p> : null}
+      {doc.order ? (
+        <p data-testid="receipt-order">
+          {tr(`receipt.order.${doc.order.type}`)}
+          {doc.order.tableName ? ` · ${tr("receipt.table", { name: doc.order.tableName })}` : ""}
+        </p>
+      ) : null}
+      {doc.order?.deliveryAddress ? <p dir="auto">{doc.order.deliveryAddress}</p> : null}
       <table className="receipt-rule">
         <tbody>
           {doc.lines.map((line, index) => (
@@ -96,6 +103,22 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
                   </td>
                 </tr>
               ) : null}
+              {/* Options as sold, then the note (restaurant-cafe-spec R13). */}
+              {(line.options ?? []).map((option, optionIndex) => (
+                <tr key={`o${optionIndex}`}>
+                  <td className="receipt-indent">+ {(locale === "ar" && option.nameAr) || option.name}</td>
+                  <td dir="ltr" className="receipt-end">
+                    {option.priceDeltaMinor > 0 ? money(option.priceDeltaMinor) : null}
+                  </td>
+                </tr>
+              ))}
+              {line.note ? (
+                <tr>
+                  <td className="receipt-indent" colSpan={2}>
+                    “{line.note}”
+                  </td>
+                </tr>
+              ) : null}
               {line.discountMinor > 0 ? (
                 <tr>
                   <td className="receipt-indent">{tr("receipt.lineDiscount")}</td>
@@ -115,6 +138,14 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
               <td>{tr("receipt.discount")}</td>
               <td dir="ltr" className="receipt-end">
                 −{money(doc.discountMinor)}
+              </td>
+            </tr>
+          ) : null}
+          {doc.serviceChargeMinor ? (
+            <tr data-testid="receipt-service-charge">
+              <td>{tr("receipt.serviceCharge")}</td>
+              <td dir="ltr" className="receipt-end">
+                {money(doc.serviceChargeMinor)}
               </td>
             </tr>
           ) : null}

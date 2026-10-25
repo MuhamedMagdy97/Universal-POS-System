@@ -7,15 +7,31 @@ import { formatMoney, toMajorString } from "@/lib/money";
 import { formatQty, qtyInputValue } from "@/lib/quantity";
 import { parseScaleLabel, type ScaleLabel } from "@/lib/scale-label";
 import type { LookupResult } from "@/modules/catalog/schemas";
-import type { ReceiptDoc, SaleDetail } from "@/modules/sales";
+import type { ReceiptDoc, SaleDetail, TicketView } from "@/modules/sales";
+import type { ErrorBody } from "@/lib/errors";
 import type { Discount, PayMethod, ScaleLabelLine } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
+import { usePrinter } from "../../_components/printing";
+import { KitchenSlipView } from "../../_components/kitchen-print";
+import {
+  cancelTicketAction,
+  moveTicketAction,
+  openTicketAction,
+  saveTicketAction,
+  sendTicketAction,
+} from "../ticket-actions";
+import { canQueueOffline, cartFromTicket, mergeIntoTicket, ticketErrorKey, ticketLinesOf } from "../_lib/tickets";
+import { TablesView } from "./tables-view";
+import { TicketBar, type OrderType } from "./ticket-bar";
 import { createSaleAction, tillStockAction } from "../actions";
 import { CustomerPicker } from "./customer-picker";
 import {
   addToCart,
+  cartKey,
   fromScaleLabel,
+  setLineNote,
+  type PickedOptions,
   bumpQty,
   canCharge,
   discountRaw,
@@ -45,6 +61,7 @@ import { useOfflineTill } from "../_lib/use-offline";
 import { Icon } from "@/app/_ui/icons";
 import type { TillLayout } from "@/modules/presets";
 import { TilePanel } from "./tile-panel";
+import { OptionsPicker } from "./options-picker";
 import {
   DiscountBox,
   ExactCashButton,
@@ -59,6 +76,8 @@ import {
 type Props = {
   /** Scan-first or tap tiles under the scan box (business-profiles-spec BP6). */
   layout: TillLayout;
+  /** Tables, open tickets and order types: a café (restaurant-cafe-spec R1). */
+  tickets?: boolean;
   locale: Locale;
   branchId: string;
   registerId: string;
@@ -79,7 +98,7 @@ const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET:
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
  */
-export function Till({ locale, branchId, registerId, userId, settings, offline, layout }: Props) {
+export function Till({ locale, branchId, registerId, userId, settings, offline, layout, tickets = false }: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -113,6 +132,19 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
   // A KG item waiting for its weight (weighed-selling-spec W5).
   const [weighing, setWeighing] = useState<TillItem | null>(null);
+  // An item with option groups waiting for its options (restaurant-cafe-spec R7), and the line whose note is open.
+  const [picking, setPicking] = useState<TillItem | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  // The café floor (restaurant-cafe-spec R2-R6, R10): the open ticket, the type of a new order, the Tables view.
+  const [ticket, setTicket] = useState<TicketView | null>(null);
+  const [orderType, setOrderType] = useState<OrderType>("TAKEAWAY");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [floor, setFloor] = useState<{ mode: "open" | "move"; n: number } | null>(
+    tickets ? { mode: "open", n: 0 } : null,
+  );
+  const printer = usePrinter();
+  // The service charge (R11): on a dine-in order unless taken off this one.
+  const [serviceOff, setServiceOff] = useState(false);
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
@@ -123,7 +155,13 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   const sellingOffline = off.offline && off.block === null;
   const limitLabel = settings.discount.limitBp === null ? null : `${settings.discount.limitBp / 100}%`;
 
-  const preview = previewCart(cart, settings, saleDiscount);
+  const servicePossible = tickets && !sellingOffline && (settings.serviceChargeBp ?? 0) > 0 && orderType === "DINE_IN";
+  const preview = previewCart(
+    cart,
+    settings,
+    saleDiscount,
+    servicePossible && !serviceOff ? (settings.serviceChargeBp ?? 0) : 0,
+  );
   const totalMinor = preview.ok ? preview.totalMinor : 0;
   const splitTenders = METHODS.map(({ value }) => ({
     method: value,
@@ -142,10 +180,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         });
   const ready = canCharge(cart, preview, plan) && !pending;
   const selected =
-    selectedKey && cart.some((line) => lineKey(line) === selectedKey)
+    selectedKey && cart.some((line) => cartKey(line) === selectedKey)
       ? selectedKey
       : cart.length > 0
-        ? lineKey(cart[cart.length - 1])
+        ? cartKey(cart[cart.length - 1])
         : null;
 
   function focusSearch() {
@@ -173,7 +211,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   /** Opens the discount box (F6 line, F7 sale) on what is set now. */
   function openDiscount(target: string | "SALE") {
     if (!settings.discount.allowed || cart.length === 0) return;
-    const current = target === "SALE" ? saleDiscount : cart.find((line) => lineKey(line) === target)?.discount;
+    const current = target === "SALE" ? saleDiscount : cart.find((line) => cartKey(line) === target)?.discount;
     setDiscountDraft({
       target,
       kind: current?.kind ?? "PERCENT",
@@ -262,17 +300,19 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
    * `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. A KG item asks for its
    * weight first (weighed-selling-spec W5); `grams` is that weight.
    */
-  function add(item: TillItem, refocus = true, grams?: number, label?: ScaleLabelLine) {
-    if (item.unitType === "KG" && grams === undefined) {
-      setWeighing(item);
+  function add(item: TillItem, refocus = true, grams?: number, label?: ScaleLabelLine, picked?: PickedOptions) {
+    if ((item.unitType === "KG" && grams === undefined) || (item.optionGroups?.length && !picked)) {
+      if (item.unitType === "KG") setWeighing(item);
+      else setPicking(item);
       setResults(null);
       setQuery("");
       setError(null);
       return;
     }
     setWeighing(null);
-    setCart((current) => addToCart(current, item, grams ?? 1, label));
-    setSelectedKey(lineKey(item));
+    setPicking(null);
+    setCart((current) => addToCart(current, item, grams ?? 1, label, picked));
+    setSelectedKey(cartKey({ ...item, options: picked?.options }));
     setResults(null);
     setQuery("");
     setError(null);
@@ -387,7 +427,114 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     setOfflineReceipt(null);
     setError(null);
     setSaleKey(crypto.randomUUID());
+    setTicket(null);
+    setOrderType("TAKEAWAY");
+    setDeliveryAddress("");
+    setServiceOff(false);
+    if (tickets) showFloor("open");
     focusSearch();
+  }
+
+  function showFloor(mode: "open" | "move") {
+    // A new key each time: the floor reloads the tables and tickets when shown.
+    setFloor((current) => ({ mode, n: (current?.n ?? 0) + 1 }));
+  }
+
+  function ticketError(err: ErrorBody) {
+    setError(plain(locale, ticketErrorKey(err)));
+  }
+
+  /** A ticket picked on the floor: its lines in the cart. A new, empty one keeps what is already rung up. */
+  function loadTicket(next: TicketView) {
+    setTicket(next);
+    setOrderType(next.orderType);
+    // What was rung up before picking a busy table joins its ticket (saved with the next Hold, Send or Pay).
+    if (!ticket && cart.length > 0 && next.lines.length > 0) setCart(mergeIntoTicket(cartFromTicket(next), cart));
+    else if (next.lines.length > 0 || ticket) setCart(cartFromTicket(next));
+    if (next.customer) setCustomer({ ...next.customer, taxNumber: null });
+    setFloor(null);
+    setSelectedKey(null);
+    setError(null);
+    setSaleKey(crypto.randomUUID());
+    focusSearch();
+  }
+
+  /** Saves the cart to the ticket, opening one for a takeaway or delivery order. Null when it could not. */
+  async function saveTicket(): Promise<TicketView | null> {
+    let current = ticket;
+    if (!current) {
+      if (orderType === "DINE_IN") {
+        showFloor("open");
+        setError(tr("pos.ticket.pickTable"));
+        return null;
+      }
+      const opened = await openTicketAction({
+        branchId,
+        orderType,
+        ...(customer ? { customerId: customer.id } : {}),
+        ...(deliveryAddress.trim() ? { deliveryAddress: deliveryAddress.trim() } : {}),
+      });
+      if (!opened.ok) {
+        ticketError(opened.error);
+        return null;
+      }
+      current = opened.data;
+    }
+    const saved = await saveTicketAction(current.id, { version: current.version, lines: ticketLinesOf(cart) });
+    if (!saved.ok) {
+      ticketError(saved.error);
+      return null;
+    }
+    if (saved.data.cancelled) printer.print(<KitchenSlipView slip={saved.data.cancelled} locale={locale} />);
+    setTicket(saved.data.ticket);
+    setCart((current) => cartFromTicket(saved.data.ticket, current));
+    return saved.data.ticket;
+  }
+
+  async function holdTicket() {
+    setPending(true);
+    setError(null);
+    const saved = await saveTicket();
+    setPending(false);
+    if (saved) newSale();
+  }
+
+  async function sendTicket() {
+    setPending(true);
+    setError(null);
+    const saved = await saveTicket();
+    if (!saved) {
+      setPending(false);
+      return;
+    }
+    const sent = await sendTicketAction(saved.id, saved.version);
+    setPending(false);
+    if (!sent.ok) {
+      ticketError(sent.error);
+      return;
+    }
+    if (sent.data.slip) printer.print(<KitchenSlipView slip={sent.data.slip} locale={locale} />);
+    setTicket(sent.data.ticket);
+    setCart((current) => cartFromTicket(sent.data.ticket, current));
+  }
+
+  async function moveTicket(tableId: string) {
+    if (!ticket) return;
+    setPending(true);
+    const moved = await moveTicketAction(ticket.id, { version: ticket.version, tableId });
+    setPending(false);
+    setFloor(null);
+    if (moved.ok) setTicket(moved.data);
+    else ticketError(moved.error);
+  }
+
+  async function cancelTicket(reason: string | undefined) {
+    if (!ticket) return;
+    setPending(true);
+    const cancelled = await cancelTicketAction(ticket.id, { version: ticket.version, ...(reason ? { reason } : {}) });
+    setPending(false);
+    if (cancelled.ok) newSale();
+    else ticketError(cancelled.error);
   }
 
   async function charge(event: FormEvent) {
@@ -395,6 +542,12 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     if (!ready || !plan) return;
     setPending(true);
     setError(null);
+    // A ticket is saved first, so the sale is exactly its lines at its newest version (R5).
+    const paying = ticket && !sellingOffline ? await saveTicket() : null;
+    if (ticket && !sellingOffline && !paying) {
+      setPending(false);
+      return;
+    }
     const body = {
       branchId,
       registerId,
@@ -403,12 +556,30 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         qty: line.qty,
         ...(line.discount ? { discount: line.discount } : {}),
         ...(line.labels ? { labels: line.labels } : {}),
+        ...(line.options?.length ? { options: line.options } : {}),
+        ...(line.note ? { note: line.note } : {}),
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
+      ...(paying
+        ? { ticket: { id: paying.id, version: paying.version } }
+        : tickets
+          ? { orderType: sellingOffline ? ("TAKEAWAY" as const) : orderType }
+          : {}),
+      ...(servicePossible && serviceOff ? { serviceCharge: false } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
+    // A ticket payment or a service charge needs the server (R5, R12): never queued offline, the key kept to retry.
+    const queueable = canQueueOffline({
+      paysTicket: paying !== null,
+      serviceChargeMinor: preview.ok ? preview.serviceChargeMinor : 0,
+    });
+    if (unreachable(sent) && off.device && !queueable) {
+      setPending(false);
+      setError(tr("pos.ticket.error.offline"));
+      return;
+    }
     if (unreachable(sent) && off.device) {
       // OF6: no server. The sale goes to the queue under the same key, so if the online attempt did land, its
       // replay is refused as a conflict (listed for a manager) instead of selling twice.
@@ -467,11 +638,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           </p>
         ) : null}
         <ul className="flex flex-col gap-1">
-          {receipt.lines.map((line) => (
-            <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
+          {receipt.lines.map((line, index) => (
+            <li key={index} className="flex flex-wrap justify-between gap-x-4">
               <span>
                 {displayName(line, locale)}
                 {line.unitType === "KG" ? null : ` × ${line.qty}`}
+                {line.options.length > 0 ? (
+                  <span className="block text-sm text-muted">
+                    {line.options.map((option) => (locale === "ar" && option.nameAr) || option.name).join(" · ")}
+                  </span>
+                ) : null}
+                {line.note ? <span className="block text-sm text-muted">“{line.note}”</span> : null}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
               {line.unitType === "KG" ? (
@@ -494,6 +671,14 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               <dt>{tr("pos.totals.discount")}</dt>
               <dd dir="ltr" className="text-end" data-testid="receipt-discount">
                 −{money(receipt.discountMinor)}
+              </dd>
+            </>
+          ) : null}
+          {receipt.serviceChargeMinor > 0 ? (
+            <>
+              <dt>{tr("receipt.serviceCharge")}</dt>
+              <dd dir="ltr" className="text-end" data-testid="receipt-service-charge">
+                {money(receipt.serviceChargeMinor)}
               </dd>
             </>
           ) : null}
@@ -553,6 +738,36 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         canEnrol={offline.allowed && offline.canEnrol && !offline.registerHasDevice}
       />
       <section aria-labelledby="cart-title" className="card flex flex-col gap-4">
+        {tickets && !sellingOffline ? (
+          <TicketBar
+            locale={locale}
+            ticket={ticket}
+            orderType={orderType}
+            onOrderType={setOrderType}
+            deliveryAddress={deliveryAddress}
+            onDeliveryAddress={setDeliveryAddress}
+            hasLines={cart.length > 0}
+            pending={pending}
+            onTables={() => (ticket ? void holdTicket() : showFloor("open"))}
+            onHold={() => void holdTicket()}
+            onSend={() => void sendTicket()}
+            onMove={() => showFloor("move")}
+            onCancel={(reason) => void cancelTicket(reason)}
+          />
+        ) : null}
+        {tickets && !sellingOffline && floor ? (
+          <TablesView
+            key={floor.n}
+            locale={locale}
+            branchId={branchId}
+            money={money}
+            mode={floor.mode}
+            onOpen={loadTicket}
+            onMove={(tableId) => void moveTicket(tableId)}
+            onError={setError}
+          />
+        ) : null}
+        {printer.portal}
         {lastSaleId && cart.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <PrintReceiptButton
@@ -654,6 +869,20 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           />
         ) : null}
 
+        {picking ? (
+          <OptionsPicker
+            key={lineKey(picking)}
+            locale={locale}
+            item={picking}
+            money={money}
+            onAdd={(picked) => add(picking, true, undefined, undefined, picked)}
+            onCancel={() => {
+              setPicking(null);
+              focusSearch();
+            }}
+          />
+        ) : null}
+
         {layout === "tiles" ? (
           <TilePanel
             locale={locale}
@@ -686,7 +915,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               </thead>
               <tbody>
                 {cart.map((line) => {
-                  const key = lineKey(line);
+                  const key = cartKey(line);
                   const name = displayName(line, locale);
                   return (
                     <tr
@@ -699,7 +928,53 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                         <span dir="ltr" className="text-muted">
                           {line.sku}
                         </span>
-                        <StockNote locale={locale} onHand={stock[key]} qty={line.qty} unitType={line.unitType} block />
+                        <StockNote
+                          locale={locale}
+                          onHand={stock[lineKey(line)]}
+                          qty={line.qty}
+                          unitType={line.unitType}
+                          block
+                        />
+                        {line.sentQty ? (
+                          <span className="badge badge-success ms-1" data-testid="line-sent">
+                            {tr("pos.ticket.sent", { qty: line.sentQty })}
+                          </span>
+                        ) : null}
+                        {line.optionLabels?.length ? (
+                          <span className="block text-sm text-muted">
+                            {line.optionLabels
+                              .map((option) => (locale === "ar" && option.nameAr) || option.name)
+                              .join(" · ")}
+                          </span>
+                        ) : null}
+                        {noteFor === key ? (
+                          <input
+                            autoFocus
+                            className="input mt-1 min-h-10 w-full"
+                            maxLength={140}
+                            aria-label={tr("pos.note.for", { name })}
+                            defaultValue={line.note ?? ""}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") setNoteFor(null);
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                const value = event.currentTarget.value;
+                                setCart((current) => setLineNote(current, key, value));
+                                setNoteFor(null);
+                                focusSearch();
+                              }
+                            }}
+                            onBlur={(event) => {
+                              const value = event.currentTarget.value;
+                              setCart((current) => setLineNote(current, key, value));
+                              setNoteFor(null);
+                            }}
+                          />
+                        ) : line.note ? (
+                          <span className="block text-sm" data-testid="line-note">
+                            “{line.note}”
+                          </span>
+                        ) : null}
                         {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
                           <span className="block text-sm text-muted" data-testid="line-discount">
                             {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
@@ -750,6 +1025,17 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                             {tr("pos.discount.line")}
                           </button>
                         ) : null}
+                        {/* A sent line keeps its note: changing it would take the sent dish back (R10). */}
+                        {line.sentQty ? null : (
+                          <button
+                            type="button"
+                            onClick={() => setNoteFor(key)}
+                            aria-label={tr("pos.note.add", { name })}
+                            className="btn btn-sm me-1"
+                          >
+                            {tr("pos.note.button")}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setCart((current) => removeLine(current, key))}
@@ -777,7 +1063,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               discountDraft.target === "SALE"
                 ? tr("pos.discount.titleSale")
                 : tr("pos.discount.titleLine", {
-                    name: displayName(cart.find((line) => lineKey(line) === discountDraft.target) ?? cart[0], locale),
+                    name: displayName(cart.find((line) => cartKey(line) === discountDraft.target) ?? cart[0], locale),
                   })
             }
             onChange={setDiscountDraft}
@@ -804,6 +1090,19 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                 <dt>{tr("pos.totals.discount")}</dt>
                 <dd dir="ltr" className="text-end" data-testid="till-discount">
                   −{money(preview.discountMinor)}
+                </dd>
+              </>
+            ) : null}
+            {servicePossible ? (
+              <>
+                <dt className="flex flex-wrap items-center gap-2">
+                  {tr("pos.service.row", { rate: `${(settings.serviceChargeBp ?? 0) / 100}%` })}
+                  <button type="button" className="btn btn-sm" onClick={() => setServiceOff((off) => !off)}>
+                    {tr(serviceOff ? "pos.service.restore" : "pos.service.remove")}
+                  </button>
+                </dt>
+                <dd dir="ltr" className="text-end" data-testid="till-service-charge">
+                  {money(preview.serviceChargeMinor)}
                 </dd>
               </>
             ) : null}

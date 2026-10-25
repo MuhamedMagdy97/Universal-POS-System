@@ -76,6 +76,10 @@ export async function insertVariant(
 ): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
   // A weighed product is sold by its own weight: no variants (weighed-selling-spec W4).
   if (product.unitType === "KG") throw invalid("UNIT_NOT_SUPPORTED");
+  // Options and variants do not mix (restaurant-cafe-spec R7).
+  if (await tx.productOptionGroup.count({ where: { orgId: ctx.orgId, productId: product.id } })) {
+    throw invalid("OPTIONS_NOT_SUPPORTED");
+  }
   if (!product.hasVariants) {
     // Lock, then re-read: a sale that was in flight must commit (or not) before we look (R1).
     await lockProducts(tx, ctx.orgId, [product.id]);

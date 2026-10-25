@@ -35,6 +35,9 @@ import {
 } from "./offline";
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
+import { lineKeyOf, resolveOptions, stockLinesOf, type OptionSnapshot } from "./options";
+import { closeTicket, ticketForSale } from "./tickets";
+import { NOTE_MAX } from "./schemas";
 
 /**
  * Creates a sale (T6, checkout-data-model-and-api.md). One transaction: lock the org counter,
@@ -75,8 +78,18 @@ export type SaleDetail = {
     vatRateBp: number;
     vatMinor: number;
     lineTotalMinor: number;
+    /** Options as sold (restaurant-cafe-spec R7); `unitPriceMinor` includes them. */
+    options: OptionSnapshot[];
+    note: string | null;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
+  /** The service charge with its VAT, inside the totals (R11); 0 when none. */
+  serviceChargeMinor: number;
+  /** A café sale (restaurant-cafe-spec R2, R13); null elsewhere. */
+  orderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null;
+  tableName: string | null;
+  ticketId: string | null;
+  delivery: { address: string | null; note: string | null } | null;
   /** The customer as snapshotted on the sale; null for a walk-in (customers-spec CU8). */
   customer: { id: string; name: string; phone: string; taxNumber: string | null } | null;
 };
@@ -103,13 +116,18 @@ type MergedLine = {
   ref: { productId: string; variantId: string | null };
   qty: number;
   discount: DiscountInput | null;
+  /** Chosen option ids (restaurant-cafe-spec R7) and the line note (R8). */
+  options: string[];
+  note: string | null;
   /** Price labels (weighed-selling-spec W6); kept on a repeated item only when every copy has them. */
   labels?: ScaleLabelLine[];
 };
 
 /**
- * Groups repeated refs (a scanned twice) into one line, keeping first-seen order. A repeated item
- * carrying a line discount is refused: which copy the discount meant is unknown (discounts-spec DC12).
+ * Groups repeated lines (a scanned twice) into one line, keeping first-seen order. Lines of one item with different
+ * options or notes stay apart (restaurant-cafe-spec R9); a linked shop merges by item and joins the notes, since the
+ * inventory system takes one line per item. A repeated item carrying a line discount is refused: which copy the
+ * discount meant is unknown (discounts-spec DC12).
  */
 function mergeLines(
   lines: {
@@ -117,11 +135,15 @@ function mergeLines(
     qty: number;
     discount?: DiscountInput;
     labels?: ScaleLabelLine[];
+    options?: string[];
+    note?: string;
   }[],
+  byItemOnly = false,
 ): MergedLine[] {
   const merged = new Map<string, MergedLine>();
   for (const line of lines) {
-    const key = `${line.ref.productId}|${line.ref.variantId ?? ""}`;
+    const ref = { productId: line.ref.productId, variantId: line.ref.variantId ?? null };
+    const key = byItemOnly ? lineKeyOf(ref, [], null) : lineKeyOf(ref, line.options ?? [], line.note);
     const existing = merged.get(key);
     if (existing && (existing.discount || line.discount)) {
       throw new AppError("VALIDATION_FAILED", "An item with a line discount may appear only once", {
@@ -132,11 +154,16 @@ function mergeLines(
     if (existing) {
       existing.qty += line.qty;
       existing.labels = existing.labels && line.labels ? [...existing.labels, ...line.labels] : undefined;
+      if (line.note && existing.note !== line.note) {
+        existing.note = (existing.note ? `${existing.note}; ${line.note}` : line.note).slice(0, NOTE_MAX);
+      }
     } else
       merged.set(key, {
-        ref: { productId: line.ref.productId, variantId: line.ref.variantId ?? null },
+        ref,
         qty: line.qty,
         discount: line.discount ?? null,
+        options: line.options ?? [],
+        note: line.note ?? null,
         ...(line.labels ? { labels: line.labels } : {}),
       });
   }
@@ -145,12 +172,88 @@ function mergeLines(
 
 type SaleSettings = { vatRateBp: number; pricesIncludeVat: boolean; maxCashierDiscountBp: number };
 
+/**
+ * Each item at its price with the line's options (restaurant-cafe-spec R7), and the options as the sale line keeps
+ * them. 422 OPTIONS_INVALID when a line's options do not fit the item's groups.
+ */
+function withOptions<T extends SellableItem>(
+  items: readonly T[],
+  lines: readonly MergedLine[],
+): { items: T[]; options: OptionSnapshot[][] } {
+  const resolved = items.map((item, index) => resolveOptions(item, lines[index].options));
+  return {
+    items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
+    options: resolved.map((result) => result.snapshot),
+  };
+}
+
+/**
+ * Offline replay (R12, OF13): the sale already left the shop, so options archived or changed since are taken as sold,
+ * read from their stored rows, and the sale is flagged OPTIONS_CHANGED instead of refused. An id that never existed
+ * is still refused.
+ */
+async function withOptionsAsSold(
+  tx: Tx,
+  orgId: string,
+  items: readonly SellableItem[],
+  lines: readonly MergedLine[],
+  flags: OfflineFlags,
+): Promise<{ items: SellableItem[]; options: OptionSnapshot[][] }> {
+  try {
+    return withOptions(items, lines);
+  } catch (err) {
+    if (!(err instanceof AppError) || (err.details as { reason?: string } | null)?.reason !== "OPTIONS_INVALID") {
+      throw err;
+    }
+  }
+  const ids = [...new Set(lines.flatMap((line) => line.options))];
+  const rows = await tx.optionChoice.findMany({
+    where: { orgId, id: { in: ids } },
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      priceDeltaMinor: true,
+      group: { select: { name: true, nameAr: true } },
+    },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const changed: string[] = [];
+  const resolved = items.map((item, index) => {
+    try {
+      return resolveOptions(item, lines[index].options);
+    } catch {
+      const picked = lines[index].options.map((id) => byId.get(id));
+      if (picked.some((row) => !row))
+        throw new AppError("VALIDATION_FAILED", "Unknown option", { reason: "OPTIONS_INVALID" });
+      changed.push(item.sku);
+      const snapshot = picked.map((row) => ({
+        group: row?.group.name ?? "",
+        groupAr: row?.group.nameAr ?? null,
+        name: row?.name ?? "",
+        nameAr: row?.nameAr ?? null,
+        priceDeltaMinor: row?.priceDeltaMinor ?? 0,
+      }));
+      return {
+        unitPriceMinor: item.unitPriceMinor + snapshot.reduce((total, option) => total + option.priceDeltaMinor, 0),
+        snapshot,
+      };
+    }
+  });
+  flags.set("OPTIONS_CHANGED", { skus: changed });
+  return {
+    items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
+    options: resolved.map((result) => result.snapshot),
+  };
+}
+
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
 function priceCart(
   items: { unitPriceMinor: number; vatApplicable: boolean; unitType: QtyUnit }[],
   lines: MergedLine[],
   saleDiscount: DiscountInput | undefined,
   org: SaleSettings,
+  serviceChargeBp = 0,
 ): PricedSale {
   return priceSale(
     items.map((item, index) => ({
@@ -164,6 +267,7 @@ function priceCart(
     saleDiscount,
     org.vatRateBp,
     org.pricesIncludeVat,
+    serviceChargeBp,
   );
 }
 
@@ -229,17 +333,30 @@ async function sell(
   }
 
   // Checked before anything is held in the inventory system (customers-spec CU17).
-  const customer = parsed.customerId ? await customerForSale(ctx, parsed.customerId, meta) : null;
+  const customerId =
+    parsed.customerId ??
+    (parsed.ticket
+      ? ((
+          await db.ticket.findFirst({
+            where: { id: parsed.ticket.id, orgId: ctx.orgId },
+            select: { customerId: true },
+          })
+        )?.customerId ?? undefined)
+      : undefined);
+  const customer = customerId ? await customerForSale(ctx, customerId, meta) : null;
 
   let held: HeldSale | null = null;
   if (linked) {
     // Refuse what the POS can refuse on its own before holding anything in the inventory system.
     await requireOpenShift(db, ctx, parsed.branchId, parsed.registerId);
-    const lines = mergeLines(parsed.lines);
-    const items = await getSellableItems(
-      db,
-      ctx.orgId,
-      lines.map((line) => line.ref),
+    const lines = mergeLines(parsed.lines, true);
+    const { items } = withOptions(
+      await getSellableItems(
+        db,
+        ctx.orgId,
+        lines.map((line) => line.ref),
+      ),
+      lines,
     );
     // The inventory system's quantities are not grams yet: a kg item synced before weighed selling is refused
     // here until the next sync marks it not sellable (weighed-selling-spec W11).
@@ -361,12 +478,13 @@ async function writeSale(
       blockNegativeStock: boolean;
       maxCashierDiscountBp: number;
       linked: boolean;
+      serviceChargeBp: number;
     }[]
   >`
     UPDATE "Organization" SET "lastSaleNo" = "lastSaleNo" + ${offline ? 0 : 1}
     WHERE "id" = ${ctx.orgId}::uuid
     RETURNING "lastSaleNo", "currency"::text AS "currency", "vatRateBp", "pricesIncludeVat",
-      "blockNegativeStock", "maxCashierDiscountBp", "inventorySource" = 'EXTERNAL' AS "linked"`;
+      "blockNegativeStock", "maxCashierDiscountBp", "inventorySource" = 'EXTERNAL' AS "linked", "serviceChargeBp"`;
   // The source cannot change with a shift open (setInventorySource); refuse rather than post wrong.
   if (org.linked !== (held !== null)) {
     throw new AppError("CONFLICT", "The shop's inventory source changed; try again", {
@@ -374,22 +492,44 @@ async function writeSale(
     });
   }
 
-  const lines = mergeLines(input.lines);
+  const lines = mergeLines(input.lines, org.linked);
   const refs = lines.map((line) => line.ref);
+  // Paying a ticket (restaurant-cafe-spec R5): locked, OPEN at the version the till saw, and exactly these lines.
+  const ticket = input.ticket
+    ? await ticketForSale(
+        tx,
+        ctx,
+        input.ticket,
+        input.branchId,
+        // Per line, not per item: a linked shop merges one item's lines (and joins their notes) for the sale itself.
+        mergeLines(input.lines).map((line) => ({ key: lineKeyOf(line.ref, line.options, line.note), qty: line.qty })),
+      )
+    : null;
   let items: SellableItem[];
+  let options: OptionSnapshot[][];
   let totals: PricedSale;
   if (offline) {
     // Archived items resolve too: they were sold before (or without knowing) the archive (OF13).
     const archived = await archivedFlags(tx, ctx.orgId, refs);
-    const current = await getItemsForHistory(tx, ctx.orgId, refs);
+    let current: SellableItem[];
+    ({ items: current, options } = await withOptionsAsSold(
+      tx,
+      ctx.orgId,
+      await getItemsForHistory(tx, ctx.orgId, refs),
+      lines,
+      flags,
+    ));
     if (archived.some(Boolean)) {
       flags.set("ITEM_ARCHIVED", { skus: current.filter((_, index) => archived[index]).map((item) => item.sku) });
     }
     const role = await offlineCashierRole(tx, ctx.orgId, offline.cashierId);
     ({ items, totals } = priceOfflineSale(current, lines, input, offline, org, role, flags));
   } else {
-    items = await getSellableItems(tx, ctx.orgId, refs);
-    totals = priceCart(items, lines, input.discount, org);
+    ({ items, options } = withOptions(await getSellableItems(tx, ctx.orgId, refs), lines));
+    // Service charge (R11): dine-in only, unless the cashier took it off this order.
+    const dineIn = (ticket?.orderType ?? input.orderType) === "DINE_IN";
+    const serviceChargeBp = dineIn && input.serviceCharge !== false ? org.serviceChargeBp : 0;
+    totals = priceCart(items, lines, input.discount, org, serviceChargeBp);
     requireDiscountAllowed(ctx, totals, org);
   }
   const priced = totals.lines;
@@ -406,10 +546,12 @@ async function writeSale(
       // An offline sale already left the shop: it may take stock below zero (OF13).
       policy: org.blockNegativeStock && !offline ? "block" : "allow",
       allowArchived: offline !== null,
-      lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
+      lines: stockLinesOf(lines),
     });
-    const negative = after.flatMap((line, index) =>
-      line.qty < 0 ? [{ sku: items[index].sku, qty: line.qty, unitType: items[index].unitType }] : [],
+    const itemOf = (ref: MergedLine["ref"]) =>
+      items[lines.findIndex((line) => lineKeyOf(line.ref, [], null) === lineKeyOf(ref, [], null))];
+    const negative = after.flatMap((line) =>
+      line.qty < 0 ? [{ sku: itemOf(line.ref).sku, qty: line.qty, unitType: itemOf(line.ref).unitType }] : [],
     );
     if (offline && negative.length > 0) flags.set("STOCK_NEGATIVE", { lines: negative });
   }
@@ -434,6 +576,19 @@ async function writeSale(
       vatMinor: totals.vatMinor,
       totalMinor: totals.totalMinor,
       changeMinor: settlement.changeMinor,
+      ...(totals.serviceCharge && {
+        serviceChargeMinor: totals.serviceCharge.lineTotalMinor,
+        serviceChargeVatMinor: totals.serviceCharge.vatMinor,
+      }),
+      ...(ticket
+        ? {
+            orderType: ticket.orderType,
+            ticketId: ticket.id,
+            tableName: ticket.tableName,
+            deliveryAddress: ticket.deliveryAddress,
+            deliveryNote: ticket.deliveryNote,
+          }
+        : input.orderType && { orderType: input.orderType }),
       ...(customer && {
         customerId: customer.id,
         customerName: customer.name,
@@ -461,6 +616,9 @@ async function writeSale(
       lineTotalMinor: priced[index].lineTotalMinor,
       // Cost snapshot for profit reports (P12 M1); 0 means "never entered", stored as unknown (M2).
       unitCostMinor: item.costMinor > 0 ? item.costMinor : null,
+      // Options as sold and the note (restaurant-cafe-spec R7, R8); `unitPriceMinor` includes the options.
+      ...(options[index].length > 0 && { options: options[index] }),
+      ...(lines[index].note && { note: lines[index].note }),
     })),
   });
   await tx.payment.createMany({
@@ -486,6 +644,9 @@ async function writeSale(
       lineCount: items.length,
       paymentMethods: settlement.payments.map((payment) => payment.method),
       ...(customer && { customerId: customer.id }),
+      ...(ticket && { ticketId: ticket.id, orderType: ticket.orderType }),
+      ...(totals.serviceCharge && { serviceChargeMinor: totals.serviceCharge.lineTotalMinor }),
+      ...(input.serviceCharge === false && org.serviceChargeBp > 0 && { serviceChargeRemoved: true }),
       // What was asked for and what each line got (DC10).
       ...(totals.discountMinor > 0 && {
         discount: {
@@ -523,6 +684,7 @@ async function writeSale(
     });
   }
   if (held) await recordSaleFulfils(tx, held, saleId, saleItemIds);
+  if (ticket) await closeTicket(tx, ticket.id, saleId);
 
   return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };
 }
@@ -560,12 +722,19 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       vatRateBp: item.vatRateBp,
       vatMinor: item.vatMinor,
       lineTotalMinor: item.lineTotalMinor,
+      options: (item.options as OptionSnapshot[] | null) ?? [],
+      note: item.note,
     })),
     payments: sale.payments.map((payment) => ({
       method: payment.method,
       amountMinor: payment.amountMinor,
       reference: payment.reference,
     })),
+    serviceChargeMinor: sale.serviceChargeMinor,
+    orderType: sale.orderType,
+    tableName: sale.tableName,
+    ticketId: sale.ticketId,
+    delivery: sale.orderType === "DELIVERY" ? { address: sale.deliveryAddress, note: sale.deliveryNote } : null,
     customer:
       sale.customerId && sale.customerName
         ? {

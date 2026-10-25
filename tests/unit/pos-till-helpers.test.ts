@@ -3,6 +3,8 @@ import { DEFAULT_SCALE_SETTINGS } from "@/lib/scale-label";
 import {
   addToCart,
   bumpQty,
+  cartKey,
+  setLineNote,
   canCharge,
   discountRaw,
   displayName,
@@ -84,6 +86,7 @@ describe("previewCart", () => {
       lineTotals: { "a|": 2000 },
       lineDiscounts: { "a|": 0 },
       discountMinor: 0,
+      serviceChargeMinor: 0,
       subtotalMinor: 1754,
       vatMinor: 246,
       totalMinor: 2000,
@@ -394,5 +397,36 @@ describe("price scale labels at the till (weighed-selling-spec W6)", () => {
   it("reads a weight label as grams and refuses a label for a piece item", () => {
     expect(fromScaleLabel({ ...price(750), valueKind: "WEIGHT" }, tomatoes)).toEqual({ grams: 750 });
     expect(fromScaleLabel(price(750), item("p"))).toBeNull();
+  });
+});
+
+describe("options and notes on cart lines (restaurant-cafe-spec R7-R9)", () => {
+  const coffee = item("c", 3_000);
+  const large = {
+    options: ["lg"],
+    labels: [{ group: "Size", groupAr: null, name: "Large", nameAr: null, priceDeltaMinor: 500 }],
+    unitPriceMinor: 3_500,
+  };
+
+  it("keeps a picked line apart from a plain one, at the picked price, and adds the same pick to its line", () => {
+    let cart = addToCart([], coffee, 1, undefined, large);
+    cart = addToCart(cart, coffee);
+    cart = addToCart(cart, coffee, 1, undefined, { ...large, options: ["lg"] });
+    expect(cart.map((line) => [cartKey(line), line.qty, line.unitPriceMinor])).toEqual([
+      ["c||o:lg", 2, 3_500],
+      ["c|", 1, 3_000],
+    ]);
+    const shown = previewCart(cart, EG);
+    expect(shown.ok && shown.totalMinor).toBe(10_000);
+  });
+
+  it("puts a note on its own line, and a line whose note now matches another joins it", () => {
+    let cart = addToCart(addToCart([], coffee), coffee);
+    cart = setLineNote(cart, "c|", "  no sugar ");
+    expect(cart.map((line) => [cartKey(line), line.qty])).toEqual([["c||n:no sugar", 2]]);
+    cart = addToCart(cart, coffee);
+    cart = setLineNote(cart, "c|", "no sugar");
+    expect(cart.map((line) => [cartKey(line), line.qty])).toEqual([["c||n:no sugar", 3]]);
+    expect(setLineNote(cart, "c||n:no sugar", "   ")[0].note).toBeUndefined();
   });
 });

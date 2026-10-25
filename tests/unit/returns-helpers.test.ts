@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { serviceRefundShare } from "@/modules/sales/totals";
 import {
   canSubmitRefund,
   lineRefundMinor,
@@ -94,5 +95,36 @@ describe("return error messages", () => {
     expect(returnErrorKey(error("FORBIDDEN"))).toBe("returns.error.forbidden");
     expect(returnErrorKey(error("NOT_FOUND"))).toBe("returns.error.notFound");
     expect(returnErrorKey(error("INTERNAL"))).toBe("returns.error.generic");
+  });
+});
+
+describe("planRefund with a service charge (restaurant-cafe-spec R11)", () => {
+  // Three teas at 10.00 on one line; 3.60 service charge, 0.44 VAT in it.
+  const line = { saleItemId: "t", qty: 3, lineTotalMinor: 3_000, refundedQty: 0, refundedAmountMinor: 0 };
+  const service = { chargedMinor: 360, chargedVatMinor: 44, givenMinor: 0, givenVatMinor: 0 };
+
+  it("adds the share the server will give back, so the button shows what the drawer pays out", () => {
+    const plan = planRefund([line], { t: "1" }, service);
+    expect(plan).toMatchObject({ ok: true, totalMinor: 1_120 });
+  });
+
+  it("gives back exactly what is left on the last refund", () => {
+    const after = { ...line, refundedQty: 2, refundedAmountMinor: 2_000 };
+    const plan = planRefund([after], { t: "1" }, { ...service, givenMinor: 240, givenVatMinor: 29 });
+    expect(plan).toMatchObject({ ok: true, totalMinor: 1_120 });
+  });
+
+  it("matches the server share rule", () => {
+    expect(
+      serviceRefundShare({
+        chargedMinor: 360,
+        chargedVatMinor: 44,
+        givenMinor: 120,
+        givenVatMinor: 15,
+        goodsMinor: 3_000,
+        refundedAfterMinor: 2_000,
+        allBack: false,
+      }),
+    ).toEqual({ amountMinor: 120, vatMinor: 14 });
   });
 });

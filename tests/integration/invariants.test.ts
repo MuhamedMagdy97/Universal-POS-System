@@ -104,6 +104,7 @@ const EG: Country = {
       voidsMinor: 5_700,
       // 563.00 − 124.00.
       netAfterRefundsMinor: 43_900,
+      serviceChargeMinor: 0,
     },
     payments: [
       // Cash 228.00 + 128.00 applied (change excluded); refund R1 10.00.
@@ -241,6 +242,7 @@ const SA: Country = {
       voidsCount: 1,
       voidsMinor: 5_750,
       netAfterRefundsMinor: 44_250,
+      serviceChargeMinor: 0,
     },
     payments: [
       { method: "CASH", salesCount: 2, salesMinor: 36_000, refundsCount: 1, refundsMinor: 1_000, netMinor: 35_000 },

@@ -34,12 +34,25 @@ export type DiscountInput = z.infer<typeof DiscountInput>;
 /** A price scale label on a KG line (weighed-selling-spec W6): its grams and printed total. */
 const ScaleLabelInput = z.strictObject({ grams: Qty, totalMinor: z.int().min(1).max(MAX_STORABLE_MINOR) });
 
+/** A line note's length (restaurant-cafe-spec R8); the DB checks it too. */
+export const NOTE_MAX = 140;
+
+/** A line note: trimmed, 1-140 characters; a blank note is no note. */
+export const LineNote = z
+  .string()
+  .trim()
+  .max(NOTE_MAX)
+  .transform((note) => note || undefined);
+
 export const SaleLineInput = z
   .object({
     ref: ItemRefInput,
     qty: Qty,
     discount: DiscountInput.optional(),
     labels: z.array(ScaleLabelInput).min(1).max(50).optional(),
+    /** Chosen option ids (R7). */
+    options: z.array(Uuid).max(20).optional(),
+    note: LineNote.optional(),
   })
   .strict();
 
@@ -89,8 +102,15 @@ export const SaleInput = z
       }),
     // Sent only when a device replays an offline sale (OF11); online sales leave it out and hash as before.
     offline: OfflineSaleInput.optional(),
+    // A café sale (restaurant-cafe-spec R2, R5): the ticket it pays (its lines must be exactly the ticket's), or the
+    // order type of a counter sale. Delivery details come from the ticket.
+    ticket: z.strictObject({ id: Uuid, version: z.int().min(1) }).optional(),
+    orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).optional(),
+    // false: the cashier took the shop's service charge off this dine-in order (R11). Absent = charged.
+    serviceCharge: z.boolean().optional(),
   })
   .strict()
+  .refine((sale) => !sale.offline || !sale.ticket, { message: "An offline sale pays no ticket" })
   // Walk-in only offline (OF3).
   .refine((sale) => !sale.offline || !sale.customerId, { message: "An offline sale has no customer" })
   .refine((sale) => !sale.offline || sale.offline.lines.length === sale.lines.length, {

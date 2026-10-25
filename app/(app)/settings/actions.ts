@@ -20,6 +20,9 @@ import {
   updateReceiptSettings,
   updateRegister,
   updateScaleSettings,
+  updateServiceCharge,
+  saveTables,
+  type DiningTableRow,
   updateStaff,
   type ReceiptSettings,
   type ReceiptSettingsInput,
@@ -173,6 +176,19 @@ export async function retryInventoryPostingAction(
 export async function saveBusinessTypeAction(businessType: string): Promise<ActionResult<null>> {
   return run("/settings/shop", async (ctx, meta) => {
     await updateBusinessType(ctx, { businessType }, meta);
+    return null;
+  });
+}
+
+/** Settings → Tables (restaurant-cafe-spec R3): one branch's tables. Owner and Admin. */
+export async function saveTablesAction(input: unknown): Promise<ActionResult<DiningTableRow[]>> {
+  return run("/settings/tables", (ctx, meta) => saveTables(ctx, input, meta));
+}
+
+/** Settings → Shop (restaurant-cafe-spec R11): the dine-in service charge. Owner only. */
+export async function saveServiceChargeAction(serviceChargeBp: number): Promise<ActionResult<null>> {
+  return run("/settings/shop", async (ctx, meta) => {
+    await updateServiceCharge(ctx, { serviceChargeBp }, meta);
     return null;
   });
 }

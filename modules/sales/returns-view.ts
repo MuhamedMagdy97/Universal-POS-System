@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db";
 import { forbidden, notFound } from "@/lib/errors";
 import { normalizeDigits, type CurrencyCode } from "@/lib/money";
 import { requireBranch } from "./access";
+import type { OptionSnapshot } from "./options";
+import { optionsOf } from "./receipt";
 
 /**
  * Read model for the Returns screen (T8): one sale found by its receipt number, with what is
@@ -20,6 +22,9 @@ export type ReturnLine = {
   /** Pieces, or grams for a KG line (weighed-selling-spec W8). */
   qty: number;
   unitType: "EACH" | "KG";
+  /** Options as sold and the line note, so two lines of one item can be told apart (restaurant-cafe-spec R9). */
+  options: OptionSnapshot[];
+  note: string | null;
   /** What the line was discounted at the sale; `lineTotalMinor` is already the paid amount (discounts-spec DC13). */
   discountMinor: number;
   lineTotalMinor: number;
@@ -46,6 +51,8 @@ export type SaleForReturns = {
   voidReason: string | null;
   lines: ReturnLine[];
   refunds: ReturnRefund[];
+  /** The sale's service charge and what refunds gave back of it (restaurant-cafe-spec R11); null when none. */
+  serviceCharge: { chargedMinor: number; chargedVatMinor: number; givenMinor: number; givenVatMinor: number } | null;
   /** The sale's register has an open shift to book a refund on (V6). */
   registerHasOpenShift: boolean;
   /** Active tills in the sale's branch that can pay out a refund, the sale's own till first. */
@@ -118,11 +125,22 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       nameAr: item.nameArSnapshot,
       qty: item.qty,
       unitType: item.unitType,
+      options: optionsOf(item.options),
+      note: item.note,
       discountMinor: item.discountMinor,
       lineTotalMinor: item.lineTotalMinor,
       refundedQty: refunded.get(item.id)?.qty ?? 0,
       refundedAmountMinor: refunded.get(item.id)?.amountMinor ?? 0,
     })),
+    serviceCharge:
+      sale.serviceChargeMinor > 0
+        ? {
+            chargedMinor: sale.serviceChargeMinor,
+            chargedVatMinor: sale.serviceChargeVatMinor,
+            givenMinor: sale.refunds.reduce((total, refund) => total + refund.serviceChargeMinor, 0),
+            givenVatMinor: sale.refunds.reduce((total, refund) => total + refund.serviceChargeVatMinor, 0),
+          }
+        : null,
     refunds: sale.refunds.map((refund) => ({
       id: refund.id,
       method: refund.method,

@@ -153,6 +153,7 @@ export function searchSnapshot(items: readonly SnapshotItem[], raw: string, limi
     unitPriceMinor: item.unitPriceMinor,
     vatApplicable: item.vatApplicable,
     unitType: item.unitType,
+    ...(item.optionGroups ? { optionGroups: item.optionGroups } : {}),
   }));
 }
 
@@ -233,6 +234,8 @@ export function buildOfflineSale(input: {
       unitPriceMinor: line.unitPriceMinor,
       discountMinor: priced.lines[index].discountMinor,
       lineTotalMinor: priced.lines[index].lineTotalMinor,
+      options: line.optionLabels ?? [],
+      note: line.note ?? null,
     })),
     discountMinor: priced.discountMinor,
     subtotalMinor: priced.subtotalMinor,

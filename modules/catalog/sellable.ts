@@ -6,6 +6,7 @@
 import type {
   LookupNotSellableReason,
   LookupVariantOption,
+  OptionGroupView,
   SellableItem,
   SellableSummary,
   UnitType,
@@ -26,6 +27,10 @@ export type SeamProduct = {
   hasVariants: boolean;
   isActive: boolean;
   categoryId?: string | null;
+  /** Linked option groups in order (restaurant-cafe-spec R7); absent where a reader did not load them. */
+  optionGroups?: {
+    group: Omit<OptionGroupView, "choices"> & { isActive: boolean; choices: OptionGroupView["choices"] };
+  }[];
 };
 
 /** Variant columns the seam reads. `null` price/cost = inherit from the product. */
@@ -120,7 +125,16 @@ export function toSellableSummary(product: SeamProduct, variant: SeamVariant | n
     vatCategory: product.vatCategory,
     vatApplicable: product.vatApplicable,
     ...(product.categoryId !== undefined && { categoryId: product.categoryId }),
+    ...optionGroupsOf(product),
   };
+}
+
+/** Active groups that still have a choice; nothing for an item without any. */
+function optionGroupsOf(product: SeamProduct): { optionGroups?: OptionGroupView[] } {
+  const groups = (product.optionGroups ?? []).flatMap(({ group: { isActive, ...group } }) =>
+    isActive && group.choices.length > 0 ? [group] : [],
+  );
+  return groups.length > 0 ? { optionGroups: groups } : {};
 }
 
 /** Picker order: active first, then sortOrder, name, id. */

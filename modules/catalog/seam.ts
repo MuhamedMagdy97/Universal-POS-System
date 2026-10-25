@@ -57,6 +57,26 @@ const PRODUCT_SELECT = {
   hasVariants: true,
   isActive: true,
   categoryId: true,
+  optionGroups: {
+    orderBy: [{ sortOrder: "asc" }, { groupId: "asc" }],
+    select: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          nameAr: true,
+          minSelect: true,
+          maxSelect: true,
+          isActive: true,
+          choices: {
+            where: { isActive: true },
+            orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+            select: { id: true, name: true, nameAr: true, priceDeltaMinor: true },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.ProductSelect;
 
 const VARIANT_SELECT = {

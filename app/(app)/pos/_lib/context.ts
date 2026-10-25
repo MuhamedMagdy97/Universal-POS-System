@@ -85,6 +85,7 @@ export async function loadPosContext(
         scaleLabelPrefixes: true,
         scaleItemDigits: true,
         scaleValueKind: true,
+        serviceChargeBp: true,
       },
     }),
     db.register.findMany({
@@ -137,6 +138,7 @@ export async function loadPosContext(
         itemDigits: org.scaleItemDigits,
         valueKind: org.scaleValueKind,
       },
+      serviceChargeBp: org.serviceChargeBp,
     },
     canOpenShift: hasPermission(ctx.role, "registers.open"),
     canCloseShift,

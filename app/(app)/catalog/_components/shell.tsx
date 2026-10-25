@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { translator, type Locale } from "@/lib/i18n";
 
 /** Products | Categories sub-navigation shown on every catalog page. */
-export function CatalogSubnav({ locale, current }: { locale: Locale; current: "products" | "categories" }) {
+export function CatalogSubnav({ locale, current }: { locale: Locale; current: "products" | "categories" | "options" }) {
   const tr = translator(locale);
   const item = (href: string, label: string, active: boolean) => (
     <Link
@@ -18,6 +18,7 @@ export function CatalogSubnav({ locale, current }: { locale: Locale; current: "p
     <nav aria-label={tr("catalog.nav")} className="flex gap-2">
       {item("/catalog/products", tr("catalog.nav.products"), current === "products")}
       {item("/catalog/categories", tr("catalog.nav.categories"), current === "categories")}
+      {item("/catalog/options", tr("catalog.nav.options"), current === "options")}
     </nav>
   );
 }

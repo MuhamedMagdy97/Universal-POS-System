@@ -26,7 +26,9 @@ export type OfflineFlag =
   | "LATE_FOR_CLOSED_SHIFT"
   | "STALE_SNAPSHOT"
   | "CLOCK_SKEW"
-  | "TOTALS_DIFFER";
+  | "TOTALS_DIFFER"
+  // A chosen option was archived or changed between the sale and its replay (restaurant-cafe-spec R12).
+  | "OPTIONS_CHANGED";
 
 /** Each raised flag and what the review list shows for it, in the order raised. */
 export type OfflineFlags = Map<OfflineFlag, Record<string, unknown>>;
@@ -224,6 +226,8 @@ export function priceOfflineSale(
     totalMinor: offline.totalMinor,
     shelfMinor: sum(shelf),
     discountMinor: sum(sold.map((line) => line.discountMinor)),
+    // No service charge offline (restaurant-cafe-spec R12).
+    serviceCharge: null,
     lines: sold.map((line, index) => ({
       netMinor: line.lineTotalMinor - vat[index],
       vatRateBp: items[index].vatApplicable ? org.vatRateBp : 0,

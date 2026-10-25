@@ -9,6 +9,7 @@ import { Uuid } from "@/modules/inventory/schemas";
 import { zoneFor } from "@/modules/reports/timezone";
 import { requireBranch } from "./access";
 import { isSaudiVatNumber, qrSvg, zatcaTlvBase64, type QrSvg } from "./zatca";
+import type { OptionSnapshot } from "./options";
 
 /**
  * Printable receipt for a sale, one of its refunds, or its void (T10 H2, H4). Built on the server
@@ -45,6 +46,8 @@ export type ReceiptDoc = {
   reason: string | null;
   /** The sale's customer snapshot, on its refund and void slips too; no phone (customers-spec CU10, CU11). */
   customer: { name: string; taxNumber: string | null } | null;
+  /** A café order (restaurant-cafe-spec R13): its type, table and delivery address; absent elsewhere. */
+  order?: { type: "DINE_IN" | "TAKEAWAY" | "DELIVERY"; tableName: string | null; deliveryAddress: string | null };
   /** `discountMinor`: what the line was discounted, shown under it on a sale or void slip (discounts-spec DC14). */
   lines: {
     name: string;
@@ -56,12 +59,17 @@ export type ReceiptDoc = {
     unitPriceMinor?: number;
     discountMinor: number;
     lineTotalMinor: number;
+    /** Options as sold and the line note, printed under the line (restaurant-cafe-spec R13). */
+    options?: OptionSnapshot[];
+    note?: string | null;
   }[];
   /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
   discountMinor: number;
   subtotalMinor: number;
   vatMinor: number;
   totalMinor: number;
+  /** The service charge with its VAT (restaurant-cafe-spec R11, R13), its own row; 0 when none. */
+  serviceChargeMinor?: number;
   vatRatesBp: number[];
   payments: { method: string; amountMinor: number }[];
   changeMinor: number;
@@ -71,6 +79,11 @@ export type ReceiptDoc = {
    */
   zatca: { tlv: string; qr: QrSvg } | null;
 };
+
+/** The stored option snapshot (JSON) as receipt lines take it. */
+export function optionsOf(value: unknown): OptionSnapshot[] {
+  return Array.isArray(value) ? (value as OptionSnapshot[]) : [];
+}
 
 export type ReceiptRequest = { kind: ReceiptKind; refundId?: string; copy: boolean };
 
@@ -118,6 +131,9 @@ export async function getReceipt(
     timeZone: zoneFor(org.countryCode),
     registerName: sale.register.name,
     customer: sale.customerName ? { name: sale.customerName, taxNumber: sale.customerTaxNumber } : null,
+    ...(sale.orderType && {
+      order: { type: sale.orderType, tableName: sale.tableName, deliveryAddress: sale.deliveryAddress },
+    }),
   };
   const saleLines = sale.items.map((item) => ({
     name: item.nameSnapshot,
@@ -127,6 +143,8 @@ export async function getReceipt(
     unitPriceMinor: item.unitPriceMinor,
     discountMinor: item.discountMinor,
     lineTotalMinor: item.lineTotalMinor,
+    options: optionsOf(item.options),
+    note: item.note,
   }));
   const rates = (bps: number[]) => [...new Set(bps)].sort((a, b) => a - b);
 
@@ -149,6 +167,8 @@ export async function getReceipt(
         unitPriceMinor: source?.unitPriceMinor,
         discountMinor: 0,
         lineTotalMinor: item.amountMinor,
+        options: optionsOf(source?.options ?? null),
+        note: source?.note ?? null,
       };
     });
     doc = {
@@ -158,6 +178,7 @@ export async function getReceipt(
       reason: refund.reason,
       lines,
       discountMinor: 0,
+      serviceChargeMinor: refund.serviceChargeMinor,
       subtotalMinor: refund.totalMinor - refund.vatMinor,
       vatMinor: refund.vatMinor,
       totalMinor: refund.totalMinor,
@@ -176,6 +197,7 @@ export async function getReceipt(
       reason: isVoid ? sale.voidReason : null,
       lines: saleLines,
       discountMinor: sale.discountMinor,
+      serviceChargeMinor: sale.serviceChargeMinor,
       subtotalMinor: sale.subtotalMinor,
       vatMinor: sale.vatMinor,
       totalMinor: sale.totalMinor,

@@ -71,7 +71,7 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
   const completed = sale.status === "COMPLETED";
   const anyLeft = sale.lines.some((line) => refundableOf(line) > 0);
   const showRefund = canRefund && completed && anyLeft;
-  const plan = planRefund(sale.lines, qtys);
+  const plan = planRefund(sale.lines, qtys, sale.serviceCharge);
   // The till paying out: the sale's own till when it is open, else the first open till in the branch.
   const firstOpen = sale.registers.find((till) => till.hasOpenShift)?.id ?? "";
   const [tillId, setTillId] = useState(firstOpen);
@@ -222,6 +222,15 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                       <span dir="ltr" className="text-muted">
                         {line.sku}
                       </span>
+                      {/* Two lines of one item differ by options or note (restaurant-cafe-spec R9). */}
+                      {line.options.length > 0 || line.note ? (
+                        <span className="block text-sm text-muted">
+                          {[
+                            ...line.options.map((option) => (locale === "ar" && option.nameAr) || option.name),
+                            ...(line.note ? [`“${line.note}”`] : []),
+                          ].join(" · ")}
+                        </span>
+                      ) : null}
                       {line.discountMinor > 0 ? (
                         <span className="block text-sm text-muted">
                           {tr("returns.lines.discounted", {
