@@ -33,13 +33,13 @@ export type ProductFieldsPayload = {
 };
 
 export type CreateProductPayload = {
-  product: ProductFieldsPayload & { unitType: "EACH" | "KG" };
+  product: ProductFieldsPayload & { unitType: "EACH" | "KG"; isService?: true; durationMin?: number };
   barcodes: string[];
   variants: VariantDraftPayload[];
 };
 
 export type UpdateProductPayload = {
-  product: ProductFieldsPayload & { expectedUpdatedAt: string };
+  product: ProductFieldsPayload & { expectedUpdatedAt: string; durationMin?: number };
   /** Desired product-level barcodes (first = primary); the action adds/removes the difference. */
   barcodes: string[];
   variants: VariantDraftPayload[];

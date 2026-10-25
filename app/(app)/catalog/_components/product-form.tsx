@@ -284,10 +284,34 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
             className={inputClass}
           >
             <option value="EACH">{tr("catalog.form.unit.each")}</option>
-            <option value="KG">{tr("catalog.form.unit.kg")}</option>
+            <option value="KG" disabled={state.isService}>
+              {tr("catalog.form.unit.kg")}
+            </option>
           </select>
           {isEdit ? <span className="text-xs text-muted">{tr("catalog.form.unitHint")}</span> : null}
         </label>
+        {/* A service holds no stock and has a duration (salon-spec S2); chosen on create only. */}
+        <label className="flex items-center gap-2 self-end pb-2">
+          <input
+            type="checkbox"
+            checked={state.isService}
+            disabled={isEdit || state.unitType === "KG" || state.variants.length > 0}
+            onChange={(e) => update("isService", e.target.checked)}
+          />
+          {tr("catalog.service.is")}
+        </label>
+        {state.isService ? (
+          <label className="field">
+            <span>{tr("catalog.service.duration")}</span>
+            <input
+              className={inputClass}
+              dir="ltr"
+              inputMode="numeric"
+              value={state.duration}
+              onChange={(e) => update("duration", e.target.value)}
+            />
+          </label>
+        ) : null}
         <label className="field">
           <span>{tr("catalog.form.vatCategory")}</span>
           <select
@@ -370,7 +394,7 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         </div>
       </fieldset>
 
-      {state.unitType === "KG" ? null : (
+      {state.unitType === "KG" || state.isService ? null : (
         <VariantRows
           locale={locale}
           currency={currency}

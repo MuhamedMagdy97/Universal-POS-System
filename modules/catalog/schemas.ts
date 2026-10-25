@@ -41,6 +41,7 @@ export type ProductSort = z.infer<typeof ProductSort>;
 
 /** Reasons carried in `details.reason` / zod issue params for catalog-specific 422s. */
 export const UNIT_NOT_SUPPORTED = "UNIT_NOT_SUPPORTED";
+const SERVICE_NOT_SUPPORTED = "SERVICE_NOT_SUPPORTED";
 export const DUPLICATE_BARCODE = "DUPLICATE_BARCODE";
 export const DUPLICATE_SKU = "DUPLICATE_SKU";
 export const INVALID_CURSOR = "INVALID_CURSOR";
@@ -146,6 +147,9 @@ export const CreateProduct = z.strictObject({
   costMinor: Minor.default(0),
   vatCategory: VatCategory.default("STANDARD"),
   barcodes: BarcodeList.default([]),
+  // A service (salon-spec S2): no stock, fixed after create; its duration books the calendar (30 min by default).
+  isService: z.boolean().default(false),
+  durationMin: z.int().min(5).max(480).nullable().default(null),
 });
 export type CreateProductInput = z.input<typeof CreateProduct>;
 export type CreateProduct = z.infer<typeof CreateProduct>;
@@ -164,6 +168,8 @@ export const UpdateProduct = z.strictObject({
   priceMinor: Minor.optional(),
   costMinor: Minor.optional(),
   vatCategory: VatCategory.optional(),
+  /** A service's duration (salon-spec S2); refused on a product that is not a service. */
+  durationMin: z.int().min(5).max(480).optional(),
   expectedUpdatedAt: ExpectedUpdatedAt,
 });
 export type UpdateProduct = z.infer<typeof UpdateProduct>;
@@ -234,6 +240,7 @@ export type VariantUpsert = z.infer<typeof VariantUpsert>;
 type AggregateShape = {
   sku?: string;
   unitType?: UnitType;
+  isService?: boolean;
   barcodes?: string[];
   variants?: { id?: string; sku: string; barcodes?: string[] }[];
 };
@@ -251,6 +258,15 @@ function refineAggregate(value: AggregateShape, ctx: z.RefinementCtx): void {
       path: ["unitType"],
       message: UNIT_NOT_SUPPORTED,
       params: { reason: UNIT_NOT_SUPPORTED },
+    });
+  }
+  // A service is one priced item: never by weight, never with variants (salon-spec S2).
+  if (value.isService && (value.unitType === "KG" || (value.variants?.length ?? 0) > 0)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["isService"],
+      message: SERVICE_NOT_SUPPORTED,
+      params: { reason: SERVICE_NOT_SUPPORTED },
     });
   }
   // Repeats inside one list are already reported by BarcodeList; only cross-list repeats are reported here.
@@ -469,6 +485,9 @@ export type ProductSummary = {
   /** Derived: `vatCategory === "STANDARD"`. */
   vatApplicable: boolean;
   hasVariants: boolean;
+  /** A service (salon-spec S2): holds no stock; `durationMin` books the calendar. */
+  isService: boolean;
+  durationMin: number | null;
   variantCount: number;
   /** The product-level barcode flagged `isPrimary`, else null. */
   primaryBarcode: string | null;
@@ -530,6 +549,9 @@ export type SellableItem = CatalogItemRef & {
   categoryId?: string | null;
   /** Option groups to pick from (restaurant-cafe-spec R7); absent when the item has none. */
   optionGroups?: OptionGroupView[];
+  /** A service holds no stock (salon-spec S2); absent where a reader did not load it. */
+  isService?: boolean;
+  durationMin?: number | null;
 };
 
 /** A sellable row without cost: what POS search/scan screens may show. */

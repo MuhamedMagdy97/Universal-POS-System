@@ -291,7 +291,7 @@ async function uncountedInScope(orgId: string, count: CountRow, uncountedLines: 
     LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id
     LEFT JOIN "StockBalance" b ON b."orgId" = p."orgId" AND b."branchId" = ${count.branchId}::uuid
       AND b."productId" = p.id AND b."variantId" IS NOT DISTINCT FROM v.id
-    WHERE p."orgId" = ${orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) ${categorySql}
+    WHERE p."orgId" = ${orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) AND NOT p."isService" ${categorySql}
       AND ((CASE WHEN v.id IS NULL THEN p."isActive" ELSE p."isActive" AND v."isActive" END) OR COALESCE(b.qty, 0) <> 0)
       AND NOT EXISTS (
         SELECT 1 FROM "StockCountLine" l
@@ -349,7 +349,7 @@ export async function getCountSheet(
     LEFT JOIN "Barcode" bc ON bc."orgId" = p."orgId" AND bc."productId" = p.id
       AND bc."variantId" IS NOT DISTINCT FROM v.id AND bc."isPrimary"
     LEFT JOIN "Category" c ON c."orgId" = p."orgId" AND c.id = p."categoryId"
-    WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) ${scopeSql}`;
+    WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) AND NOT p."isService" ${scopeSql}`;
   return rows.map(({ onHand, ...row }) => ({ ...row, expected: showExpected ? onHand : null }));
 }
 

@@ -76,6 +76,10 @@ export async function insertVariant(
 ): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
   // A weighed product is sold by its own weight: no variants (weighed-selling-spec W4).
   if (product.unitType === "KG") throw invalid("UNIT_NOT_SUPPORTED");
+  // A service is one priced item (salon-spec S2).
+  if ((await tx.product.findUniqueOrThrow({ where: { id: product.id }, select: { isService: true } })).isService) {
+    throw invalid("SERVICE_NOT_SUPPORTED");
+  }
   // Options and variants do not mix (restaurant-cafe-spec R7).
   if (await tx.productOptionGroup.count({ where: { orgId: ctx.orgId, productId: product.id } })) {
     throw invalid("OPTIONS_NOT_SUPPORTED");

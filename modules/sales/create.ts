@@ -546,7 +546,8 @@ async function writeSale(
       // An offline sale already left the shop: it may take stock below zero (OF13).
       policy: org.blockNegativeStock && !offline ? "block" : "allow",
       allowArchived: offline !== null,
-      lines: stockLinesOf(lines),
+      // Services hold no stock (salon-spec S2).
+      lines: stockLinesOf(lines.filter((_, index) => !items[index].isService)),
     });
     const itemOf = (ref: MergedLine["ref"]) =>
       items[lines.findIndex((line) => lineKeyOf(line.ref, [], null) === lineKeyOf(ref, [], null))];

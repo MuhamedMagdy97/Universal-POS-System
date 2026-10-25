@@ -10,7 +10,7 @@ import { notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { assertBuiltIn, assertSyncedFieldsUnchanged } from "@/modules/integrations/inventory-sys/source";
-import { assertFresh, conflict } from "./errors";
+import { assertFresh, conflict, invalid } from "./errors";
 import {
   audit,
   canSeeCost,
@@ -130,6 +130,8 @@ export async function listProducts(
     vatCategory: true,
     vatApplicable: true,
     hasVariants: true,
+    isService: true,
+    durationMin: true,
     isActive: true,
     createdAt: true,
     updatedAt: true,
@@ -233,6 +235,8 @@ export async function insertProduct(
       costMinor: data.costMinor,
       vatCategory: data.vatCategory,
       vatApplicable,
+      isService: data.isService,
+      durationMin: data.isService ? (data.durationMin ?? 30) : null,
     },
   });
   await audit(tx, ctx, meta, "catalog.product.created", "Product", product.id, {
@@ -297,6 +301,7 @@ export async function applyProductUpdate(
   options: { touch?: boolean } = {},
 ): Promise<{ finalPrice: number; finalCost: number }> {
   const id = current.id;
+  if (patch.durationMin !== undefined && !current.isService) throw invalid("SERVICE_NOT_SUPPORTED");
   if (patch.categoryId && patch.categoryId !== current.categoryId) {
     await assertAssignableCategory(tx, ctx, patch.categoryId);
   }
@@ -313,6 +318,7 @@ export async function applyProductUpdate(
       nameAr: current.nameAr,
       categoryId: current.categoryId,
       vatCategory: current.vatCategory,
+      durationMin: current.durationMin,
     },
     rest,
   );

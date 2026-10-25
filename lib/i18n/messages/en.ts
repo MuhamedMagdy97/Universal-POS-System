@@ -9,6 +9,9 @@ export const en = {
   "catalog.nav.products": "Products",
   "catalog.nav.categories": "Categories",
   "catalog.nav.options": "Options",
+  "catalog.service.is": "This is a service (no stock)",
+  "catalog.service.duration": "Duration (minutes)",
+  "catalog.service.badge": "Service",
   "catalog.options.title": "Options",
   "catalog.options.intro":
     "Choices the cashier picks when adding an item, such as a size or extras. A choice's price is added to the item's price. Link groups to items on each item's page.",
