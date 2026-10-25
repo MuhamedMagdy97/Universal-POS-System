@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { StockPage, StockRow } from "@/modules/inventory";
 import { sendTransferAction, transferStockAction } from "../actions";
-import { normalizeQty } from "@/modules/inventory/schemas";
+import { formatQty, parseQtyInput, type QtyUnit } from "@/lib/quantity";
 import { overSourceLines, plain, safeAction, transferErrorKey, type ItemRef, type Line } from "../_lib/form";
 
 type BranchChoice = { id: string; name: string };
@@ -17,7 +17,8 @@ type Props = {
 };
 
 /** A line on the form keeps what the screen shows; `onHand` is the source balance at the time it was added. */
-type FormLine = Line & { name: string; sku: string; onHand: number };
+/** `text` is what the box shows (kg for a KG line, weighed-selling-spec W7); `qty` is pieces or grams. */
+type FormLine = Line & { name: string; sku: string; onHand: number; unitType: QtyUnit; text: string };
 
 const keyOf = (ref: ItemRef) => `${ref.productId}|${ref.variantId ?? ""}`;
 
@@ -66,16 +67,27 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
     const ref: ItemRef = { productId: row.productId, variantId: row.variantId };
     setLines((current) => {
       const index = current.findIndex((line) => keyOf(line.ref) === keyOf(ref));
-      if (index === -1) return [...current, { ref, qty: 1, name: labelOf(row), sku: row.sku, onHand: row.qty }];
-      return current.map((line, i) => (i === index ? { ...line, qty: line.qty + 1 } : line));
+      // A KG line starts empty: the weight is typed (W7).
+      const kg = row.unitType === "KG";
+      if (index === -1) {
+        const line = { ref, name: labelOf(row), sku: row.sku, onHand: row.qty, unitType: row.unitType };
+        return [...current, { ...line, qty: kg ? 0 : 1, text: kg ? "" : "1" }];
+      }
+      if (kg) return current;
+      return current.map((line, i) =>
+        i === index ? { ...line, qty: line.qty + 1, text: String(line.qty + 1) } : line,
+      );
     });
     setMessage(null);
   }
 
   function setQty(index: number, value: string) {
-    // Arabic-Indic digits are read by normalizeQty; an empty or invalid box counts as 0 and blocks submit.
-    const qty = normalizeQty(value) ?? 0;
-    setLines((current) => current.map((line, i) => (i === index ? { ...line, qty } : line)));
+    // Arabic-Indic digits are read; an empty or invalid box counts as 0 and blocks submit.
+    setLines((current) =>
+      current.map((line, i) =>
+        i === index ? { ...line, qty: parseQtyInput(value, line.unitType) ?? 0, text: value } : line,
+      ),
+    );
   }
 
   const over = overSourceLines(lines, (ref) => lines.find((l) => keyOf(l.ref) === keyOf(ref))?.onHand ?? 0);
@@ -181,7 +193,9 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
                 </span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="text-muted">{tr("inventory.transfer.lineOnHand", { onHand: row.qty })}</span>
+                <span className="text-muted">
+                  {tr("inventory.transfer.lineOnHand", { onHand: formatQty(row.qty, row.unitType, locale) })}
+                </span>
                 <button type="button" onClick={() => add(row)} className="btn btn-sm">
                   {tr("inventory.transfer.addItem")}
                 </button>
@@ -207,14 +221,17 @@ export function TransferForm({ locale, fromBranch, destinations }: Props) {
                   <td>
                     <input
                       dir="ltr"
-                      inputMode="numeric"
+                      inputMode={line.unitType === "KG" ? "decimal" : "numeric"}
                       aria-label={tr("inventory.adjust.qty")}
-                      value={line.qty}
+                      placeholder={line.unitType === "KG" ? "0.000" : undefined}
+                      value={line.text}
                       onChange={(e) => setQty(index, e.target.value)}
                       className="input min-h-9 w-24 px-2 py-1"
                     />
                   </td>
-                  <td className="text-muted">{tr("inventory.transfer.lineOnHand", { onHand: line.onHand })}</td>
+                  <td className="text-muted">
+                    {tr("inventory.transfer.lineOnHand", { onHand: formatQty(line.onHand, line.unitType, locale) })}
+                  </td>
                   <td>{isOver ? <span className="text-danger">{tr("inventory.transfer.overSource")}</span> : null}</td>
                   <td>
                     <button

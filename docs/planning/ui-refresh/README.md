@@ -11,7 +11,7 @@ missing today.
 | --- | ------------------------- | ---------------------------------- | ----------------------- | ---------------------------------------------- |
 | A   | Design system + app shell | All                                | None                    | [design-system-spec.md](design-system-spec.md) |
 | B   | Business profiles         | All                                | Search API, one setting | [business-profiles-spec.md](business-profiles-spec.md) |
-| C   | Weighed selling           | Grocery, fruit & veg, bakery/butcher | Migration, money paths | [weighed-selling-spec.md](weighed-selling-spec.md) |
+| C   | Weighed selling           | Grocery, fruit & veg, bakery/butcher | Migration, money paths | [weighed-selling-spec.md](weighed-selling-spec.md), [as built](weighed-selling-as-built.md) |
 | D   | Restaurant / café         | Restaurant and café                | Migrations              | Not written                                    |
 | E   | Salon                     | Salon                              | Migrations              | Not written                                    |
 
@@ -22,8 +22,7 @@ Order: A, then B. C, D and E each build on B and not on each other; C goes first
   for grocery and butcher). The till (`app/(app)/pos/_components/till.tsx`, 1,100 lines) is split into parts the
   layouts share.
 - **C** Selling by kilogram (quantity in grams): price per kg, a typed weight, scale-label EAN-13 barcodes with
-  embedded weight or price, and the effect on stock, VAT, refunds, offline sales and reports. Today `KG` sales are
-  refused with `UNIT_NOT_SUPPORTED` (known limitations).
+  embedded weight or price, and the effect on stock, VAT, refunds, offline sales and reports. Built 2026-10-25.
 - **D** Dine-in, takeaway and delivery orders; tables with open tickets (hold, pay later); modifiers; service charge;
   a kitchen ticket print.
 - **E** Service items with no stock, the staff member on each line, an appointments calendar, a commission report.

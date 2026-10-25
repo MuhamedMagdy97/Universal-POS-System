@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
+import { formatQty, qtyInputValue, type QtyUnit } from "@/lib/quantity";
 import type { CurrencyCode } from "@/lib/money";
 import { receivePoAction } from "../actions";
 import {
@@ -16,7 +17,15 @@ import {
   type ReceiveRow,
 } from "../_lib/purchasing";
 
-type Line = { poItemId: string; name: string; sku: string; outstanding: number; unitCostMinor: number };
+/** `outstanding` is pieces, or grams for KG: typed and shown in kg, cost per kg (weighed-selling-spec W7). */
+type Line = {
+  poItemId: string;
+  name: string;
+  sku: string;
+  outstanding: number;
+  unitCostMinor: number;
+  unitType: QtyUnit;
+};
 
 type Props = { locale: Locale; currency: CurrencyCode; poId: string; lines: Line[] };
 
@@ -32,7 +41,8 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
     lines.map((line) => ({
       poItemId: line.poItemId,
       outstanding: line.outstanding,
-      qty: String(line.outstanding),
+      unitType: line.unitType,
+      qty: qtyInputValue(line.outstanding, line.unitType),
       cost: costText(line.unitCostMinor, currency),
       poCostMinor: line.unitCostMinor,
     })),
@@ -43,6 +53,8 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
 
   const parsed = receiptLines(rows, currency);
   const units = parsed?.reduce((total, line) => total + line.qty, 0) ?? 0;
+  // Grams and pieces do not add up: with a weighed line the button counts lines (weighed-selling-spec W9).
+  const weighed = rows.some((row) => row.unitType === "KG");
 
   function update(index: number, patch: Partial<ReceiveRow>) {
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -94,7 +106,7 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
           <tbody>
             {lines.map((line, index) => {
               const row = rows[index];
-              const qty = parseQty(row.qty);
+              const qty = parseQty(row.qty, line.unitType);
               return (
                 <tr key={line.poItemId}>
                   <td>
@@ -104,12 +116,12 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
                     </span>
                   </td>
                   <td className="text-end" dir="ltr">
-                    {line.outstanding}
+                    {formatQty(line.outstanding, line.unitType, locale)}
                   </td>
                   <td>
                     <input
                       dir="ltr"
-                      inputMode="numeric"
+                      inputMode={line.unitType === "KG" ? "decimal" : "numeric"}
                       aria-label={`${tr("purchasing.receive.qty")} ${line.sku}`}
                       aria-invalid={qty === null || qty > line.outstanding}
                       value={row.qty}
@@ -144,7 +156,9 @@ export function ReceiveForm({ locale, currency, poId, lines }: Props) {
         </p>
       ) : null}
       <button type="submit" disabled={pending || !parsed || units === 0} className="btn btn-primary self-start">
-        {tr("purchasing.receive.submit", { units })}
+        {weighed
+          ? tr("purchasing.receive.submitLines", { lines: parsed?.length ?? 0 })
+          : tr("purchasing.receive.submit", { units })}
       </button>
     </form>
   );

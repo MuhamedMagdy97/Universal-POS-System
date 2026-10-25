@@ -12,6 +12,7 @@ import { requireBranch, requirePermission } from "./access";
 import { assertKnownItems } from "./ledger";
 import { keyOf, lockBalances } from "./locking";
 import { LowStockQuery, ReorderPointInput } from "./schemas";
+import { formatQty } from "@/lib/quantity";
 
 /** Reorder points and the low-stock list (docs/planning/low-stock/low-stock-spec.md). */
 
@@ -22,6 +23,8 @@ export type LowStockRow = {
   nameAr: string | null;
   variantName: string | null;
   sku: string;
+  /** `qty` and `reorderPoint` are pieces, or grams for KG (weighed-selling-spec W7). */
+  unitType: "EACH" | "KG";
   qty: number;
   reorderPoint: number;
   archived: boolean;
@@ -94,7 +97,7 @@ export async function listLowStock(
   if ((await inventorySourceOf(ctx.orgId)) === "EXTERNAL") return { rows: [], truncated: false };
 
   const rows = await getDb().$queryRaw<LowStockRow[]>`
-    SELECT b."productId", b."variantId", p.name, p."nameAr", v.name AS "variantName",
+    SELECT b."productId", b."variantId", p.name, p."nameAr", p."unitType"::text AS "unitType", v.name AS "variantName",
            COALESCE(v.sku, p.sku) AS sku, b.qty, b."reorderPoint",
            NOT (p."isActive" AND COALESCE(v."isActive", TRUE)) AS archived
     ${lowStockFrom(ctx.orgId, branchId)}
@@ -136,9 +139,9 @@ export async function exportLowStockCsv(
       return [
         row.variantName ? `${name} — ${row.variantName}` : name,
         row.sku,
-        row.qty,
-        row.reorderPoint,
-        row.reorderPoint - row.qty,
+        formatQty(row.qty, row.unitType, locale),
+        formatQty(row.reorderPoint, row.unitType, locale),
+        formatQty(row.reorderPoint - row.qty, row.unitType, locale),
       ];
     }),
   );

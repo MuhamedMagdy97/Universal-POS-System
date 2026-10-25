@@ -3,7 +3,8 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { MoneyError, multiply, type CurrencyCode } from "@/lib/money";
+import { MoneyError, type CurrencyCode } from "@/lib/money";
+import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getSellableItems, itemNames } from "@/modules/catalog";
 import { branchIdsInScope, requirePermission, VIEW, type Tx } from "./access";
@@ -51,6 +52,8 @@ export type PoLine = {
   outstanding: number;
   qtyReturned: number;
   returnable: number;
+  /** Quantities are pieces, or grams for KG; `unitCostMinor` is then per kg (weighed-selling-spec W2). */
+  unitType: QtyUnit;
   unitCostMinor: number;
   lineTotalMinor: number;
 };
@@ -151,13 +154,20 @@ export async function requireActiveSupplier(tx: Tx, orgId: string, supplierId: s
 /** Merges the lines, checks every item is stockable now (P8) and the PO value fits (2^53). */
 export async function prepareLines(tx: Tx, orgId: string, input: readonly PoLineInput[]): Promise<PoLineInput[]> {
   const lines = mergePoLines(input);
-  await getSellableItems(
+  const items = await getSellableItems(
     tx,
     orgId,
     lines.map((line) => line.ref),
   );
   try {
-    poTotals(lines.map((line) => ({ qtyOrdered: line.qty, qtyReceived: 0, unitCostMinor: line.unitCostMinor })));
+    poTotals(
+      lines.map((line, index) => ({
+        qtyOrdered: line.qty,
+        qtyReceived: 0,
+        unitCostMinor: line.unitCostMinor,
+        unitType: items[index].unitType,
+      })),
+    );
   } catch (err) {
     if (err instanceof MoneyError) throw purchasingInvalid("AMOUNT_TOO_LARGE", "The purchase order total is too large");
     throw err;
@@ -372,7 +382,7 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       items: {
         orderBy: { id: "asc" },
         include: {
-          product: { select: { sku: true, name: true, nameAr: true } },
+          product: { select: { sku: true, name: true, nameAr: true, unitType: true } },
           variant: { select: { sku: true, name: true, nameAr: true } },
         },
       },
@@ -387,6 +397,9 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
     select: { id: true, name: true },
   });
   const nameOf = new Map(receivers.map((user) => [user.id, user.name]));
+  // Receipt and return items are of the PO's own products (weighed-selling-spec W3).
+  const units = new Map(po.items.map((item) => [item.productId, item.product.unitType]));
+  const unitOf = (productId: string) => units.get(productId) ?? "EACH";
   const lines: PoLine[] = po.items
     .map((item) => ({
       id: item.id,
@@ -399,8 +412,9 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       outstanding: outstanding(item),
       qtyReturned: item.qtyReturned,
       returnable: returnable(item),
+      unitType: item.product.unitType,
       unitCostMinor: item.unitCostMinor,
-      lineTotalMinor: multiply(item.unitCostMinor, item.qtyOrdered),
+      lineTotalMinor: lineMinor(item.unitCostMinor, item.qtyOrdered, item.product.unitType),
     }))
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
   return {
@@ -423,7 +437,10 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       receivedByName: nameOf.get(receipt.receivedById) ?? "",
       note: receipt.note,
       units: receipt.items.reduce((total, item) => total + item.qtyReceived, 0),
-      valueMinor: receipt.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qtyReceived), 0),
+      valueMinor: receipt.items.reduce(
+        (total, item) => total + lineMinor(item.unitCostMinor, item.qtyReceived, unitOf(item.productId)),
+        0,
+      ),
     })),
     returns: po.returns.map((ret) => ({
       id: ret.id,
@@ -433,9 +450,12 @@ export async function loadPurchaseOrder(client: Db | Tx, orgId: string, id: stri
       reason: ret.reason,
       note: ret.note,
       units: ret.items.reduce((total, item) => total + item.qty, 0),
-      valueMinor: ret.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qty), 0),
+      valueMinor: ret.items.reduce(
+        (total, item) => total + lineMinor(item.unitCostMinor, item.qty, unitOf(item.productId)),
+        0,
+      ),
     })),
-    totals: poTotals(po.items),
+    totals: poTotals(po.items.map((item) => ({ ...item, unitType: item.product.unitType }))),
   };
 }
 
@@ -484,7 +504,9 @@ export async function listPurchaseOrders(ctx: TenantContext, rawQuery: unknown =
         orderedAt: true,
         branch: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
-        items: { select: { qtyOrdered: true, qtyReceived: true, unitCostMinor: true } },
+        items: {
+          select: { qtyOrdered: true, qtyReceived: true, unitCostMinor: true, product: { select: { unitType: true } } },
+        },
       },
     }),
     db.organization.findUniqueOrThrow({ where: { id: ctx.orgId }, select: { currency: true } }),
@@ -502,7 +524,7 @@ export async function listPurchaseOrders(ctx: TenantContext, rawQuery: unknown =
       supplier: row.supplier,
       createdAt: row.createdAt.toISOString(),
       orderedAt: row.orderedAt?.toISOString() ?? null,
-      totals: poTotals(row.items),
+      totals: poTotals(row.items.map((item) => ({ ...item, unitType: item.product.unitType }))),
     })),
   };
 }

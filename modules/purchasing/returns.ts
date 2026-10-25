@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { multiply } from "@/lib/money";
+import { costValue, unitsOf } from "./units";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { recordMovements } from "@/modules/inventory";
 import { requestHashOf } from "@/modules/sales";
@@ -216,6 +216,11 @@ async function postReturn(
     lines: ret.lines.map((line) => ({ ref: { productId: line.productId, variantId: line.variantId }, qty: line.qty })),
   });
 
+  const unitOf = await unitsOf(
+    tx,
+    ctx.orgId,
+    ret.lines.map((line) => line.productId),
+  );
   await record(tx, {
     ctx,
     meta,
@@ -230,7 +235,7 @@ async function postReturn(
       reason: ret.reason,
       lineCount: ret.lines.length,
       units: ret.lines.reduce((total, line) => total + line.qty, 0),
-      valueMinor: ret.lines.reduce((total, line) => total + multiply(line.unitCostMinor, line.qty), 0),
+      valueMinor: ret.lines.reduce((total, line) => total + costValue(line, unitOf), 0),
     },
   });
   return returnId;
@@ -380,9 +385,16 @@ export async function getPurchaseReturn(
   const db = getDb();
   const row = await db.purchaseReturn.findFirst({
     where: { id: returnId, orgId: ctx.orgId, purchaseOrderId: id },
-    select: { items: { select: { poItemId: true, qty: true, unitCostMinor: true }, orderBy: { id: "asc" } } },
+    select: {
+      items: { select: { poItemId: true, productId: true, qty: true, unitCostMinor: true }, orderBy: { id: "asc" } },
+    },
   });
   if (!row) throw notFound("Purchase return");
+  const unitOf = await unitsOf(
+    db,
+    ctx.orgId,
+    row.items.map((item) => item.productId),
+  );
   const po = await loadPurchaseOrder(db, ctx.orgId, id);
   const ret = po.returns.find((r) => r.id === returnId);
   if (!ret) throw notFound("Purchase return");
@@ -391,7 +403,14 @@ export async function getPurchaseReturn(
     ret,
     lines: row.items.flatMap((item) =>
       item.poItemId
-        ? [{ ...item, poItemId: item.poItemId, lineTotalMinor: multiply(item.unitCostMinor, item.qty) }]
+        ? [
+            {
+              poItemId: item.poItemId,
+              qty: item.qty,
+              unitCostMinor: item.unitCostMinor,
+              lineTotalMinor: costValue(item, unitOf),
+            },
+          ]
         : [],
     ),
   };
@@ -410,10 +429,18 @@ export async function getDirectReturn(
   const row = await db.purchaseReturn.findFirst({
     where: { id: returnId, orgId: ctx.orgId, goodsReceiptId: id },
     select: {
-      items: { select: { goodsReceiptItemId: true, qty: true, unitCostMinor: true }, orderBy: { id: "asc" } },
+      items: {
+        select: { goodsReceiptItemId: true, productId: true, qty: true, unitCostMinor: true },
+        orderBy: { id: "asc" },
+      },
     },
   });
   if (!row) throw notFound("Purchase return");
+  const unitOf = await unitsOf(
+    db,
+    ctx.orgId,
+    row.items.map((item) => item.productId),
+  );
   const receipt = await loadDirectReceipt(db, ctx.orgId, id);
   const ret = receipt.returns.find((r) => r.id === returnId);
   if (!ret) throw notFound("Purchase return");
@@ -427,7 +454,7 @@ export async function getDirectReturn(
               goodsReceiptItemId: item.goodsReceiptItemId,
               qty: item.qty,
               unitCostMinor: item.unitCostMinor,
-              lineTotalMinor: multiply(item.unitCostMinor, item.qty),
+              lineTotalMinor: costValue(item, unitOf),
             },
           ]
         : [],

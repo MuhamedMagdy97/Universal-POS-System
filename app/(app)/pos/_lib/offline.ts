@@ -179,6 +179,7 @@ export function buildOfflineSale(input: {
       vatApplicable: line.vatApplicable,
       unitType: line.unitType,
       discount: line.discount,
+      labels: line.labels,
     })),
     input.saleDiscount,
     vatRateBp,

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition, type ChangeEvent } from "react";
 import type { ErrorBody } from "@/lib/errors";
 import { translator, type Locale } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import type { StockImportPreview } from "@/modules/inventory/import";
 import { STOCK_IMPORT_MODES, type StockImportMode } from "@/modules/inventory/schemas";
 import { importStockAction, previewStockImportAction } from "../actions";
@@ -162,10 +163,12 @@ export function StockImport({ locale, branchId }: { locale: Locale; branchId: st
                     </td>
                     <td>{row.name ?? ""}</td>
                     <td className="tabular-nums" dir="ltr">
-                      {row.qty === null ? "" : mode === "adjustment" && row.qty > 0 ? `+${row.qty}` : row.qty}
+                      {row.qty === null
+                        ? ""
+                        : `${mode === "adjustment" && row.qty > 0 ? "+" : ""}${formatQty(row.qty, row.unitType, locale)}`}
                     </td>
                     <td className="tabular-nums" dir="ltr">
-                      {row.after ?? ""}
+                      {row.after === null ? "" : formatQty(row.after, row.unitType, locale)}
                     </td>
                     <td>
                       {row.errors.length === 0 ? (

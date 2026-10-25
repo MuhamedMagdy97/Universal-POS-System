@@ -3,10 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
+import type { QtyUnit } from "@/lib/quantity";
 import { recordOpeningAction } from "../actions";
 import { errorMessageKey, openingRowsToSave, plain, safeAction, type ItemRef } from "../_lib/form";
 
-export type OpeningRow = { ref: ItemRef; name: string; variantName: string | null; sku: string };
+/** A KG row's quantity is typed in kg (weighed-selling-spec W7). */
+export type OpeningRow = { ref: ItemRef; name: string; variantName: string | null; sku: string; unitType: QtyUnit };
 
 type Props = { locale: Locale; branchId: string; rows: OpeningRow[]; truncated: boolean };
 
@@ -28,7 +30,7 @@ export function OpeningGrid({ locale, branchId, rows, truncated }: Props) {
     event.preventDefault();
     setMessage(null);
     const { lines, invalid: bad } = openingRowsToSave(
-      rows.map((row) => ({ ref: row.ref, raw: values[keyOf(row.ref)] ?? "" })),
+      rows.map((row) => ({ ref: row.ref, raw: values[keyOf(row.ref)] ?? "", unitType: row.unitType })),
     );
     setInvalid(new Set(bad.map(keyOf)));
     if (bad.length > 0) {
@@ -77,7 +79,8 @@ export function OpeningGrid({ locale, branchId, rows, truncated }: Props) {
                     <td>
                       <input
                         dir="ltr"
-                        inputMode="numeric"
+                        inputMode={row.unitType === "KG" ? "decimal" : "numeric"}
+                        placeholder={row.unitType === "KG" ? "0.000" : undefined}
                         aria-label={`${row.name} ${tr("inventory.adjust.qty")}`}
                         aria-invalid={bad || undefined}
                         value={values[key] ?? ""}

@@ -56,6 +56,7 @@ async function ReturnContent({ params, searchParams }: Props) {
           ...line,
           key: line.goodsReceiptItemId,
           sku: receiptLine?.sku ?? "",
+          unitType: receiptLine?.unitType ?? "EACH",
           name: (locale === "ar" && receiptLine?.nameAr ? receiptLine.nameAr : receiptLine?.name) ?? "",
         };
       })}

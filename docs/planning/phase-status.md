@@ -140,8 +140,10 @@
   Plex Sans Arabic, component classes, inline icons, a sidebar shell mirrored in Arabic, every screen restyled.
   B, business profiles, BUILT (PRs #74 and #75, [as built](ui-refresh/business-profiles-as-built.md)): a profile
   per business type (accent, icon, item word, dashboard tiles, till layout), every type selectable at setup and
-  changeable by the Owner, tap tiles on the till for fruit and veg, bakery and butcher, café and salon. Next: C,
-  weighed selling.
+  changeable by the Owner, tap tiles on the till for fruit and veg, bakery and butcher, café and salon.
+  C, weighed selling, BUILT (three PRs, [as built](ui-refresh/weighed-selling-as-built.md)): KG items priced per kg
+  and stored in grams, a weight box at the till, kg on every stock, purchasing and report screen, and Owner-set
+  EAN-13 scale labels with weight or price. Next: D, restaurant and café.
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

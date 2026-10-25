@@ -104,3 +104,73 @@ test("a grocery sells by weight, steps the weight and refunds part of it", async
   await expect(page.getByTestId("till-stock").first()).toContainText("كجم");
   await context.close();
 });
+
+/** The EAN-13 check digit, so the test labels are valid. */
+const ean13 = (first12: string) => {
+  const total = [...first12].reduce((acc, digit, index) => acc + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
+  return `${first12}${(10 - (total % 10)) % 10}`;
+};
+
+test("scale labels: the owner turns them on, the till reads weight and price labels (W6)", async ({ page }) => {
+  const { branchId, productId, registerId } = await groceryShop(page);
+  const [{ orgId }] = await e2eQuery<{ orgId: string }>(`SELECT "orgId" FROM "Product" WHERE "id" = $1`, [productId]);
+  // The scale's item code 12345 with prefix 20 is saved as the item's barcode.
+  await e2eQuery(
+    `INSERT INTO "Barcode" ("id", "orgId", "code", "productId") VALUES (gen_random_uuid(), $1, '2012345', $2)`,
+    [orgId, productId],
+  );
+
+  await page.goto("/settings/shop");
+  const card = page.locator("form", { has: page.getByRole("heading", { name: en["settings.scale.title"] }) });
+  await card.getByLabel(en["settings.scale.enabled"]).check();
+  await card.getByRole("button", { name: en["settings.shop.save"] }).click();
+  await expect(card.getByRole("status")).toHaveText(en["settings.shop.saved"]);
+
+  await page.goto(`/pos?branch=${branchId}&register=${registerId}`);
+  await page.getByLabel(/Opening cash in the drawer/).fill("100");
+  await page.getByRole("button", { name: "Open shift" }).click();
+  const search = page.getByRole("textbox", { name: "Scan or search items" });
+  const scan = async (code: string) => {
+    await search.fill(code);
+    await search.press("Enter");
+  };
+
+  // A bad check digit is refused, never looked up.
+  const good = ean13("201234500750");
+  await scan(`${good.slice(0, 12)}${(Number(good[12]) + 1) % 10}`);
+  await expect(page.getByText(en["pos.label.badCheck"])).toBeVisible();
+  // A weight label: 750 g straight into the cart, no weight box.
+  await scan(good);
+  const qty = page.getByRole("textbox", { name: "Quantity for Tomatoes" });
+  await expect(qty).toHaveValue("0.750");
+  await expect(page.getByTestId("till-total")).toContainText("9.00");
+  // The shop's own in-store barcode in the same range is not a weighed item's label: it scans as usual.
+  const ownCode = ean13("200000012345");
+  const jarId = await createRunProduct(orgId, `JAR-${run().toUpperCase()}`, "Jam jar");
+  await e2eQuery(`INSERT INTO "Barcode" ("id", "orgId", "code", "productId") VALUES (gen_random_uuid(), $1, $2, $3)`, [
+    orgId,
+    ownCode,
+    jarId,
+  ]);
+  await scan(ownCode);
+  await expect(page.getByRole("textbox", { name: "Quantity for Jam jar" })).toHaveValue("1");
+
+  // Price labels: EGP 5.25 at 12.00 per kg is 438 g (437.5 rounded); the till charges the printed 5.25.
+  await page.goto("/settings/shop");
+  await card.getByLabel(en["settings.scale.PRICE"]).check();
+  await card.getByRole("button", { name: en["settings.shop.save"] }).click();
+  await expect(card.getByRole("status")).toHaveText(en["settings.shop.saved"]);
+  await page.goto(`/pos?branch=${branchId}&register=${registerId}`);
+  await scan(ean13("201234500525"));
+  await expect(qty).toHaveValue("0.438");
+  await expect(page.getByTestId("till-total")).toContainText("5.25");
+  await page.getByLabel(/Cash received/).fill("10");
+  await page.getByRole("button", { name: /^Charge/ }).click();
+  await expect(page.getByRole("heading", { name: /^Sale \d{6}$/ })).toBeVisible();
+  await expect(page.getByText("0.438 kg × EGP 12.00")).toBeVisible();
+  const [line] = await e2eQuery<{ qty: number; lineTotalMinor: number }>(
+    `SELECT "qty", "lineTotalMinor" FROM "SaleItem" WHERE "productId" = $1 ORDER BY "id" LIMIT 1`,
+    [productId],
+  );
+  expect(line).toEqual({ qty: 438, lineTotalMinor: 525 });
+});

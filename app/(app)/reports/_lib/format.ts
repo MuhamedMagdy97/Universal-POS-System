@@ -1,5 +1,6 @@
 import type { Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
+import { formatQty } from "@/lib/quantity";
 import {
   enumLabel,
   formatLocalDateTime,
@@ -20,7 +21,13 @@ export type CellFormat = { locale: Locale; currency: CurrencyCode; zone: string 
 
 /** Numbers, amounts and dates render LTR inside RTL and align to the end. */
 export function isNumeric(column: Column): boolean {
-  return column.kind === "money" || column.kind === "int" || column.kind === "rate" || column.kind === "margin";
+  return (
+    column.kind === "money" ||
+    column.kind === "int" ||
+    column.kind === "qty" ||
+    column.kind === "rate" ||
+    column.kind === "margin"
+  );
 }
 
 export function cellText(column: Column, row: ReportRow, format: CellFormat): string {
@@ -32,6 +39,11 @@ export function cellText(column: Column, row: ReportRow, format: CellFormat): st
       return formatMinor(value as number, format.currency, format.locale);
     case "int":
       return new Intl.NumberFormat(format.locale, { numberingSystem: "latn" }).format(value as number);
+    case "qty":
+      if (row.unitType === "MIXED") return "—";
+      return row.unitType === "KG"
+        ? formatQty(value as number, "KG", format.locale)
+        : new Intl.NumberFormat(format.locale, { numberingSystem: "latn" }).format(value as number);
     case "rate":
       return formatRateBp(value as number);
     case "margin":

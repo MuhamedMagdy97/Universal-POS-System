@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
+import { qtyInputValue, type QtyUnit } from "@/lib/quantity";
 import { setReorderPointAction } from "../actions";
 import { errorMessageKey, parseReorderPoint, plain, safeAction, type ItemRef } from "../_lib/form";
 
@@ -14,10 +15,21 @@ type Props = {
   itemRef: ItemRef;
   itemLabel: string;
   reorderPoint: number | null;
+  /** Pieces, or grams for KG: typed in kg (weighed-selling-spec W7). */
+  unitType?: QtyUnit;
 };
 
 /** Sets or clears (empty box) an item's reorder point at the branch (low-stock-spec L1–L6). */
-export function ReorderPointDialog({ locale, open, onClose, branchId, itemRef, itemLabel, reorderPoint }: Props) {
+export function ReorderPointDialog({
+  locale,
+  open,
+  onClose,
+  branchId,
+  itemRef,
+  itemLabel,
+  reorderPoint,
+  unitType = "EACH",
+}: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const titleId = useId();
@@ -30,16 +42,16 @@ export function ReorderPointDialog({ locale, open, onClose, branchId, itemRef, i
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
-      setValue(reorderPoint === null ? "" : String(reorderPoint));
+      setValue(reorderPoint === null ? "" : qtyInputValue(reorderPoint, unitType));
       setError(null);
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
-  }, [open, reorderPoint]);
+  }, [open, reorderPoint, unitType]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const parsed = parseReorderPoint(value);
+    const parsed = parseReorderPoint(value, unitType);
     if (parsed === undefined) {
       setError(tr("inventory.reorder.invalid"));
       return;
@@ -75,7 +87,7 @@ export function ReorderPointDialog({ locale, open, onClose, branchId, itemRef, i
           <span>{tr("inventory.reorder.label")}</span>
           <input
             dir="ltr"
-            inputMode="numeric"
+            inputMode={unitType === "KG" ? "decimal" : "numeric"}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="input"

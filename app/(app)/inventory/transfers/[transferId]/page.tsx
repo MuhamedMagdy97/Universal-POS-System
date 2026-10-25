@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { getTransfer, type TransferDetail } from "@/modules/inventory";
 import { loadInventoryContext } from "../../_lib/context";
 import { NotAllowed } from "../../_components/states";
@@ -57,6 +58,9 @@ async function TransferContent({ params, searchParams }: Props) {
   };
   const shortOf = (line: Line) => (line.qtyReceived === null ? 0 : line.qtySent - line.qtyReceived);
   const unitsReceived = transfer.lines.reduce((sum, line) => sum + (line.qtyReceived ?? 0), 0);
+  // Pieces and grams do not add up: a transfer with a weighed line prints no unit total (weighed-selling-spec W7).
+  const weighed = transfer.lines.some((line) => line.unitType === "KG");
+  const q = (line: Line, qty: number) => formatQty(qty, line.unitType, locale);
   const org = await getDb().organization.findUniqueOrThrow({
     where: { id: ctx.orgId },
     select: { name: true, legalName: true, receiptAddress: true, receiptPhone: true },
@@ -173,13 +177,13 @@ async function TransferContent({ params, searchParams }: Props) {
                     <td>
                       <bdi>{line.sku}</bdi>
                     </td>
-                    <td className="num">{line.qtySent}</td>
+                    <td className="num">{q(line, line.qtySent)}</td>
                     {/* Blank until received: the receiver writes the count on paper. */}
-                    <td className="num">{line.qtyReceived ?? ""}</td>
+                    <td className="num">{line.qtyReceived === null ? "" : q(line, line.qtyReceived)}</td>
                     {received ? (
                       <td className="num">
                         {shortOf(line) > 0 && line.shortfallReason
-                          ? `${shortOf(line)} (${tr(`inventory.reason.${line.shortfallReason}` as const)})`
+                          ? `${q(line, shortOf(line))} (${tr(`inventory.reason.${line.shortfallReason}` as const)})`
                           : ""}
                       </td>
                     ) : null}
@@ -190,9 +194,9 @@ async function TransferContent({ params, searchParams }: Props) {
                 <tr>
                   <th>{tr("inventory.transfers.total")}</th>
                   <th />
-                  <th className="num">{transfer.unitsSent}</th>
-                  <th className="num">{received ? unitsReceived : ""}</th>
-                  {received ? <th className="num">{transfer.unitsSent - unitsReceived}</th> : null}
+                  <th className="num">{weighed ? "" : transfer.unitsSent}</th>
+                  <th className="num">{received && !weighed ? unitsReceived : ""}</th>
+                  {received ? <th className="num">{weighed ? "" : transfer.unitsSent - unitsReceived}</th> : null}
                 </tr>
               </tfoot>
             </table>
@@ -240,15 +244,15 @@ async function TransferContent({ params, searchParams }: Props) {
                   {line.sku}
                 </td>
                 <td dir="ltr" className="text-end">
-                  {line.qtySent}
+                  {q(line, line.qtySent)}
                 </td>
                 {received ? (
                   <>
                     <td dir="ltr" className="text-end">
-                      {line.qtyReceived}
+                      {line.qtyReceived === null ? "" : q(line, line.qtyReceived)}
                     </td>
                     <td dir="ltr" className="text-end">
-                      {shortOf(line) || "—"}
+                      {shortOf(line) ? q(line, shortOf(line)) : "—"}
                     </td>
                     <td>{line.shortfallReason ? tr(`inventory.reason.${line.shortfallReason}` as const) : "—"}</td>
                   </>
@@ -268,6 +272,7 @@ async function TransferContent({ params, searchParams }: Props) {
             label: labelOf(line),
             sku: line.sku,
             qtySent: line.qtySent,
+            unitType: line.unitType,
           }))}
         />
       ) : null}

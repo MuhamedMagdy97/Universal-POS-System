@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatQty, lineMinor, parseQtyInput, qtyInputValue } from "@/lib/quantity";
+import { formatQty, lineMinor, parseQtyInput, parseSignedQtyInput, qtyInputValue } from "@/lib/quantity";
 
 /** Weighed selling (weighed-selling-spec W1, W3, W7): grams for KG, one money rule, kg on screen. */
 
@@ -44,5 +44,20 @@ describe("formatQty", () => {
     expect(formatQty(3, "EACH", "en")).toBe("3");
     expect(qtyInputValue(750, "KG")).toBe("0.750");
     expect(qtyInputValue(3, "EACH")).toBe("3");
+  });
+});
+
+describe("parseSignedQtyInput", () => {
+  it("reads a signed change in pieces or kg", () => {
+    expect(parseSignedQtyInput("-3", "EACH")).toBe(-3);
+    expect(parseSignedQtyInput("+5", "EACH")).toBe(5);
+    expect(parseSignedQtyInput("-0.250", "KG")).toBe(-250);
+    expect(parseSignedQtyInput("1.5", "KG")).toBe(1_500);
+    expect(parseSignedQtyInput("−0,5", "KG")).toBe(-500);
+  });
+
+  it("refuses zero, too many decimals and text", () => {
+    for (const raw of ["0", "-0", "+", "-0.0005", "x", ""]) expect(parseSignedQtyInput(raw, "KG"), raw).toBeNull();
+    expect(parseSignedQtyInput("-1.5", "EACH")).toBeNull();
   });
 });

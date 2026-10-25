@@ -5,14 +5,17 @@ import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMoney, toMajorString } from "@/lib/money";
 import { formatQty, qtyInputValue } from "@/lib/quantity";
+import { parseScaleLabel, type ScaleLabel } from "@/lib/scale-label";
+import type { LookupResult } from "@/modules/catalog/schemas";
 import type { ReceiptDoc, SaleDetail } from "@/modules/sales";
-import type { Discount, PayMethod } from "@/modules/sales/totals";
+import type { Discount, PayMethod, ScaleLabelLine } from "@/modules/sales/totals";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { PrintReceiptButton } from "../../_components/receipt-print";
 import { createSaleAction, tillStockAction } from "../actions";
 import { CustomerPicker } from "./customer-picker";
 import {
   addToCart,
+  fromScaleLabel,
   bumpQty,
   canCharge,
   discountRaw,
@@ -259,7 +262,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
    * `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. A KG item asks for its
    * weight first (weighed-selling-spec W5); `grams` is that weight.
    */
-  function add(item: TillItem, refocus = true, grams?: number) {
+  function add(item: TillItem, refocus = true, grams?: number, label?: ScaleLabelLine) {
     if (item.unitType === "KG" && grams === undefined) {
       setWeighing(item);
       setResults(null);
@@ -268,7 +271,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       return;
     }
     setWeighing(null);
-    setCart((current) => addToCart(current, item, grams ?? 1));
+    setCart((current) => addToCart(current, item, grams ?? 1, label));
     setSelectedKey(lineKey(item));
     setResults(null);
     setQuery("");
@@ -279,6 +282,10 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   async function find() {
     const q = query.trim();
     if (!q) return;
+    const label = parseScaleLabel(q, settings.scale);
+    // Not a weighed item's label: the code may be one of the shop's own barcodes in the same range.
+    const labelMiss = label ? await addScaleLabel(label) : null;
+    if (label && !labelMiss) return;
     const params = new URLSearchParams({ q, limit: "10" });
     let items: TillItem[];
     if (sellingOffline && off.snapshot) {
@@ -299,10 +306,67 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         items = searchSnapshot(off.snapshot.items, q);
       }
     }
+    if (items.length === 0 && labelMiss) {
+      setError(tr(labelMiss));
+      return;
+    }
     // A scan that finds exactly one item goes straight into the cart.
     if (items.length === 1) add(items[0]);
     else setResults(items);
     void loadStock(items);
+  }
+
+  /** A scale label (weighed-selling-spec W6): prefix + item code is the barcode of a KG item. */
+  /** Null once handled (added, or refused with a message); otherwise why it is not a weighed item's label. */
+  async function addScaleLabel(label: ScaleLabel): Promise<"pos.label.unknown" | "pos.label.notWeighed" | null> {
+    if (label.kind === "bad-check-digit") {
+      setError(tr("pos.label.badCheck"));
+      return null;
+    }
+    const fromSnapshot = (): TillItem | null => {
+      const hit = off.snapshot?.items.find((item) => item.barcodes.includes(label.lookupCode));
+      return hit ? (searchSnapshot([hit], label.lookupCode)[0] ?? null) : null;
+    };
+    let item: TillItem | null;
+    if (sellingOffline && off.snapshot) item = fromSnapshot();
+    else {
+      try {
+        const code = new URLSearchParams({ code: label.lookupCode });
+        const response = await fetch(`/api/barcodes?${code}`, { headers: { accept: "application/json" } });
+        if (response.status === 404) item = null;
+        else if (!response.ok) throw new Error(`lookup failed: ${response.status}`);
+        else {
+          const found = (await response.json()) as LookupResult;
+          if (!found.sellable) {
+            setError(tr("pos.error.notSellable"));
+            return null;
+          }
+          item = {
+            productId: found.productId,
+            variantId: found.variantId,
+            sku: found.sku,
+            name: found.name,
+            nameAr: found.nameAr,
+            unitPriceMinor: found.unitPriceMinor,
+            vatApplicable: found.vatApplicable,
+            unitType: found.unitType === "KG" ? "KG" : "EACH",
+          };
+        }
+      } catch (err) {
+        if (!(err instanceof TypeError) || !off.snapshot || off.block !== null) {
+          setError(tr("pos.error.generic"));
+          return null;
+        }
+        off.markUnreachable();
+        item = fromSnapshot();
+      }
+    }
+    if (!item) return "pos.label.unknown";
+    const weighed = fromScaleLabel(label, item);
+    if (!weighed) return "pos.label.notWeighed";
+    add(item, true, weighed.grams, weighed.label);
+    void loadStock([item]);
+    return null;
   }
 
   function newSale() {
@@ -338,6 +402,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         ref: { productId: line.productId, variantId: line.variantId },
         qty: line.qty,
         ...(line.discount ? { discount: line.discount } : {}),
+        ...(line.labels ? { labels: line.labels } : {}),
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),

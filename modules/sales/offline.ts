@@ -4,11 +4,10 @@ import { hasPermission, type Role } from "@/lib/auth/permissions";
 import { AppError, notFound } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { sum } from "@/lib/money";
-import { lineMinor } from "@/lib/quantity";
 import type { SellableItem } from "@/modules/catalog/schemas";
 import { lockShift } from "@/modules/registers";
 import type { OfflineSaleInput, SaleInput } from "./schemas";
-import { allocate, overDiscountLimit, priceSale, type PricedSale } from "./totals";
+import { allocate, overDiscountLimit, priceSale, shelfOf, type PricedSale, type ScaleLabelLine } from "./totals";
 
 /**
  * Offline sales replayed by their device (docs/planning/offline-till/offline-till-spec.md, slice 1). An offline
@@ -144,7 +143,7 @@ type OrgSettings = { vatRateBp: number; pricesIncludeVat: boolean; maxCashierDis
  */
 export function priceOfflineSale(
   items: readonly SellableItem[],
-  lines: readonly { qty: number; discount: SaleInput["discount"] | null }[],
+  lines: readonly { qty: number; discount: SaleInput["discount"] | null; labels?: ScaleLabelLine[] }[],
   input: SaleInput,
   offline: OfflineSaleInput,
   org: OrgSettings,
@@ -153,7 +152,14 @@ export function priceOfflineSale(
 ): { items: SellableItem[]; totals: PricedSale } {
   const sold = offline.lines;
   if (sold.length !== lines.length) throw malformed("Each item may appear once in an offline sale");
-  const shelf = sold.map((line, index) => lineMinor(line.unitPriceMinor, lines[index].qty, items[index].unitType));
+  const shelf = sold.map((line, index) =>
+    shelfOf({
+      ...items[index],
+      unitPriceMinor: line.unitPriceMinor,
+      qty: lines[index].qty,
+      labels: lines[index].labels,
+    }),
+  );
   if (
     sold.some((line, index) => line.discountMinor > shelf[index]) ||
     sum(sold.map((line) => line.lineTotalMinor)) !== offline.totalMinor ||
@@ -177,6 +183,7 @@ export function priceOfflineSale(
       vatApplicable: item.vatApplicable,
       unitType: item.unitType,
       discount: lines[index].discount,
+      labels: lines[index].labels,
     })),
     input.discount,
     org.vatRateBp,

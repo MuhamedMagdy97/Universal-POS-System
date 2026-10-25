@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SCALE_SETTINGS } from "@/lib/scale-label";
 import {
   addToCart,
   bumpQty,
@@ -6,6 +7,7 @@ import {
   discountRaw,
   displayName,
   exactCashMinor,
+  fromScaleLabel,
   keepKeyAfter,
   parseCash,
   parseDiscount,
@@ -30,6 +32,7 @@ const EG: TillSettings = {
   vatRateBp: 1400,
   pricesIncludeVat: true,
   discount: { allowed: true, limitBp: 1000 },
+  scale: DEFAULT_SCALE_SETTINGS,
   customers: { read: true, create: true },
 };
 
@@ -357,5 +360,39 @@ describe("weighed lines (weighed-selling-spec W5)", () => {
   it("prices the cart per kg", () => {
     const preview = previewCart([{ ...tomatoes, qty: 750 }], EG, null);
     expect(preview.ok && preview.totalMinor).toBe(9_000);
+  });
+});
+
+describe("price scale labels at the till (weighed-selling-spec W6)", () => {
+  const tomatoes: TillItem = { ...item("t", 12_000), unitType: "KG" };
+  const price = (value: number) => ({
+    kind: "label" as const,
+    lookupCode: "2012345",
+    valueKind: "PRICE" as const,
+    value,
+  });
+
+  it("works out the grams from the printed price and charges the printed total", () => {
+    const first = fromScaleLabel(price(5_240), tomatoes);
+    expect(first).toEqual({ grams: 437, label: { grams: 437, totalMinor: 5_240 } });
+    const second = fromScaleLabel(price(3_000), tomatoes);
+    let cart = addToCart([], tomatoes, first?.grams, first?.label);
+    cart = addToCart(cart, tomatoes, second?.grams, second?.label);
+    expect(cart[0]).toMatchObject({ qty: 687, labels: [first?.label, second?.label] });
+    const shown = previewCart(cart, EG);
+    expect(shown.ok && shown.totalMinor).toBe(8_240);
+  });
+
+  it("drops the labels once the weight is changed by hand or weighed at the till", () => {
+    const got = fromScaleLabel(price(5_240), tomatoes);
+    const cart = addToCart([], tomatoes, got?.grams, got?.label);
+    expect(addToCart(cart, tomatoes, 100)[0].labels).toBeUndefined();
+    expect(bumpQty(cart, "t|", 1)[0].labels).toBeUndefined();
+    expect(setLineQty(cart, "t|", "0.5")[0].labels).toBeUndefined();
+  });
+
+  it("reads a weight label as grams and refuses a label for a piece item", () => {
+    expect(fromScaleLabel({ ...price(750), valueKind: "WEIGHT" }, tomatoes)).toEqual({ grams: 750 });
+    expect(fromScaleLabel(price(750), item("p"))).toBeNull();
   });
 });

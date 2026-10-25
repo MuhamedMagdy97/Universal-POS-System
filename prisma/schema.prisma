@@ -35,6 +35,12 @@ enum BusinessType {
   SALON
 }
 
+// What the value digits of a scale label hold: grams, or the line total in minor units.
+enum ScaleValueKind {
+  WEIGHT
+  PRICE
+}
+
 enum Currency {
   EGP
   SAR
@@ -290,6 +296,11 @@ model Organization {
   inventorySource      InventorySource @default(BUILT_IN)
   // Offline till (offline-till-spec OF5): Owner only, off by default, refused while linked to the inventory system.
   allowOfflineSales    Boolean         @default(false)
+  // Scale labels (weighed-selling-spec W6): Owner only, off by default. A label is prefix + item code + value + check.
+  scaleLabelsEnabled   Boolean         @default(false)
+  scaleLabelPrefixes   String[]        @default(["20", "21", "22", "23", "24", "25", "26", "27", "28", "29"])
+  scaleItemDigits      Int             @default(5)
+  scaleValueKind       ScaleValueKind  @default(WEIGHT)
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 

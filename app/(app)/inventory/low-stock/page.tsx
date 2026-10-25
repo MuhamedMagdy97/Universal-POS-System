@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { LOW_STOCK_CAP, listLowStock } from "@/modules/inventory";
 import { loadInventoryContext } from "../_lib/context";
 import { BranchPicker } from "../_components/branch-picker";
@@ -91,11 +92,11 @@ async function LowStockContent({ searchParams }: { searchParams: SearchParams })
                     </td>
                     <td dir="ltr">{row.sku}</td>
                     <td dir="ltr" className={row.qty < 0 ? "text-danger" : ""}>
-                      {row.qty}
+                      {formatQty(row.qty, row.unitType, locale)}
                     </td>
-                    <td dir="ltr">{row.reorderPoint}</td>
+                    <td dir="ltr">{formatQty(row.reorderPoint, row.unitType, locale)}</td>
                     <td dir="ltr" className="font-semibold">
-                      {row.reorderPoint - row.qty}
+                      {formatQty(row.reorderPoint - row.qty, row.unitType, locale)}
                     </td>
                   </tr>
                 );

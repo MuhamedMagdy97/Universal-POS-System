@@ -172,7 +172,7 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
                     <StatusBadge locale={locale} status={row.status} />
                   </td>
                   <td className="text-end" dir="ltr">
-                    {row.totals.orderedUnits} / {row.totals.receivedUnits}
+                    {row.totals.weighed ? "—" : `${row.totals.orderedUnits} / ${row.totals.receivedUnits}`}
                   </td>
                   <td className="text-end">{formatMinor(row.totals.totalMinor, result.currency, locale)}</td>
                   <td className="text-end text-sm text-muted" dir="ltr">
@@ -220,7 +220,7 @@ async function PurchasingContent({ searchParams }: { searchParams: SearchParams 
                     <td>{row.supplier.name}</td>
                     {branches.length > 1 ? <td>{row.branch.name}</td> : null}
                     <td className="text-end" dir="ltr">
-                      {row.units}
+                      {row.weighed ? "—" : row.units}
                     </td>
                     <td className="text-end">{formatMinor(row.valueMinor, direct.currency, locale)}</td>
                     <td className="text-end text-sm text-muted" dir="ltr">

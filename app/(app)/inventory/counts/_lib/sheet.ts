@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import type { CountSheetItem } from "@/modules/inventory";
 
 export type SheetRow = {
@@ -6,7 +7,8 @@ export type SheetRow = {
   sku: string;
   barcode: string | null;
   category: string | null;
-  expected: number | null;
+  /** On-hand as printed: pieces, or kg with 3 decimals for KG (weighed-selling-spec W7). */
+  expected: string | null;
 };
 
 /** Count-sheet rows in the reader's language, sorted by category (none last), then name, then SKU (C15). */
@@ -21,7 +23,7 @@ export function sheetRows(items: readonly CountSheetItem[], locale: Locale): She
         sku: item.sku,
         barcode: item.barcode,
         category: pick(item.categoryName, item.categoryNameAr),
-        expected: item.expected,
+        expected: item.expected === null ? null : formatQty(item.expected, item.unitType, locale),
       };
     })
     .sort(

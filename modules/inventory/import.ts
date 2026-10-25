@@ -1,4 +1,5 @@
 import "server-only";
+import { parseQtyInput, parseSignedQtyInput } from "@/lib/quantity";
 /**
  * Stock CSV import (docs/planning/stock-import/stock-import-spec.md).
  *
@@ -23,8 +24,6 @@ import {
   StockImportInput,
   StockImportPreviewInput,
   checkAdjustmentDirection,
-  normalizeQty,
-  normalizeSignedQty,
   type StockImportMode,
 } from "./schemas";
 import type { ItemRef } from "./types";
@@ -63,6 +62,8 @@ export type StockImportRow = {
   line: number;
   code: string;
   name: string | null;
+  /** `qty` and `after` are pieces, or grams for KG. */
+  unitType: "EACH" | "KG";
   qty: number | null;
   after: number | null;
   errors: StockImportRowError[];
@@ -127,7 +128,7 @@ async function checkFile(
   const [items, itemVariants] = await Promise.all([
     client.product.findMany({
       where: { orgId, id: { in: [...new Set(found.map((r) => r.productId))] } },
-      select: { id: true, name: true, hasVariants: true, isActive: true },
+      select: { id: true, name: true, hasVariants: true, isActive: true, unitType: true },
     }),
     client.productVariant.findMany({
       where: { orgId, id: { in: found.flatMap((r) => (r.variantId ? [r.variantId] : [])) } },
@@ -158,19 +159,26 @@ async function checkFile(
     }
 
     let name: string | null = null;
+    let unitType: "EACH" | "KG" = "EACH";
     let archived = false;
     let variantRequired = false;
     if (ref) {
       const product = productById.get(ref.productId);
       const variant = ref.variantId ? variantById.get(ref.variantId) : undefined;
       name = product ? (variant ? `${product.name} — ${variant.name}` : product.name) : null;
+      unitType = product?.unitType ?? "EACH";
       archived = !product?.isActive || (variant !== undefined && !variant.isActive);
       variantRequired = product?.hasVariants === true && ref.variantId === null;
       if (variantRequired) errors.push({ column: codeColumn, code: "variantRequired" });
     }
 
     const rawQty = cell("qty");
-    const qty = rawQty ? (mode === "opening" ? normalizeQty(rawQty) : normalizeSignedQty(rawQty)) : null;
+    // kg with up to 3 decimals for a KG item, stored as grams (weighed-selling-spec W7).
+    const qty = rawQty
+      ? mode === "opening"
+        ? parseQtyInput(rawQty, unitType)
+        : parseSignedQtyInput(rawQty, unitType)
+      : null;
     if (!rawQty) errors.push({ column: "qty", code: "required" });
     else if (qty === null) errors.push({ column: "qty", code: "qtyInvalid" });
 
@@ -194,6 +202,7 @@ async function checkFile(
       line,
       code: sku || barcode,
       name,
+      unitType,
       qty,
       after: null,
       errors,
@@ -245,7 +254,15 @@ async function checkFile(
 function summarize(rows: CheckedRow[]): StockImportPreview {
   const errorCount = rows.filter((r) => r.errors.length > 0).length;
   return {
-    rows: rows.map(({ line, code, name, qty, after, errors }) => ({ line, code, name, qty, after, errors })),
+    rows: rows.map(({ line, code, name, unitType, qty, after, errors }) => ({
+      line,
+      code,
+      name,
+      unitType,
+      qty,
+      after,
+      errors,
+    })),
     validCount: rows.length - errorCount,
     errorCount,
   };

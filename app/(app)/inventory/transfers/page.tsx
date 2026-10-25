@@ -95,7 +95,7 @@ async function TransfersContent({ searchParams }: { searchParams: SearchParams }
                   <td>{direction === "outgoing" ? row.toBranch.name : row.fromBranch.name}</td>
                   <td>{dateFormat.format(row.sentAt)}</td>
                   <td dir="ltr" className="text-end">
-                    {row.unitsSent}
+                    {row.weighed ? "—" : row.unitsSent}
                   </td>
                   <td>
                     <span className={`badge ${row.status === "SENT" ? "badge-warning" : ""}`}>

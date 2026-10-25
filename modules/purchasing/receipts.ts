@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { multiply, type CurrencyCode } from "@/lib/money";
+import type { CurrencyCode } from "@/lib/money";
+import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { applyReceivedCosts, itemNames } from "@/modules/catalog";
 import { recordMovements } from "@/modules/inventory";
@@ -332,6 +333,8 @@ export type DirectReceiptRow = {
   supplier: { id: string; name: string };
   note: string | null;
   units: number;
+  /** A KG line is on it: `units` adds grams to pieces (shown as "—"). */
+  weighed: boolean;
   valueMinor: number;
 };
 
@@ -354,7 +357,7 @@ export async function listDirectReceipts(
         note: true,
         branch: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
-        items: { select: { qtyReceived: true, unitCostMinor: true } },
+        items: { select: { qtyReceived: true, unitCostMinor: true, product: { select: { unitType: true } } } },
       },
     }),
     db.organization.findUniqueOrThrow({ where: { id: ctx.orgId }, select: { currency: true } }),
@@ -369,7 +372,11 @@ export async function listDirectReceipts(
       supplier: row.supplier,
       note: row.note,
       units: row.items.reduce((total, item) => total + item.qtyReceived, 0),
-      valueMinor: row.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qtyReceived), 0),
+      weighed: row.items.some((item) => item.product.unitType === "KG"),
+      valueMinor: row.items.reduce(
+        (total, item) => total + lineMinor(item.unitCostMinor, item.qtyReceived, item.product.unitType),
+        0,
+      ),
     })),
   };
 }
@@ -386,6 +393,8 @@ export type DirectReceiptLine = {
   qtyReceived: number;
   qtyReturned: number;
   returnable: number;
+  /** Quantities are pieces, or grams for KG; `unitCostMinor` is then per kg (weighed-selling-spec W2). */
+  unitType: QtyUnit;
   unitCostMinor: number;
   lineTotalMinor: number;
 };
@@ -436,13 +445,16 @@ export async function loadDirectReceipt(db: Db, orgId: string, id: string): Prom
       items: {
         orderBy: { id: "asc" },
         include: {
-          product: { select: { sku: true, name: true, nameAr: true } },
+          product: { select: { sku: true, name: true, nameAr: true, unitType: true } },
           variant: { select: { sku: true, name: true, nameAr: true } },
         },
       },
       returns: { orderBy: { seq: "asc" }, include: { items: true } },
     },
   });
+  // Return items are of the receipt's own products (weighed-selling-spec W3).
+  const units = new Map(receipt.items.map((item) => [item.productId, item.product.unitType]));
+  const unitOf = (productId: string) => units.get(productId) ?? "EACH";
   const users = await db.user.findMany({
     where: { id: { in: [...new Set([receipt.receivedById, ...receipt.returns.map((r) => r.returnedById)])] } },
     select: { id: true, name: true },
@@ -467,8 +479,9 @@ export async function loadDirectReceipt(db: Db, orgId: string, id: string): Prom
         qtyReceived: item.qtyReceived,
         qtyReturned,
         returnable: returnable({ qtyReceived: item.qtyReceived, qtyReturned }),
+        unitType: item.product.unitType,
         unitCostMinor: item.unitCostMinor,
-        lineTotalMinor: multiply(item.unitCostMinor, item.qtyReceived),
+        lineTotalMinor: lineMinor(item.unitCostMinor, item.qtyReceived, item.product.unitType),
       };
     })
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
@@ -490,7 +503,10 @@ export async function loadDirectReceipt(db: Db, orgId: string, id: string): Prom
       reason: ret.reason,
       note: ret.note,
       units: ret.items.reduce((total, item) => total + item.qty, 0),
-      valueMinor: ret.items.reduce((total, item) => total + multiply(item.unitCostMinor, item.qty), 0),
+      valueMinor: ret.items.reduce(
+        (total, item) => total + lineMinor(item.unitCostMinor, item.qty, unitOf(item.productId)),
+        0,
+      ),
     })),
     units: lines.reduce((total, line) => total + line.qtyReceived, 0),
     valueMinor: lines.reduce((total, line) => total + line.lineTotalMinor, 0),

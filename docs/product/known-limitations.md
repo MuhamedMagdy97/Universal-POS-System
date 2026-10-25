@@ -28,8 +28,9 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 
 ## Catalog
 
-- Only `EACH` units: `KG` / weighted selling is refused with `UNIT_NOT_SUPPORTED`; quantities are whole numbers.
-  [phase-6/catalog-api-and-rules §7, phase-7/inventory-spec]
+- Units are `EACH` (whole pieces) and `KG` (grams, priced per kg). No other units, no weighed variants, no
+  price per 100 g, and the shop cannot print scale labels. A shop linked to the inventory system cannot sell `KG`
+  items. [ui-refresh/weighed-selling-spec]
 - No Size × Colour option matrix for variants; variants inherit unit, VAT and category. [phase-6/catalog-data-model]
 - One price per product (optional variant override); no price lists. [phase-6/catalog-data-model]
 

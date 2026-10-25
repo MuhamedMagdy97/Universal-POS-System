@@ -19,6 +19,7 @@ import {
   updateOfflineSettings,
   updateReceiptSettings,
   updateRegister,
+  updateScaleSettings,
   updateStaff,
   type ReceiptSettings,
   type ReceiptSettingsInput,
@@ -172,6 +173,14 @@ export async function retryInventoryPostingAction(
 export async function saveBusinessTypeAction(businessType: string): Promise<ActionResult<null>> {
   return run("/settings/shop", async (ctx, meta) => {
     await updateBusinessType(ctx, { businessType }, meta);
+    return null;
+  });
+}
+
+/** Settings → Shop (weighed-selling-spec W6): scale labels. Owner only. */
+export async function saveScaleSettingsAction(input: unknown): Promise<ActionResult<null>> {
+  return run("/settings/shop", async (ctx, meta) => {
+    await updateScaleSettings(ctx, input, meta);
     return null;
   });
 }

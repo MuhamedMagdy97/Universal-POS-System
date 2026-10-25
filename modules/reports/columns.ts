@@ -11,6 +11,7 @@ export type ColumnKind =
   | "text"
   | "name" // localized: `name` / `nameAr`
   | "int"
+  | "qty" // pieces; grams on a KG row (shown in kg); "—" on a MIXED row (weighed-selling-spec W9)
   | "money"
   | "day"
   | "datetime"
@@ -28,8 +29,8 @@ export type Column = { key: string; label: ColumnLabel; kind: ColumnKind };
 const c = (key: string, label: ColumnLabel, kind: ColumnKind): Column => ({ key, label, kind });
 
 const PROFIT_COLUMNS: readonly Column[] = [
-  c("qtySold", "reports.col.qtySold", "int"),
-  c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+  c("qtySold", "reports.col.qtySold", "qty"),
+  c("qtyRefunded", "reports.col.qtyRefunded", "qty"),
   c("netRevenueMinor", "reports.col.netRevenueExVat", "money"),
   c("revenueNoCostMinor", "reports.col.revenueNoCost", "money"),
   c("costMinor", "reports.col.cost", "money"),
@@ -62,16 +63,16 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
   products: [
     c("sku", "reports.col.sku", "text"),
     c("name", "reports.col.product", "name"),
-    c("qtySold", "reports.col.qtySold", "int"),
-    c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+    c("qtySold", "reports.col.qtySold", "qty"),
+    c("qtyRefunded", "reports.col.qtyRefunded", "qty"),
     c("grossMinor", "reports.col.sales", "money"),
     c("refundsMinor", "reports.col.refunds", "money"),
     c("netMinor", "reports.col.netRevenue", "money"),
   ],
   categories: [
     c("name", "reports.col.category", "name"),
-    c("qtySold", "reports.col.qtySold", "int"),
-    c("qtyRefunded", "reports.col.qtyRefunded", "int"),
+    c("qtySold", "reports.col.qtySold", "qty"),
+    c("qtyRefunded", "reports.col.qtyRefunded", "qty"),
     c("grossMinor", "reports.col.sales", "money"),
     c("refundsMinor", "reports.col.refunds", "money"),
     c("netMinor", "reports.col.netRevenue", "money"),
@@ -141,10 +142,10 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     c("day", "reports.col.day", "day"),
     c("supplierName", "reports.col.supplier", "text"),
     c("receiptsCount", "reports.col.receipts", "int"),
-    c("units", "reports.col.units", "int"),
+    c("units", "reports.col.units", "qty"),
     c("valueMinor", "reports.col.purchaseValue", "money"),
     // Returns to the supplier on their own date (purchase-returns-spec R12).
-    c("returnedUnits", "reports.col.returnedUnits", "int"),
+    c("returnedUnits", "reports.col.returnedUnits", "qty"),
     c("returnedValueMinor", "reports.col.returnedValue", "money"),
     c("netValueMinor", "reports.col.netPurchaseValue", "money"),
   ],
@@ -218,6 +219,6 @@ const NOT_TOTALLED = new Set(["averageMinor", "openingFloatMinor", "expectedCash
 
 export function totalledKeys(report: ReportName): string[] {
   return REPORT_COLUMNS[report]
-    .filter((col) => (col.kind === "money" || col.kind === "int") && !NOT_TOTALLED.has(col.key))
+    .filter((col) => (col.kind === "money" || col.kind === "int" || col.kind === "qty") && !NOT_TOTALLED.has(col.key))
     .map((col) => col.key);
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { translator, type Locale } from "@/lib/i18n";
+import type { QtyUnit } from "@/lib/quantity";
 import { AdjustDialog } from "./adjust-dialog";
 import { ReorderPointDialog } from "./reorder-point-dialog";
 import type { ItemRef } from "../_lib/form";
@@ -13,6 +14,8 @@ type Props = {
   itemRef: ItemRef;
   itemLabel: string;
   onHand: number;
+  /** Pieces, or grams for KG (weighed-selling-spec W7). */
+  unitType?: QtyUnit;
   reorderPoint: number | null;
   canAdjust: boolean;
   canTransfer: boolean;
@@ -55,6 +58,7 @@ export function StockRowActions(props: Props) {
           itemRef={props.itemRef}
           itemLabel={props.itemLabel}
           onHand={props.onHand}
+          unitType={props.unitType}
           archived={props.archived}
         />
       ) : null}
@@ -67,6 +71,7 @@ export function StockRowActions(props: Props) {
           itemRef={props.itemRef}
           itemLabel={props.itemLabel}
           reorderPoint={props.reorderPoint}
+          unitType={props.unitType}
         />
       ) : null}
     </div>

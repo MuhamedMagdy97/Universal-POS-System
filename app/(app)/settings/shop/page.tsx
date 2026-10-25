@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/permissions";
 import { translator } from "@/lib/i18n";
-import { getBusinessType } from "@/modules/org";
+import { getBusinessType, getScaleSettings } from "@/modules/org";
 import { SettingsDenied } from "../_components/denied";
 import { loadSettingsPage } from "../_lib/context";
+import { ScaleSettingsForm } from "./scale-settings";
 import { ShopSettingsForm } from "./shop-settings";
 
 /**
  * Settings → Shop (business-profiles-spec BP3): the business type, which picks the accent, till layout, item word
- * and dashboard tiles. Owner and Admin see it (`settings.manage`); only the Owner changes it (`shop.manage`).
+ * and dashboard tiles; and scale labels (weighed-selling-spec W6). Owner and Admin see it (`settings.manage`); only the Owner changes it (`shop.manage`).
  */
 export default function ShopSettingsPage() {
   return (
@@ -29,6 +30,11 @@ async function ShopSettingsContent() {
       <ShopSettingsForm
         locale={page.locale}
         businessType={await getBusinessType(page.ctx)}
+        canManage={hasPermission(page.ctx.role, "shop.manage")}
+      />
+      <ScaleSettingsForm
+        locale={page.locale}
+        settings={await getScaleSettings(page.ctx)}
         canManage={hasPermission(page.ctx.role, "shop.manage")}
       />
     </div>

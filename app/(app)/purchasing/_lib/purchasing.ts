@@ -5,7 +5,7 @@
 import type { ErrorBody } from "@/lib/errors";
 import { MESSAGES, interpolate, type Locale, type MessageKey } from "@/lib/i18n";
 import { MoneyError, normalizeDigits, parseMajor, toMajorString, type CurrencyCode } from "@/lib/money";
-import { MAX_QTY } from "@/modules/inventory/schemas";
+import { lineMinor, parseQtyInput, type QtyUnit } from "@/lib/quantity";
 import type { PoStatus } from "@/modules/purchasing/schemas";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ErrorBody };
@@ -111,12 +111,14 @@ export function costText(minor: number, currency: CurrencyCode): string {
   return toMajorString(minor, currency);
 }
 
-/** A typed quantity → a whole number 0 … MAX_QTY, or null. */
-export function parseQty(input: string): number | null {
-  const digits = normalizeDigits(input).trim();
-  if (!/^\d+$/.test(digits)) return null;
-  const qty = Number(digits);
-  return qty <= MAX_QTY ? qty : null;
+/**
+ * A typed quantity → 0 … MAX_QTY pieces, or kg with up to 3 decimals as grams for KG (weighed-selling-spec W7); null
+ * when invalid.
+ */
+export function parseQty(input: string, unitType: QtyUnit = "EACH"): number | null {
+  const text = normalizeDigits(input).trim();
+  if (/^0+([.,]0*)?$/.test(text)) return 0;
+  return parseQtyInput(text, unitType);
 }
 
 export type EditorLine = {
@@ -124,6 +126,8 @@ export type EditorLine = {
   variantId: string | null;
   name: string;
   sku: string;
+  /** KG: `qty` is typed in kg and the cost is per kg. */
+  unitType?: QtyUnit;
   qty: string;
   cost: string;
 };
@@ -135,7 +139,7 @@ export function linesToSubmit(
 ): { ref: { productId: string; variantId: string | null }; qty: number; unitCostMinor: number }[] | null {
   const out = [];
   for (const line of lines) {
-    const qty = parseQty(line.qty);
+    const qty = parseQty(line.qty, line.unitType);
     const unitCostMinor = parseCost(line.cost, currency);
     if (qty === null || qty < 1 || unitCostMinor === null) return null;
     out.push({ ref: { productId: line.productId, variantId: line.variantId }, qty, unitCostMinor });
@@ -147,10 +151,20 @@ export function linesToSubmit(
 export function editorTotal(lines: readonly EditorLine[], currency: CurrencyCode): number | null {
   const parsed = linesToSubmit(lines, currency);
   if (!parsed) return null;
-  return parsed.reduce((total, line) => total + line.qty * line.unitCostMinor, 0);
+  return parsed.reduce(
+    (total, line, index) => total + lineMinor(line.unitCostMinor, line.qty, lines[index].unitType ?? "EACH"),
+    0,
+  );
 }
 
-export type ReceiveRow = { poItemId: string; outstanding: number; qty: string; cost: string; poCostMinor: number };
+export type ReceiveRow = {
+  poItemId: string;
+  outstanding: number;
+  qty: string;
+  cost: string;
+  poCostMinor: number;
+  unitType?: QtyUnit;
+};
 
 /**
  * Receive form rows → receipt lines. null when a quantity is invalid or above what is outstanding, or
@@ -162,7 +176,7 @@ export function receiptLines(
 ): { poItemId: string; qty: number; unitCostMinor?: number }[] | null {
   const out: { poItemId: string; qty: number; unitCostMinor?: number }[] = [];
   for (const row of rows) {
-    const qty = parseQty(row.qty);
+    const qty = parseQty(row.qty, row.unitType);
     if (qty === null || qty > row.outstanding) return null;
     if (qty === 0) continue;
     const cost = parseCost(row.cost, currency);
@@ -174,13 +188,13 @@ export function receiptLines(
   return out;
 }
 
-export type ReturnRow = { lineId: string; returnable: number; qty: string };
+export type ReturnRow = { lineId: string; returnable: number; qty: string; unitType?: QtyUnit };
 
 /** Return form rows → return lines (0 skipped). null when a quantity is invalid or above what is returnable. */
 export function returnLines(rows: readonly ReturnRow[]): { lineId: string; qty: number }[] | null {
   const out: { lineId: string; qty: number }[] = [];
   for (const row of rows) {
-    const qty = parseQty(row.qty);
+    const qty = parseQty(row.qty, row.unitType);
     if (qty === null || qty > row.returnable) return null;
     if (qty > 0) out.push({ lineId: row.lineId, qty });
   }

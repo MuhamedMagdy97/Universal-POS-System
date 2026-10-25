@@ -4,7 +4,7 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import * as inventory from "@/modules/inventory";
 import { enrolOfflineDevice, updateOfflineSettings } from "@/modules/org";
 import { openShift } from "@/modules/registers";
-import { getReport, todayIn } from "@/modules/reports";
+import { exportReportCsv, getReport, todayIn } from "@/modules/reports";
 import { createSale, getTillSnapshot, refundSale, voidSale } from "@/modules/sales";
 import { buildOfflineSale, searchSnapshot } from "@/app/(app)/pos/_lib/offline";
 import type { CartLine } from "@/app/(app)/pos/_lib/till";
@@ -128,6 +128,23 @@ describe("a weighed sale", () => {
   });
 });
 
+describe("a weighed item in reports", () => {
+  it("shows kg in the products CSV and leaves pieces and grams out of one total", async () => {
+    const today = todayIn("Africa/Cairo");
+    const report = await getReport(owner, "products", { branchId, from: today, to: today });
+    expect(report.rows.find((row) => row.productId === tomatoes)).toMatchObject({ unitType: "KG", qtySold: 750 });
+    expect(report.totals).not.toHaveProperty("qtySold");
+    const { body } = await exportReportCsv(owner, "products", { branchId, from: today, to: today });
+    expect(body).toContain("0.750 kg");
+    // Tomatoes and pens share "no category": grams and pieces in one row are MIXED, shown "—" and not totalled.
+    const byCategory = await getReport(owner, "categories", { branchId, from: today, to: today });
+    expect(byCategory.rows).toMatchObject([{ categoryId: null, unitType: "MIXED" }]);
+    expect(byCategory.totals).not.toHaveProperty("qtySold");
+    const byDay = await getReport(owner, "profit-days", { branchId, from: today, to: today });
+    expect(byDay.rows[0]).toMatchObject({ unitType: "MIXED" });
+  });
+});
+
 describe("a weighed sale built offline", () => {
   it("prices the same on the device and on replay", async () => {
     await updateOfflineSettings(owner, { allowOfflineSales: true });
@@ -157,5 +174,39 @@ describe("a weighed sale built offline", () => {
     expect(sale.totalMinor).toBe(15_000);
     const row = await db.sale.findUniqueOrThrow({ where: { id: sale.id }, select: { offlineFlags: true } });
     expect(row.offlineFlags).toEqual([]);
+  });
+});
+
+describe("a sale from price scale labels (W6)", () => {
+  it("charges the printed totals, merges two labels of one item and refuses a label below the price", async () => {
+    // 437 g at 120.00/kg is 52.44; the scale printed 52.40. 250 g is exactly 30.00.
+    const { sale } = await createSale(
+      cashier,
+      {
+        branchId,
+        registerId,
+        lines: [
+          { ref: ref(tomatoes), qty: 437, labels: [{ grams: 437, totalMinor: 5_240 }] },
+          { ref: ref(tomatoes), qty: 250, labels: [{ grams: 250, totalMinor: 3_000 }] },
+        ],
+        payments: [{ method: "CASH", amountMinor: 8_240 }],
+      },
+      KEY(),
+    );
+    expect(sale.totalMinor).toBe(8_240);
+    const line = await db.saleItem.findFirstOrThrow({ where: { orgId, saleId: sale.id } });
+    expect(line).toMatchObject({ qty: 687, lineTotalMinor: 8_240 });
+
+    const refused = createSale(
+      cashier,
+      {
+        branchId,
+        registerId,
+        lines: [{ ref: ref(tomatoes), qty: 437, labels: [{ grams: 437, totalMinor: 5_230 }] }],
+        payments: [{ method: "CASH", amountMinor: 5_230 }],
+      },
+      KEY(),
+    );
+    await expect(refused).rejects.toMatchObject({ code: "VALIDATION_FAILED", details: { reason: "LABEL_MISMATCH" } });
   });
 });

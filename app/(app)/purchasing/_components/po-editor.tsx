@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
+import { lineMinor } from "@/lib/quantity";
 import type { SellableSummary } from "@/modules/catalog/schemas";
 import { createPoAction, receiveDirectAction, updatePoAction } from "../actions";
 import {
@@ -67,13 +68,14 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
   function add(item: SellableSummary) {
     setLines((current) => {
       const index = current.findIndex((line) => keyOf(line) === keyOf(item));
+      // A KG line is typed in kg and starts empty; adding it again leaves it as it is (weighed-selling-spec W7).
+      const kg = item.unitType === "KG";
       if (index !== -1) {
+        if (kg) return current;
         return current.map((line, i) => (i === index ? { ...line, qty: String((parseQty(line.qty) ?? 0) + 1) } : line));
       }
-      return [
-        ...current,
-        { productId: item.productId, variantId: item.variantId, name: item.name, sku: item.sku, qty: "1", cost: "" },
-      ];
+      const { productId, variantId, name, sku, unitType } = item;
+      return [...current, { productId, variantId, name, sku, unitType, qty: kg ? "" : "1", cost: "" }];
     });
     setMessage(null);
   }
@@ -211,8 +213,9 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
           </thead>
           <tbody>
             {lines.map((line, index) => {
-              const qty = parseQty(line.qty);
+              const qty = parseQty(line.qty, line.unitType);
               const cost = parseCost(line.cost, currency);
+              const kg = line.unitType === "KG";
               return (
                 <tr key={keyOf(line)}>
                   <td>
@@ -224,7 +227,8 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
                   <td>
                     <input
                       dir="ltr"
-                      inputMode="numeric"
+                      inputMode={kg ? "decimal" : "numeric"}
+                      placeholder={kg ? "0.000 kg" : undefined}
                       aria-label={`${tr(qtyLabel)} ${line.sku}`}
                       aria-invalid={qty === null || qty < 1}
                       value={line.qty}
@@ -236,6 +240,7 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
                     <input
                       dir="ltr"
                       inputMode="decimal"
+                      placeholder={kg ? tr("catalog.form.perKg") : undefined}
                       aria-label={`${tr("purchasing.line.cost")} ${line.sku}`}
                       aria-invalid={cost === null}
                       value={line.cost}
@@ -244,7 +249,9 @@ export function PoEditor({ locale, currency, suppliers, branches, existing, dire
                     />
                   </td>
                   <td className="text-end">
-                    {qty !== null && cost !== null ? formatMinor(qty * cost, currency, locale) : "—"}
+                    {qty !== null && cost !== null
+                      ? formatMinor(lineMinor(cost, qty, line.unitType ?? "EACH"), currency, locale)
+                      : "—"}
                   </td>
                   <td className="text-end">
                     <button

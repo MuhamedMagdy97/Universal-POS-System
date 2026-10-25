@@ -53,6 +53,8 @@ export type TransferSummary = {
   cancelledAt: Date | null;
   lineCount: number;
   unitsSent: number;
+  /** A KG line is on it: `unitsSent` adds grams to pieces (shown as "—"). */
+  weighed: boolean;
 };
 
 export type TransferLineView = {
@@ -61,6 +63,8 @@ export type TransferLineView = {
   nameAr: string | null;
   variantName: string | null;
   sku: string;
+  /** `qtySent` / `qtyReceived` are pieces, or grams for KG (weighed-selling-spec W7). */
+  unitType: "EACH" | "KG";
   qtySent: number;
   qtyReceived: number | null;
   shortfallReason: ShortfallReason | null;
@@ -398,13 +402,14 @@ const summarySelect = {
 
 function summaryOf(
   row: Prisma.StockTransferGetPayload<{ select: typeof summarySelect }>,
-  lines: { qtySent: number }[],
+  lines: { qtySent: number; product?: { unitType: string } }[],
 ): TransferSummary {
   return {
     ...row,
     reference: transferReference(row.id),
     lineCount: lines.length,
     unitsSent: lines.reduce((sum, line) => sum + line.qtySent, 0),
+    weighed: lines.some((line) => line.product?.unitType === "KG"),
   };
 }
 
@@ -424,7 +429,7 @@ export async function listTransfers(
     },
     orderBy: { sentAt: "desc" },
     take: 50,
-    select: { ...summarySelect, lines: { select: { qtySent: true } } },
+    select: { ...summarySelect, lines: { select: { qtySent: true, product: { select: { unitType: true } } } } },
   });
   return rows.map(({ lines, ...row }) => summaryOf(row, lines));
 }
@@ -452,7 +457,7 @@ export async function getTransfer(ctx: TenantContext, id: string): Promise<Trans
           qtySent: true,
           qtyReceived: true,
           shortfallReason: true,
-          product: { select: { name: true, nameAr: true, sku: true } },
+          product: { select: { name: true, nameAr: true, sku: true, unitType: true } },
           variant: { select: { name: true, sku: true } },
         },
       },
@@ -478,6 +483,7 @@ export async function getTransfer(ctx: TenantContext, id: string): Promise<Trans
         nameAr: line.product.nameAr,
         variantName: line.variant?.name ?? null,
         sku: line.variant?.sku ?? line.product.sku,
+        unitType: line.product.unitType,
         qtySent: line.qtySent,
         qtyReceived: line.qtyReceived,
         shortfallReason: line.shortfallReason as ShortfallReason | null,

@@ -3,11 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
+import { formatQty, qtyInputValue, type QtyUnit } from "@/lib/quantity";
 import { SHORTFALL_REASON_VALUES, type ShortfallReason } from "@/modules/inventory/schemas";
 import { cancelTransferAction, receiveTransferAction } from "../actions";
 import { errorMessageKey, parseReceived, plain, safeAction, type ItemRef } from "../_lib/form";
 
-type ReceiveLine = { ref: ItemRef; label: string; sku: string; qtySent: number };
+/** `qtySent` is pieces, or grams for KG: typed and shown in kg (weighed-selling-spec W7). */
+type ReceiveLine = { ref: ItemRef; label: string; sku: string; qtySent: number; unitType: QtyUnit };
 const keyOf = (ref: ItemRef) => `${ref.productId}|${ref.variantId ?? ""}`;
 
 /**
@@ -27,7 +29,7 @@ export function ReceiveTransferForm({
   const router = useRouter();
   const [receiveKey] = useState(() => crypto.randomUUID());
   const [raw, setRaw] = useState<Record<string, string>>(() =>
-    Object.fromEntries(lines.map((line) => [keyOf(line.ref), String(line.qtySent)])),
+    Object.fromEntries(lines.map((line) => [keyOf(line.ref), qtyInputValue(line.qtySent, line.unitType)])),
   );
   const [reasons, setReasons] = useState<Record<string, ShortfallReason | "">>({});
   const [note, setNote] = useState("");
@@ -36,7 +38,7 @@ export function ReceiveTransferForm({
 
   const parsed = lines.map((line) => {
     const key = keyOf(line.ref);
-    const qty = parseReceived(raw[key] ?? "", line.qtySent);
+    const qty = parseReceived(raw[key] ?? "", line.qtySent, line.unitType);
     return { line, key, qty, short: qty === null ? 0 : line.qtySent - qty, reason: reasons[key] ?? "" };
   });
   const needsNote = parsed.some((row) => row.short > 0 && row.reason === "OTHER");
@@ -94,12 +96,12 @@ export function ReceiveTransferForm({
                   </span>
                 </td>
                 <td dir="ltr" className="text-end">
-                  {row.line.qtySent}
+                  {formatQty(row.line.qtySent, row.line.unitType, locale)}
                 </td>
                 <td>
                   <input
                     dir="ltr"
-                    inputMode="numeric"
+                    inputMode={row.line.unitType === "KG" ? "decimal" : "numeric"}
                     aria-label={`${tr("inventory.transfers.receive.qty")}: ${row.line.label}`}
                     value={raw[row.key] ?? ""}
                     onChange={(e) => setRaw((current) => ({ ...current, [row.key]: e.target.value }))}
