@@ -6,10 +6,14 @@
 import type { ErrorBody } from "@/lib/errors";
 import type { MessageKey } from "@/lib/i18n";
 import { divideRoundHalfUp, normalizeDigits } from "@/lib/money";
+import { parseQtyInput, type QtyUnit } from "@/lib/quantity";
 
 export type PreviewLine = {
   saleItemId: string;
+  /** Pieces, or grams for a KG line (weighed-selling-spec W8). */
   qty: number;
+  /** Absent means EACH. */
+  unitType?: QtyUnit;
   lineTotalMinor: number;
   refundedQty: number;
   refundedAmountMinor: number;
@@ -19,13 +23,16 @@ export function refundableOf(line: Pick<PreviewLine, "qty" | "refundedQty">): nu
   return line.qty - line.refundedQty;
 }
 
-/** A typed quantity: blank means 0 (not refunded); a whole number from 0 to `refundable`; otherwise null. */
-export function parseRefundQty(raw: string, refundable: number): number | null {
-  const digits = normalizeDigits(raw).trim();
-  if (digits === "") return 0;
-  if (!/^\d+$/.test(digits)) return null;
-  const value = Number(digits);
-  return Number.isSafeInteger(value) && value <= refundable ? value : null;
+/**
+ * A typed quantity: blank means 0 (not refunded); whole pieces, or kg with up to 3 decimals for a KG line (as grams),
+ * from 0 to `refundable`; otherwise null.
+ */
+export function parseRefundQty(raw: string, refundable: number, unitType: QtyUnit = "EACH"): number | null {
+  const text = normalizeDigits(raw).trim();
+  if (text === "") return 0;
+  if (/^0*(\.0*)?$/.test(text)) return 0;
+  const value = parseQtyInput(text, unitType);
+  return value !== null && value <= refundable ? value : null;
 }
 
 /** What one line would refund: its share of the line total, and the remainder when it takes the last units. */
@@ -44,7 +51,7 @@ export function planRefund(lines: readonly PreviewLine[], raw: Readonly<Record<s
   const picked: { saleItemId: string; qty: number }[] = [];
   let totalMinor = 0;
   for (const line of lines) {
-    const qty = parseRefundQty(raw[line.saleItemId] ?? "", refundableOf(line));
+    const qty = parseRefundQty(raw[line.saleItemId] ?? "", refundableOf(line), line.unitType);
     if (qty === null) {
       invalid.push(line.saleItemId);
       continue;

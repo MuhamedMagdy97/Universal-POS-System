@@ -17,7 +17,7 @@ import { BarcodeCode, CreateProduct, majorPrice, Sku, type CreateProduct as Crea
 import type { z } from "zod";
 
 export { MAX_IMPORT_ROWS, MAX_IMPORT_CHARS } from "./csv";
-export const IMPORT_COLUMNS = ["name", "nameAr", "sku", "barcode", "price", "category", "vatCategory"] as const;
+export const IMPORT_COLUMNS = ["name", "nameAr", "sku", "barcode", "price", "category", "vatCategory", "unit"] as const;
 export const REQUIRED_IMPORT_COLUMNS = ["name", "sku", "price"] as const;
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 
@@ -50,6 +50,7 @@ const FIELD_COLUMN: Record<string, ImportColumn> = {
   priceMinor: "price",
   categoryId: "category",
   vatCategory: "vatCategory",
+  unitType: "unit",
 };
 
 function issueError(issue: z.core.$ZodIssue): ImportRowError {
@@ -87,6 +88,8 @@ async function checkFile(ctx: TenantContext, csv: string): Promise<CheckedRow[]>
     if (cell("nameAr")) input.nameAr = cell("nameAr");
     if (cell("barcode")) input.barcodes = [cell("barcode")];
     if (cell("vatCategory")) input.vatCategory = cell("vatCategory").toUpperCase();
+    // "each" or "kg" (weighed-selling-spec W4); a KG price is per kg.
+    if (cell("unit")) input.unitType = cell("unit").toUpperCase();
 
     if (!cell("price")) errors.push({ column: "price", code: "required" });
     else {

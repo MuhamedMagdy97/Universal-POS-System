@@ -46,7 +46,15 @@ export type ReceiptDoc = {
   /** The sale's customer snapshot, on its refund and void slips too; no phone (customers-spec CU10, CU11). */
   customer: { name: string; taxNumber: string | null } | null;
   /** `discountMinor`: what the line was discounted, shown under it on a sale or void slip (discounts-spec DC14). */
-  lines: { name: string; nameAr: string | null; qty: number; discountMinor: number; lineTotalMinor: number }[];
+  lines: {
+    name: string;
+    nameAr: string | null;
+    /** Pieces, or grams when `unitType` is KG (printed in kg, weighed-selling-spec W9). */
+    qty: number;
+    unitType?: "EACH" | "KG";
+    discountMinor: number;
+    lineTotalMinor: number;
+  }[];
   /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
   discountMinor: number;
   subtotalMinor: number;
@@ -113,6 +121,7 @@ export async function getReceipt(
     name: item.nameSnapshot,
     nameAr: item.nameArSnapshot,
     qty: item.qty,
+    unitType: item.unitType,
     discountMinor: item.discountMinor,
     lineTotalMinor: item.lineTotalMinor,
   }));
@@ -133,6 +142,7 @@ export async function getReceipt(
         name: source?.nameSnapshot ?? "",
         nameAr: source?.nameArSnapshot ?? null,
         qty: item.qty,
+        unitType: source?.unitType ?? "EACH",
         discountMinor: 0,
         lineTotalMinor: item.amountMinor,
       };

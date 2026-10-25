@@ -3,6 +3,7 @@
 import { Fragment } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney, type CurrencyCode } from "@/lib/money";
+import { formatQty } from "@/lib/quantity";
 import type { ReceiptDoc, ReceiptRequest } from "@/modules/sales";
 import { plain, safeAction } from "../inventory/_lib/form";
 import { receiptAction } from "../_lib/receipt-action";
@@ -73,7 +74,8 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
             <Fragment key={index}>
               <tr>
                 <td>
-                  {locale === "ar" && line.nameAr ? line.nameAr : line.name} × <bdi>{line.qty}</bdi>
+                  {locale === "ar" && line.nameAr ? line.nameAr : line.name} ×{" "}
+                  <bdi>{formatQty(line.qty, line.unitType ?? "EACH", locale)}</bdi>
                 </td>
                 <td dir="ltr" className="receipt-end">
                   {money(line.lineTotalMinor)}

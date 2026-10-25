@@ -9,6 +9,7 @@ import {
   BarcodeCode,
   CreateCategory,
   CreateProduct,
+  CreateProductAggregate,
   CreateVariant,
   ListProductsQuery,
   Minor,
@@ -131,8 +132,13 @@ describe("CreateProduct", () => {
     }
   });
 
-  it("rejects KG with UNIT_NOT_SUPPORTED (Q5)", () => {
-    const result = CreateProduct.safeParse({ ...validProduct, unitType: "KG" });
+  it("accepts KG, but not a KG product with variants (weighed-selling-spec W4)", () => {
+    expect(CreateProduct.parse({ ...validProduct, unitType: "KG" }).unitType).toBe("KG");
+    const result = CreateProductAggregate.safeParse({
+      ...validProduct,
+      unitType: "KG",
+      variants: [{ sku: "RICE-1KG", name: "1 kg bag" }],
+    });
     expect(result.success).toBe(false);
     const issue = result.error?.issues[0];
     expect(issue?.path).toEqual(["unitType"]);

@@ -41,6 +41,7 @@ const item = (id: string, price = 1000, variantId: string | null = null): TillIt
   nameAr: `صنف ${id}`,
   unitPriceMinor: price,
   vatApplicable: true,
+  unitType: "EACH",
 });
 
 describe("cart", () => {
@@ -328,5 +329,33 @@ describe("till quick wins", () => {
     expect(tillShortcut("-", false)).toBe("dec");
     expect(tillShortcut("+", true)).toBeNull();
     expect(tillShortcut("a", false)).toBeNull();
+  });
+});
+
+describe("weighed lines (weighed-selling-spec W5)", () => {
+  const tomatoes: TillItem = { ...item("t", 12_000), unitType: "KG" };
+
+  it("adds the weighed grams and adds a second weighing to the same line", () => {
+    const cart = addToCart(addToCart([], tomatoes, 750), tomatoes, 250);
+    expect(cart).toHaveLength(1);
+    expect(cart[0].qty).toBe(1_000);
+  });
+
+  it("reads a typed weight in kg and keeps the text being typed", () => {
+    const cart = addToCart([], tomatoes, 750);
+    expect(setLineQty(cart, "t|", "0.")[0]).toMatchObject({ qty: 0, qtyText: "0." });
+    expect(setLineQty(cart, "t|", "1.25")[0]).toMatchObject({ qty: 1_250, qtyText: "1.25" });
+    expect(setLineQty(cart, "t|", "0.7505")[0].qty).toBe(0);
+  });
+
+  it("steps 0.1 kg with + and -, never below 1 g", () => {
+    const cart = addToCart([], tomatoes, 750);
+    expect(bumpQty(cart, "t|", 1)[0]).toMatchObject({ qty: 850, qtyText: undefined });
+    expect(bumpQty(addToCart([], tomatoes, 50), "t|", -1)[0].qty).toBe(1);
+  });
+
+  it("prices the cart per kg", () => {
+    const preview = previewCart([{ ...tomatoes, qty: 750 }], EG, null);
+    expect(preview.ok && preview.totalMinor).toBe(9_000);
   });
 });

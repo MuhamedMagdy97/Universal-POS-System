@@ -33,7 +33,7 @@ export type ProductFieldsPayload = {
 };
 
 export type CreateProductPayload = {
-  product: ProductFieldsPayload & { unitType: "EACH" };
+  product: ProductFieldsPayload & { unitType: "EACH" | "KG" };
   barcodes: string[];
   variants: VariantDraftPayload[];
 };

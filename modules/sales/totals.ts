@@ -1,4 +1,5 @@
-import { MAX_STORABLE_MINOR, multiply, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
+import { MAX_STORABLE_MINOR, percentOfBp, sum, vatInGross, vatOnNet } from "@/lib/money";
+import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { amountTooLarge, discountTooLarge, invalidPayment } from "./errors";
 
 /**
@@ -11,9 +12,15 @@ export type PayMethod = "CASH" | "CARD_MANUAL" | "WALLET";
 
 export type PricedInput = {
   unitPriceMinor: number;
+  /** Pieces, or grams for a KG item (weighed-selling-spec W1). */
   qty: number;
   vatApplicable: boolean;
+  /** Absent means EACH. A KG price is per kg (W2, W3). */
+  unitType?: QtyUnit;
 };
+
+/** `price × qty`, or price per kg × grams ÷ 1000 for a KG item (W3). */
+const shelfOf = (item: PricedInput) => lineMinor(item.unitPriceMinor, item.qty, item.unitType ?? "EACH");
 
 export type PricedLine = {
   netMinor: number;
@@ -35,11 +42,11 @@ function storable(value: number, label: "line" | "sale"): number {
 export function priceLine(item: PricedInput, rateBp: number, pricesIncludeVat: boolean, discountMinor = 0): PricedLine {
   const effectiveRate = item.vatApplicable ? rateBp : 0;
   if (pricesIncludeVat) {
-    const gross = multiply(item.unitPriceMinor, item.qty) - discountMinor;
+    const gross = shelfOf(item) - discountMinor;
     const vat = vatInGross(gross, effectiveRate);
     return { netMinor: gross - vat, vatRateBp: effectiveRate, vatMinor: vat, lineTotalMinor: storable(gross, "line") };
   }
-  const net = multiply(item.unitPriceMinor, item.qty) - discountMinor;
+  const net = shelfOf(item) - discountMinor;
   const vat = vatOnNet(net, effectiveRate);
   return { netMinor: net, vatRateBp: effectiveRate, vatMinor: vat, lineTotalMinor: storable(net + vat, "line") };
 }
@@ -63,7 +70,7 @@ export type Discount = { kind: "AMOUNT"; amountMinor: number } | { kind: "PERCEN
 export type SaleLineDraft = PricedInput & { discount?: Discount | null };
 
 export type PricedSaleLine = PricedLine & {
-  /** `unitPriceMinor × qty`, before any discount. */
+  /** `unitPriceMinor × qty` (per kg × grams ÷ 1000 for KG), before any discount. */
   shelfMinor: number;
   /** The line's own discount (DC3). */
   lineDiscountMinor: number;
@@ -109,7 +116,7 @@ export function priceSale(
   rateBp: number,
   pricesIncludeVat: boolean,
 ): PricedSale {
-  const shelf = lines.map((line) => multiply(line.unitPriceMinor, line.qty));
+  const shelf = lines.map(shelfOf);
   const own = lines.map((line, index) => discountOf(line.discount, shelf[index]));
   const after = shelf.map((amount, index) => amount - own[index]);
   const shares = allocate(discountOf(saleDiscount, sum(after)), after);

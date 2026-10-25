@@ -3,7 +3,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { hasPermission, type Role } from "@/lib/auth/permissions";
 import { AppError, notFound } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { multiply, sum } from "@/lib/money";
+import { sum } from "@/lib/money";
+import { lineMinor } from "@/lib/quantity";
 import type { SellableItem } from "@/modules/catalog/schemas";
 import { lockShift } from "@/modules/registers";
 import type { OfflineSaleInput, SaleInput } from "./schemas";
@@ -152,7 +153,7 @@ export function priceOfflineSale(
 ): { items: SellableItem[]; totals: PricedSale } {
   const sold = offline.lines;
   if (sold.length !== lines.length) throw malformed("Each item may appear once in an offline sale");
-  const shelf = sold.map((line, index) => multiply(line.unitPriceMinor, lines[index].qty));
+  const shelf = sold.map((line, index) => lineMinor(line.unitPriceMinor, lines[index].qty, items[index].unitType));
   if (
     sold.some((line, index) => line.discountMinor > shelf[index]) ||
     sum(sold.map((line) => line.lineTotalMinor)) !== offline.totalMinor ||
@@ -174,6 +175,7 @@ export function priceOfflineSale(
       unitPriceMinor: item.unitPriceMinor,
       qty: lines[index].qty,
       vatApplicable: item.vatApplicable,
+      unitType: item.unitType,
       discount: lines[index].discount,
     })),
     input.discount,

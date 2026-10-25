@@ -24,8 +24,8 @@ export const UNIT_TYPE_VALUES = ["EACH", "KG"] as const;
 export const UnitType = z.enum(UNIT_TYPE_VALUES);
 export type UnitType = z.infer<typeof UnitType>;
 
-/** Units accepted on product create in T3 (decision Q5: EACH only until the grocery preset). */
-export const SUPPORTED_UNIT_TYPES: readonly UnitType[] = ["EACH"];
+/** Units accepted on product create: pieces, and kg since weighed selling (weighed-selling-spec W4). */
+export const SUPPORTED_UNIT_TYPES: readonly UnitType[] = ["EACH", "KG"];
 
 export const VAT_CATEGORY_VALUES = ["STANDARD", "ZERO_RATED", "EXEMPT"] as const;
 export const VatCategory = z.enum(VAT_CATEGORY_VALUES);
@@ -233,6 +233,7 @@ export type VariantUpsert = z.infer<typeof VariantUpsert>;
 
 type AggregateShape = {
   sku?: string;
+  unitType?: UnitType;
   barcodes?: string[];
   variants?: { id?: string; sku: string; barcodes?: string[] }[];
 };
@@ -243,6 +244,15 @@ type AggregateShape = {
  * only once. Issue paths point at the repeated entry (e.g. `variants.1.sku`).
  */
 function refineAggregate(value: AggregateShape, ctx: z.RefinementCtx): void {
+  // A weighed product is sold by its own weight: no variants (weighed-selling-spec W4).
+  if (value.unitType === "KG" && (value.variants?.length ?? 0) > 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["unitType"],
+      message: UNIT_NOT_SUPPORTED,
+      params: { reason: UNIT_NOT_SUPPORTED },
+    });
+  }
   // Repeats inside one list are already reported by BarcodeList; only cross-list repeats are reported here.
   const codes = new Set<string>(value.barcodes ?? []);
   const skus = new Set<string>(value.sku ? [value.sku] : []);

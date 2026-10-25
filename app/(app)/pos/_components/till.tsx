@@ -48,8 +48,10 @@ import {
   OfflineBar,
   OfflineReceipt,
   StockNote,
+  WeightBox,
   type DiscountDraft,
 } from "./till-parts";
+import { formatQty, qtyInputValue, type QtyUnit } from "@/lib/quantity";
 
 type Props = {
   /** Scan-first or tap tiles under the scan box (business-profiles-spec BP6). */
@@ -69,8 +71,6 @@ const METHODS: { value: PayMethod; label: "pos.pay.cash" | "pos.pay.card" | "pos
 ];
 
 const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET: "" };
-
-/** The discount box: on one cart line (its key) or on the whole sale. */
 
 /**
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
@@ -108,6 +108,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   // Discounts (discounts-spec §4): the sale's, and the box being edited.
   const [saleDiscount, setSaleDiscount] = useState<Discount | null>(null);
   const [discountDraft, setDiscountDraft] = useState<DiscountDraft | null>(null);
+  // A KG item waiting for its weight (weighed-selling-spec W5).
+  const [weighing, setWeighing] = useState<TillItem | null>(null);
+  const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
   const [customer, setCustomer] = useState<TillCustomer | null>(null);
   // Offline till (offline-till-spec slice 2): the device's state, and the slip of a sale rung up offline.
@@ -247,9 +250,20 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  /** `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. */
-  function add(item: TillItem, refocus = true) {
-    setCart((current) => addToCart(current, item));
+  /**
+   * `refocus` false: a touch tap on a tile, which must not pop up the on-screen keyboard. A KG item asks for its
+   * weight first (weighed-selling-spec W5); `grams` is that weight.
+   */
+  function add(item: TillItem, refocus = true, grams?: number) {
+    if (item.unitType === "KG" && grams === undefined) {
+      setWeighing(item);
+      setResults(null);
+      setQuery("");
+      setError(null);
+      return;
+    }
+    setWeighing(null);
+    setCart((current) => addToCart(current, item, grams ?? 1));
     setSelectedKey(lineKey(item));
     setResults(null);
     setQuery("");
@@ -386,7 +400,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           {receipt.lines.map((line) => (
             <li key={lineKey(line)} className="flex flex-wrap justify-between gap-x-4">
               <span>
-                {displayName(line, locale)} × {line.qty}
+                {displayName(line, locale)} × <bdi>{formatQty(line.qty, line.unitType as QtyUnit, locale)}</bdi>
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
               {line.discountMinor > 0 ? (
@@ -527,7 +541,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} />
+                    <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} unitType={item.unitType} />
                     <span dir="ltr">{money(item.unitPriceMinor)}</span>
                     <button
                       type="button"
@@ -542,6 +556,22 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
               ))}
             </ul>
           )
+        ) : null}
+
+        {weighing ? (
+          <WeightBox
+            // A new box for each item, so the typed weight starts empty.
+            key={lineKey(weighing)}
+            locale={locale}
+            name={displayName(weighing, locale)}
+            priceLabel={`${money(weighing.unitPriceMinor)} / ${tr("pos.weight.kg")}`}
+            inputRef={weightRef}
+            onAdd={(grams) => add(weighing, true, grams)}
+            onCancel={() => {
+              setWeighing(null);
+              focusSearch();
+            }}
+          />
         ) : null}
 
         {layout === "tiles" ? (
@@ -589,7 +619,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                         <span dir="ltr" className="text-muted">
                           {line.sku}
                         </span>
-                        <StockNote locale={locale} onHand={stock[key]} qty={line.qty} block />
+                        <StockNote locale={locale} onHand={stock[key]} qty={line.qty} unitType={line.unitType} block />
                         {preview.ok && (preview.lineDiscounts[key] ?? 0) > 0 ? (
                           <span className="block text-sm text-muted" data-testid="line-discount">
                             {tr("pos.discount.lineNote", { amount: money(preview.lineDiscounts[key]) })}
@@ -597,19 +627,31 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                         ) : null}
                       </td>
                       <td>
-                        <input
-                          dir="ltr"
-                          inputMode="numeric"
-                          aria-label={tr("pos.cart.qtyFor", { name })}
-                          aria-invalid={line.qty < 1}
-                          value={line.qty === 0 ? "" : line.qty}
-                          onChange={(e) => setCart((current) => setLineQty(current, key, e.target.value))}
-                          onFocus={() => setSelectedKey(key)}
-                          className="input min-h-12 w-20 px-2 py-1"
-                        />
+                        <span className="flex items-center gap-1">
+                          <input
+                            dir="ltr"
+                            inputMode={line.unitType === "KG" ? "decimal" : "numeric"}
+                            aria-label={tr("pos.cart.qtyFor", { name })}
+                            aria-invalid={line.qty < 1}
+                            value={
+                              line.unitType === "KG"
+                                ? (line.qtyText ?? qtyInputValue(line.qty, "KG"))
+                                : line.qty === 0
+                                  ? ""
+                                  : line.qty
+                            }
+                            onChange={(e) => setCart((current) => setLineQty(current, key, e.target.value))}
+                            onFocus={() => setSelectedKey(key)}
+                            className={`input min-h-12 px-2 py-1 ${line.unitType === "KG" ? "w-24" : "w-20"}`}
+                          />
+                          {line.unitType === "KG" ? (
+                            <span className="text-sm text-muted">{tr("pos.weight.kg")}</span>
+                          ) : null}
+                        </span>
                       </td>
                       <td dir="ltr" className="text-end">
                         {money(line.unitPriceMinor)}
+                        {line.unitType === "KG" ? <span className="text-muted">/{tr("pos.weight.kg")}</span> : null}
                       </td>
                       <td dir="ltr" className="text-end">
                         {preview.ok ? money(preview.lineTotals[key] ?? 0) : "—"}

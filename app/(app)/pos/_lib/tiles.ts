@@ -21,6 +21,7 @@ export function snapshotTiles(snapshot: TillSnapshot, categoryId: string | null)
       nameAr: item.nameAr,
       unitPriceMinor: item.unitPriceMinor,
       vatApplicable: item.vatApplicable,
+      unitType: item.unitType,
     }));
 }
 

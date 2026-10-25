@@ -120,7 +120,7 @@ export function TilePanel({
                 <span dir="ltr" className="text-sm text-muted tabular-nums">
                   {money(item.unitPriceMinor)}
                 </span>
-                <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} />
+                <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} unitType={item.unitType} />
               </span>
             </button>
           ))}

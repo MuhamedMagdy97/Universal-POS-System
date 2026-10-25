@@ -5,6 +5,7 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import type { QtyUnit } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getItemsForHistory, getSellableItems } from "@/modules/catalog";
 import type { SellableItem } from "@/modules/catalog/schemas";
@@ -132,7 +133,7 @@ type SaleSettings = { vatRateBp: number; pricesIncludeVat: boolean; maxCashierDi
 
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
 function priceCart(
-  items: { unitPriceMinor: number; vatApplicable: boolean }[],
+  items: { unitPriceMinor: number; vatApplicable: boolean; unitType: QtyUnit }[],
   lines: MergedLine[],
   saleDiscount: DiscountInput | undefined,
   org: SaleSettings,
@@ -142,6 +143,7 @@ function priceCart(
       unitPriceMinor: item.unitPriceMinor,
       qty: lines[index].qty,
       vatApplicable: item.vatApplicable,
+      unitType: item.unitType,
       discount: lines[index].discount,
     })),
     saleDiscount,
