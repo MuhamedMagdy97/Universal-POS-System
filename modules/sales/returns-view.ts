@@ -5,6 +5,8 @@ import { getDb } from "@/lib/db";
 import { forbidden, notFound } from "@/lib/errors";
 import { normalizeDigits, type CurrencyCode } from "@/lib/money";
 import { requireBranch } from "./access";
+import type { OptionSnapshot } from "./options";
+import { optionsOf } from "./receipt";
 
 /**
  * Read model for the Returns screen (T8): one sale found by its receipt number, with what is
@@ -20,6 +22,9 @@ export type ReturnLine = {
   /** Pieces, or grams for a KG line (weighed-selling-spec W8). */
   qty: number;
   unitType: "EACH" | "KG";
+  /** Options as sold and the line note, so two lines of one item can be told apart (restaurant-cafe-spec R9). */
+  options: OptionSnapshot[];
+  note: string | null;
   /** What the line was discounted at the sale; `lineTotalMinor` is already the paid amount (discounts-spec DC13). */
   discountMinor: number;
   lineTotalMinor: number;
@@ -118,6 +123,8 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       nameAr: item.nameArSnapshot,
       qty: item.qty,
       unitType: item.unitType,
+      options: optionsOf(item.options),
+      note: item.note,
       discountMinor: item.discountMinor,
       lineTotalMinor: item.lineTotalMinor,
       refundedQty: refunded.get(item.id)?.qty ?? 0,

@@ -35,6 +35,8 @@ import {
 } from "./offline";
 import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
+import { lineKeyOf, resolveOptions, type OptionSnapshot } from "./options";
+import { NOTE_MAX } from "./schemas";
 
 /**
  * Creates a sale (T6, checkout-data-model-and-api.md). One transaction: lock the org counter,
@@ -75,6 +77,9 @@ export type SaleDetail = {
     vatRateBp: number;
     vatMinor: number;
     lineTotalMinor: number;
+    /** Options as sold (restaurant-cafe-spec R7); `unitPriceMinor` includes them. */
+    options: OptionSnapshot[];
+    note: string | null;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
   /** The customer as snapshotted on the sale; null for a walk-in (customers-spec CU8). */
@@ -103,13 +108,18 @@ type MergedLine = {
   ref: { productId: string; variantId: string | null };
   qty: number;
   discount: DiscountInput | null;
+  /** Chosen option ids (restaurant-cafe-spec R7) and the line note (R8). */
+  options: string[];
+  note: string | null;
   /** Price labels (weighed-selling-spec W6); kept on a repeated item only when every copy has them. */
   labels?: ScaleLabelLine[];
 };
 
 /**
- * Groups repeated refs (a scanned twice) into one line, keeping first-seen order. A repeated item
- * carrying a line discount is refused: which copy the discount meant is unknown (discounts-spec DC12).
+ * Groups repeated lines (a scanned twice) into one line, keeping first-seen order. Lines of one item with different
+ * options or notes stay apart (restaurant-cafe-spec R9); a linked shop merges by item and joins the notes, since the
+ * inventory system takes one line per item. A repeated item carrying a line discount is refused: which copy the
+ * discount meant is unknown (discounts-spec DC12).
  */
 function mergeLines(
   lines: {
@@ -117,11 +127,15 @@ function mergeLines(
     qty: number;
     discount?: DiscountInput;
     labels?: ScaleLabelLine[];
+    options?: string[];
+    note?: string;
   }[],
+  byItemOnly = false,
 ): MergedLine[] {
   const merged = new Map<string, MergedLine>();
   for (const line of lines) {
-    const key = `${line.ref.productId}|${line.ref.variantId ?? ""}`;
+    const ref = { productId: line.ref.productId, variantId: line.ref.variantId ?? null };
+    const key = byItemOnly ? lineKeyOf(ref, [], null) : lineKeyOf(ref, line.options ?? [], line.note);
     const existing = merged.get(key);
     if (existing && (existing.discount || line.discount)) {
       throw new AppError("VALIDATION_FAILED", "An item with a line discount may appear only once", {
@@ -132,11 +146,16 @@ function mergeLines(
     if (existing) {
       existing.qty += line.qty;
       existing.labels = existing.labels && line.labels ? [...existing.labels, ...line.labels] : undefined;
+      if (line.note && existing.note !== line.note) {
+        existing.note = (existing.note ? `${existing.note}; ${line.note}` : line.note).slice(0, NOTE_MAX);
+      }
     } else
       merged.set(key, {
-        ref: { productId: line.ref.productId, variantId: line.ref.variantId ?? null },
+        ref,
         qty: line.qty,
         discount: line.discount ?? null,
+        options: line.options ?? [],
+        note: line.note ?? null,
         ...(line.labels ? { labels: line.labels } : {}),
       });
   }
@@ -144,6 +163,33 @@ function mergeLines(
 }
 
 type SaleSettings = { vatRateBp: number; pricesIncludeVat: boolean; maxCashierDiscountBp: number };
+
+/**
+ * Each item at its price with the line's options (restaurant-cafe-spec R7), and the options as the sale line keeps
+ * them. 422 OPTIONS_INVALID when a line's options do not fit the item's groups.
+ */
+function withOptions<T extends SellableItem>(
+  items: readonly T[],
+  lines: readonly MergedLine[],
+): { items: T[]; options: OptionSnapshot[][] } {
+  const resolved = items.map((item, index) => resolveOptions(item, lines[index].options));
+  return {
+    items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
+    options: resolved.map((result) => result.snapshot),
+  };
+}
+
+/** Stock moves once per item (R9): the quantities of its lines added up, in first-seen order. */
+function stockLines(lines: readonly MergedLine[]): { ref: MergedLine["ref"]; qty: number }[] {
+  const byRef = new Map<string, { ref: MergedLine["ref"]; qty: number }>();
+  for (const line of lines) {
+    const key = lineKeyOf(line.ref, [], null);
+    const current = byRef.get(key);
+    if (current) current.qty += line.qty;
+    else byRef.set(key, { ref: line.ref, qty: line.qty });
+  }
+  return [...byRef.values()];
+}
 
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
 function priceCart(
@@ -235,11 +281,14 @@ async function sell(
   if (linked) {
     // Refuse what the POS can refuse on its own before holding anything in the inventory system.
     await requireOpenShift(db, ctx, parsed.branchId, parsed.registerId);
-    const lines = mergeLines(parsed.lines);
-    const items = await getSellableItems(
-      db,
-      ctx.orgId,
-      lines.map((line) => line.ref),
+    const lines = mergeLines(parsed.lines, true);
+    const { items } = withOptions(
+      await getSellableItems(
+        db,
+        ctx.orgId,
+        lines.map((line) => line.ref),
+      ),
+      lines,
     );
     // The inventory system's quantities are not grams yet: a kg item synced before weighed selling is refused
     // here until the next sync marks it not sellable (weighed-selling-spec W11).
@@ -374,21 +423,23 @@ async function writeSale(
     });
   }
 
-  const lines = mergeLines(input.lines);
+  const lines = mergeLines(input.lines, org.linked);
   const refs = lines.map((line) => line.ref);
   let items: SellableItem[];
+  let options: OptionSnapshot[][];
   let totals: PricedSale;
   if (offline) {
     // Archived items resolve too: they were sold before (or without knowing) the archive (OF13).
     const archived = await archivedFlags(tx, ctx.orgId, refs);
-    const current = await getItemsForHistory(tx, ctx.orgId, refs);
+    let current: SellableItem[];
+    ({ items: current, options } = withOptions(await getItemsForHistory(tx, ctx.orgId, refs), lines));
     if (archived.some(Boolean)) {
       flags.set("ITEM_ARCHIVED", { skus: current.filter((_, index) => archived[index]).map((item) => item.sku) });
     }
     const role = await offlineCashierRole(tx, ctx.orgId, offline.cashierId);
     ({ items, totals } = priceOfflineSale(current, lines, input, offline, org, role, flags));
   } else {
-    items = await getSellableItems(tx, ctx.orgId, refs);
+    ({ items, options } = withOptions(await getSellableItems(tx, ctx.orgId, refs), lines));
     totals = priceCart(items, lines, input.discount, org);
     requireDiscountAllowed(ctx, totals, org);
   }
@@ -406,10 +457,12 @@ async function writeSale(
       // An offline sale already left the shop: it may take stock below zero (OF13).
       policy: org.blockNegativeStock && !offline ? "block" : "allow",
       allowArchived: offline !== null,
-      lines: lines.map((line) => ({ ref: line.ref, qty: line.qty })),
+      lines: stockLines(lines),
     });
-    const negative = after.flatMap((line, index) =>
-      line.qty < 0 ? [{ sku: items[index].sku, qty: line.qty, unitType: items[index].unitType }] : [],
+    const itemOf = (ref: MergedLine["ref"]) =>
+      items[lines.findIndex((line) => lineKeyOf(line.ref, [], null) === lineKeyOf(ref, [], null))];
+    const negative = after.flatMap((line) =>
+      line.qty < 0 ? [{ sku: itemOf(line.ref).sku, qty: line.qty, unitType: itemOf(line.ref).unitType }] : [],
     );
     if (offline && negative.length > 0) flags.set("STOCK_NEGATIVE", { lines: negative });
   }
@@ -461,6 +514,9 @@ async function writeSale(
       lineTotalMinor: priced[index].lineTotalMinor,
       // Cost snapshot for profit reports (P12 M1); 0 means "never entered", stored as unknown (M2).
       unitCostMinor: item.costMinor > 0 ? item.costMinor : null,
+      // Options as sold and the note (restaurant-cafe-spec R7, R8); `unitPriceMinor` includes the options.
+      ...(options[index].length > 0 && { options: options[index] }),
+      ...(lines[index].note && { note: lines[index].note }),
     })),
   });
   await tx.payment.createMany({
@@ -560,6 +616,8 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       vatRateBp: item.vatRateBp,
       vatMinor: item.vatMinor,
       lineTotalMinor: item.lineTotalMinor,
+      options: (item.options as OptionSnapshot[] | null) ?? [],
+      note: item.note,
     })),
     payments: sale.payments.map((payment) => ({
       method: payment.method,

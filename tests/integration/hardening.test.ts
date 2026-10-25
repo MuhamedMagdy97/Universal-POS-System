@@ -170,6 +170,8 @@ describe("receipts (H2, H4)", () => {
         unitPriceMinor: 1000,
         discountMinor: 0,
         lineTotalMinor: 2000,
+        options: [],
+        note: null,
       },
     ]);
     expect(doc.staffName).toMatch(/^CASHIER/);

@@ -96,6 +96,22 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
                   </td>
                 </tr>
               ) : null}
+              {/* Options as sold, then the note (restaurant-cafe-spec R13). */}
+              {(line.options ?? []).map((option, optionIndex) => (
+                <tr key={`o${optionIndex}`}>
+                  <td className="receipt-indent">+ {(locale === "ar" && option.nameAr) || option.name}</td>
+                  <td dir="ltr" className="receipt-end">
+                    {option.priceDeltaMinor > 0 ? money(option.priceDeltaMinor) : null}
+                  </td>
+                </tr>
+              ))}
+              {line.note ? (
+                <tr>
+                  <td className="receipt-indent" colSpan={2}>
+                    “{line.note}”
+                  </td>
+                </tr>
+              ) : null}
               {line.discountMinor > 0 ? (
                 <tr>
                   <td className="receipt-indent">{tr("receipt.lineDiscount")}</td>

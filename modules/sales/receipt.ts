@@ -9,6 +9,7 @@ import { Uuid } from "@/modules/inventory/schemas";
 import { zoneFor } from "@/modules/reports/timezone";
 import { requireBranch } from "./access";
 import { isSaudiVatNumber, qrSvg, zatcaTlvBase64, type QrSvg } from "./zatca";
+import type { OptionSnapshot } from "./options";
 
 /**
  * Printable receipt for a sale, one of its refunds, or its void (T10 H2, H4). Built on the server
@@ -56,6 +57,9 @@ export type ReceiptDoc = {
     unitPriceMinor?: number;
     discountMinor: number;
     lineTotalMinor: number;
+    /** Options as sold and the line note, printed under the line (restaurant-cafe-spec R13). */
+    options?: OptionSnapshot[];
+    note?: string | null;
   }[];
   /** The sale's whole discount; 0 on a refund slip, which shows the paid amounts given back. */
   discountMinor: number;
@@ -71,6 +75,11 @@ export type ReceiptDoc = {
    */
   zatca: { tlv: string; qr: QrSvg } | null;
 };
+
+/** The stored option snapshot (JSON) as receipt lines take it. */
+export function optionsOf(value: unknown): OptionSnapshot[] {
+  return Array.isArray(value) ? (value as OptionSnapshot[]) : [];
+}
 
 export type ReceiptRequest = { kind: ReceiptKind; refundId?: string; copy: boolean };
 
@@ -127,6 +136,8 @@ export async function getReceipt(
     unitPriceMinor: item.unitPriceMinor,
     discountMinor: item.discountMinor,
     lineTotalMinor: item.lineTotalMinor,
+    options: optionsOf(item.options),
+    note: item.note,
   }));
   const rates = (bps: number[]) => [...new Set(bps)].sort((a, b) => a - b);
 
@@ -149,6 +160,8 @@ export async function getReceipt(
         unitPriceMinor: source?.unitPriceMinor,
         discountMinor: 0,
         lineTotalMinor: item.amountMinor,
+        options: optionsOf(source?.options ?? null),
+        note: source?.note ?? null,
       };
     });
     doc = {

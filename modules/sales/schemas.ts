@@ -34,12 +34,25 @@ export type DiscountInput = z.infer<typeof DiscountInput>;
 /** A price scale label on a KG line (weighed-selling-spec W6): its grams and printed total. */
 const ScaleLabelInput = z.strictObject({ grams: Qty, totalMinor: z.int().min(1).max(MAX_STORABLE_MINOR) });
 
+/** A line note's length (restaurant-cafe-spec R8); the DB checks it too. */
+export const NOTE_MAX = 140;
+
+/** A line note: trimmed, 1-140 characters; a blank note is no note. */
+export const LineNote = z
+  .string()
+  .trim()
+  .max(NOTE_MAX)
+  .transform((note) => note || undefined);
+
 export const SaleLineInput = z
   .object({
     ref: ItemRefInput,
     qty: Qty,
     discount: DiscountInput.optional(),
     labels: z.array(ScaleLabelInput).min(1).max(50).optional(),
+    /** Chosen option ids (R7). */
+    options: z.array(Uuid).max(20).optional(),
+    note: LineNote.optional(),
   })
   .strict();
 

@@ -222,6 +222,15 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                       <span dir="ltr" className="text-muted">
                         {line.sku}
                       </span>
+                      {/* Two lines of one item differ by options or note (restaurant-cafe-spec R9). */}
+                      {line.options.length > 0 || line.note ? (
+                        <span className="block text-sm text-muted">
+                          {[
+                            ...line.options.map((option) => (locale === "ar" && option.nameAr) || option.name),
+                            ...(line.note ? [`“${line.note}”`] : []),
+                          ].join(" · ")}
+                        </span>
+                      ) : null}
                       {line.discountMinor > 0 ? (
                         <span className="block text-sm text-muted">
                           {tr("returns.lines.discounted", {
