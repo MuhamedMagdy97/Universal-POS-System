@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
+import { formatQty } from "@/lib/quantity";
 import { formatMinor } from "@/lib/money";
 import { getDirectReceipt, type DirectReceiptDetail } from "@/modules/purchasing";
 import { loadPurchasingContext, shopDateTime } from "../../_lib/context";
@@ -96,8 +97,8 @@ async function ReceiptContent({ params }: Props) {
                     {line.sku}
                   </span>
                 </td>
-                <td className="text-end">{line.qtyReceived}</td>
-                <td className="text-end">{line.qtyReturned}</td>
+                <td className="text-end">{formatQty(line.qtyReceived, line.unitType, locale)}</td>
+                <td className="text-end">{formatQty(line.qtyReturned, line.unitType, locale)}</td>
                 <td className="text-end">{money(line.unitCostMinor)}</td>
                 <td className="text-end">{money(line.lineTotalMinor)}</td>
               </tr>

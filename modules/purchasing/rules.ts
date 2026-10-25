@@ -1,4 +1,5 @@
-import { multiply, sum, vatOnNet } from "@/lib/money";
+import { sum, vatOnNet } from "@/lib/money";
+import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import type { PoLineInput, PoStatus } from "./schemas";
 
 /**
@@ -84,13 +85,16 @@ export function canReceive(po: PoState): boolean {
 
 export type PoTotals = { lineCount: number; orderedUnits: number; receivedUnits: number; totalMinor: number };
 
-/** Totals from the lines (P13): value is Σ qtyOrdered × unit cost, exact in integers. */
-export function poTotals(lines: readonly (LineQty & { unitCostMinor: number })[]): PoTotals {
+/**
+ * Totals from the lines (P13): value is Σ qtyOrdered × unit cost, exact in integers; a KG line is grams × cost per kg
+ * ÷ 1000 (weighed-selling-spec W3). Units add pieces and grams as stored.
+ */
+export function poTotals(lines: readonly (LineQty & { unitCostMinor: number; unitType?: QtyUnit })[]): PoTotals {
   return {
     lineCount: lines.length,
     orderedUnits: sum(lines.map((line) => line.qtyOrdered)),
     receivedUnits: sum(lines.map((line) => line.qtyReceived)),
-    totalMinor: sum(lines.map((line) => multiply(line.unitCostMinor, line.qtyOrdered))),
+    totalMinor: sum(lines.map((line) => lineMinor(line.unitCostMinor, line.qtyOrdered, line.unitType ?? "EACH"))),
   };
 }
 

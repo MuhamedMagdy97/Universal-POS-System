@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
+import { formatQty, type QtyUnit } from "@/lib/quantity";
 import type { PoReturn } from "@/modules/purchasing";
 import { shopDateTime, type shopHeader } from "../_lib/context";
 import { PrintButton } from "../../_components/printing";
@@ -23,7 +24,16 @@ type Props = {
   supplier: { name: string; phone: string | null; taxNumber: string | null };
   branch: { name: string };
   ret: PoReturn;
-  lines: { key: string; name: string; sku: string; qty: number; unitCostMinor: number; lineTotalMinor: number }[];
+  /** `qty` is pieces, or grams for KG (shown in kg, cost per kg; weighed-selling-spec W7). */
+  lines: {
+    key: string;
+    name: string;
+    sku: string;
+    qty: number;
+    unitType: QtyUnit;
+    unitCostMinor: number;
+    lineTotalMinor: number;
+  }[];
 };
 
 export function ReturnDocument(props: Props) {
@@ -118,7 +128,7 @@ export function ReturnDocument(props: Props) {
                   <td>
                     {line.name} <bdi>{line.sku}</bdi>
                   </td>
-                  <td className="num">{line.qty}</td>
+                  <td className="num">{formatQty(line.qty, line.unitType, locale)}</td>
                   <td className="num" dir="ltr">
                     {money(line.unitCostMinor)}
                   </td>
@@ -166,7 +176,7 @@ export function ReturnDocument(props: Props) {
                     {line.sku}
                   </span>
                 </td>
-                <td className="text-end">{line.qty}</td>
+                <td className="text-end">{formatQty(line.qty, line.unitType, locale)}</td>
                 <td className="text-end">{money(line.unitCostMinor)}</td>
                 <td className="text-end">{money(line.lineTotalMinor)}</td>
               </tr>

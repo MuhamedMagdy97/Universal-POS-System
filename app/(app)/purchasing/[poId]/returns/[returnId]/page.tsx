@@ -56,6 +56,7 @@ async function ReturnContent({ params, searchParams }: Props) {
           ...line,
           key: line.poItemId,
           sku: poLine?.sku ?? "",
+          unitType: poLine?.unitType ?? "EACH",
           name: (locale === "ar" && poLine?.nameAr ? poLine.nameAr : poLine?.name) ?? "",
         };
       })}

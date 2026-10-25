@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AppError } from "@/lib/errors";
 import { translator } from "@/lib/i18n";
 import { formatMinor, toMajorString } from "@/lib/money";
+import { formatQty, qtyInputValue } from "@/lib/quantity";
 import { getPurchaseOrder, type PoDetail } from "@/modules/purchasing";
 import { canEdit } from "@/modules/purchasing/rules";
 import { activeSuppliers, loadPurchasingContext, shopDateTime, shopHeader } from "../_lib/context";
@@ -160,9 +161,10 @@ async function PoContent({ params, searchParams }: Props) {
                   <td>
                     {nameOf(line)} <bdi>{line.sku}</bdi>
                   </td>
-                  <td className="num">{line.qtyOrdered}</td>
+                  <td className="num">{formatQty(line.qtyOrdered, line.unitType, locale)}</td>
                   <td className="num" dir="ltr">
                     {formatMinor(line.unitCostMinor, po.currency, locale)}
+                    {line.unitType === "KG" ? ` / ${tr("pos.weight.kg")}` : ""}
                   </td>
                   <td className="num" dir="ltr">
                     {formatMinor(line.lineTotalMinor, po.currency, locale)}
@@ -219,7 +221,8 @@ async function PoContent({ params, searchParams }: Props) {
               variantId: line.variantId,
               name: nameOf(line),
               sku: line.sku,
-              qty: String(line.qtyOrdered),
+              unitType: line.unitType,
+              qty: qtyInputValue(line.qtyOrdered, line.unitType),
               cost: toMajorString(line.unitCostMinor, currency),
             })),
           }}
@@ -247,11 +250,14 @@ async function PoContent({ params, searchParams }: Props) {
                       {line.sku}
                     </span>
                   </td>
-                  <td className="text-end">{line.qtyOrdered}</td>
-                  <td className="text-end">{line.qtyReceived}</td>
-                  <td className="text-end">{line.outstanding}</td>
-                  <td className="text-end">{line.qtyReturned}</td>
-                  <td className="text-end">{formatMinor(line.unitCostMinor, po.currency, locale)}</td>
+                  <td className="text-end">{formatQty(line.qtyOrdered, line.unitType, locale)}</td>
+                  <td className="text-end">{formatQty(line.qtyReceived, line.unitType, locale)}</td>
+                  <td className="text-end">{formatQty(line.outstanding, line.unitType, locale)}</td>
+                  <td className="text-end">{formatQty(line.qtyReturned, line.unitType, locale)}</td>
+                  <td className="text-end">
+                    {formatMinor(line.unitCostMinor, po.currency, locale)}
+                    {line.unitType === "KG" ? ` / ${tr("pos.weight.kg")}` : ""}
+                  </td>
                   <td className="text-end">{formatMinor(line.lineTotalMinor, po.currency, locale)}</td>
                 </tr>
               ))}

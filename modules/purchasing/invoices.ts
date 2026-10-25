@@ -2,7 +2,8 @@ import "server-only";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { multiply, sum, type CurrencyCode } from "@/lib/money";
+import { sum, type CurrencyCode } from "@/lib/money";
+import { lineMinor, type QtyUnit } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { reportSettings } from "@/modules/reports";
 import { todayIn } from "@/modules/reports/timezone";
@@ -133,10 +134,14 @@ async function lockSupplier(tx: Tx, supplierId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('supplier-account'), hashtext(${supplierId}))`;
 }
 
-function valueBy(items: readonly { parentId: string; qty: number; unitCostMinor: number }[]): Map<string, number> {
+/** Value per document; a KG line is grams × cost per kg ÷ 1000 (weighed-selling-spec W3). */
+function valueBy(
+  items: readonly { parentId: string; qty: number; unitCostMinor: number; unitType: QtyUnit }[],
+): Map<string, number> {
   const values = new Map<string, number>();
   for (const item of items) {
-    values.set(item.parentId, sum([values.get(item.parentId) ?? 0, multiply(item.unitCostMinor, item.qty)]));
+    const value = lineMinor(item.unitCostMinor, item.qty, item.unitType);
+    values.set(item.parentId, sum([values.get(item.parentId) ?? 0, value]));
   }
   return values;
 }
@@ -164,9 +169,19 @@ export async function loadAccount(
     (
       await db.goodsReceiptItem.findMany({
         where: { orgId, goodsReceiptId: { in: receiptRows.map((r) => r.id) } },
-        select: { goodsReceiptId: true, qtyReceived: true, unitCostMinor: true },
+        select: {
+          goodsReceiptId: true,
+          qtyReceived: true,
+          unitCostMinor: true,
+          product: { select: { unitType: true } },
+        },
       })
-    ).map((i) => ({ parentId: i.goodsReceiptId, qty: i.qtyReceived, unitCostMinor: i.unitCostMinor })),
+    ).map((i) => ({
+      parentId: i.goodsReceiptId,
+      qty: i.qtyReceived,
+      unitCostMinor: i.unitCostMinor,
+      unitType: i.product.unitType,
+    })),
   );
   const returnRows = await db.purchaseReturn.findMany({
     // By supplier, like receipts: returns against a direct receipt count too (direct-receipt-returns-spec DR10).
@@ -177,9 +192,14 @@ export async function loadAccount(
     (
       await db.purchaseReturnItem.findMany({
         where: { orgId, purchaseReturnId: { in: returnRows.map((r) => r.id) } },
-        select: { purchaseReturnId: true, qty: true, unitCostMinor: true },
+        select: { purchaseReturnId: true, qty: true, unitCostMinor: true, product: { select: { unitType: true } } },
       })
-    ).map((i) => ({ parentId: i.purchaseReturnId, qty: i.qty, unitCostMinor: i.unitCostMinor })),
+    ).map((i) => ({
+      parentId: i.purchaseReturnId,
+      qty: i.qty,
+      unitCostMinor: i.unitCostMinor,
+      unitType: i.product.unitType,
+    })),
   );
   const docs = await db.supplierInvoice.findMany({
     where: { orgId, supplierId },

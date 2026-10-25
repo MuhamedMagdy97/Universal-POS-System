@@ -58,6 +58,7 @@ async function ReturnContent({ params }: Props) {
             sku: line.sku,
             returnable: line.returnable,
             unitCostMinor: line.unitCostMinor,
+            unitType: line.unitType,
           }))}
         />
       ) : (

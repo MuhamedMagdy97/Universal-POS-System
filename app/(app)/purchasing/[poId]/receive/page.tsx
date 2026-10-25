@@ -61,6 +61,7 @@ async function ReceiveContent({ params }: Props) {
             sku: line.sku,
             outstanding: line.outstanding,
             unitCostMinor: line.unitCostMinor,
+            unitType: line.unitType,
           }))}
         />
       ) : (

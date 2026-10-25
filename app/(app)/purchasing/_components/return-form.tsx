@@ -4,12 +4,14 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import { formatMinor, type CurrencyCode } from "@/lib/money";
+import { formatQty, type QtyUnit } from "@/lib/quantity";
 import { PURCHASE_RETURN_REASONS, type PurchaseReturnReason } from "@/modules/purchasing/schemas";
 import { returnDirectAction, returnPoAction } from "../actions";
 import { errorKey, parseQty, plain, returnLines, safeAction, type ReturnRow } from "../_lib/purchasing";
 
 /** `lineId` is the PO line, or the receipt line for a direct receipt. */
-type Line = { lineId: string; name: string; sku: string; returnable: number; unitCostMinor: number };
+/** `returnable` is pieces, or grams for KG: typed and shown in kg (weighed-selling-spec W7). */
+type Line = { lineId: string; name: string; sku: string; returnable: number; unitCostMinor: number; unitType: QtyUnit };
 
 /** What the goods go back against: a PO, or a direct receipt (direct-receipt-returns-spec DR11). */
 type Source = { kind: "po"; id: string } | { kind: "receipt"; id: string };
@@ -26,7 +28,7 @@ export function ReturnForm({ locale, currency, source, lines }: Props) {
   const router = useRouter();
   const [key] = useState(() => crypto.randomUUID());
   const [rows, setRows] = useState<ReturnRow[]>(() =>
-    lines.map((line) => ({ lineId: line.lineId, returnable: line.returnable, qty: "0" })),
+    lines.map((line) => ({ lineId: line.lineId, returnable: line.returnable, unitType: line.unitType, qty: "0" })),
   );
   const [reason, setReason] = useState<PurchaseReturnReason>("DAMAGED");
   const [note, setNote] = useState("");
@@ -83,7 +85,7 @@ export function ReturnForm({ locale, currency, source, lines }: Props) {
           <tbody>
             {lines.map((line, index) => {
               const row = rows[index];
-              const qty = parseQty(row.qty);
+              const qty = parseQty(row.qty, line.unitType);
               return (
                 <tr key={line.lineId}>
                   <td>
@@ -93,13 +95,13 @@ export function ReturnForm({ locale, currency, source, lines }: Props) {
                     </span>
                   </td>
                   <td className="text-end" dir="ltr">
-                    {line.returnable}
+                    {formatQty(line.returnable, line.unitType, locale)}
                   </td>
                   <td className="text-end">{formatMinor(line.unitCostMinor, currency, locale)}</td>
                   <td>
                     <input
                       dir="ltr"
-                      inputMode="numeric"
+                      inputMode={line.unitType === "KG" ? "decimal" : "numeric"}
                       aria-label={`${tr("purchasing.return.qty")} ${line.sku}`}
                       aria-invalid={qty === null || qty > line.returnable}
                       value={row.qty}

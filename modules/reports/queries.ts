@@ -684,16 +684,19 @@ export async function purchases(scope: ReportScope): Promise<PurchasesRow[]> {
     WITH received AS (
       SELECT ${localDay(col("g", "receivedAt"), scope.zone)} AS day, g."supplierId",
              COUNT(DISTINCT g."id") AS n, SUM(i."qtyReceived") AS units,
-             SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS value
+             SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qtyReceived"), col("p", "unitType"))}) AS value
       FROM "GoodsReceipt" g
       JOIN "GoodsReceiptItem" i ON i."orgId" = g."orgId" AND i."goodsReceiptId" = g."id"
+      JOIN "Product" p ON p."orgId" = i."orgId" AND p."id" = i."productId"
       WHERE ${inScope("g", scope)} AND ${inRange(col("g", "receivedAt"), scope)}
       GROUP BY 1, 2
     ), returned AS (
       SELECT ${localDay(col("r", "returnedAt"), scope.zone)} AS day, r."supplierId",
-             SUM(i."qty") AS units, SUM(i."qty"::bigint * i."unitCostMinor") AS value
+             SUM(i."qty") AS units,
+             SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qty"), col("p", "unitType"))}) AS value
       FROM "PurchaseReturn" r
       JOIN "PurchaseReturnItem" i ON i."orgId" = r."orgId" AND i."purchaseReturnId" = r."id"
+      JOIN "Product" p ON p."orgId" = i."orgId" AND p."id" = i."productId"
       WHERE ${inScope("r", scope)} AND ${inRange(col("r", "returnedAt"), scope)}
       GROUP BY 1, 2
     )
@@ -758,11 +761,15 @@ export async function supplierBalances(scope: ReportScope): Promise<SupplierBala
     }[]
   >`
     WITH rvalue AS (
-      SELECT i."goodsReceiptId" AS id, SUM(i."qtyReceived"::bigint * i."unitCostMinor") AS v
-      FROM "GoodsReceiptItem" i WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
+      SELECT i."goodsReceiptId" AS id,
+             SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qtyReceived"), col("p", "unitType"))}) AS v
+      FROM "GoodsReceiptItem" i JOIN "Product" p ON p."orgId" = i."orgId" AND p."id" = i."productId"
+      WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
     ), tvalue AS (
-      SELECT i."purchaseReturnId" AS id, SUM(i."qty"::bigint * i."unitCostMinor") AS v
-      FROM "PurchaseReturnItem" i WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
+      SELECT i."purchaseReturnId" AS id,
+             SUM(${lineValueSql(col("i", "unitCostMinor"), col("i", "qty"), col("p", "unitType"))}) AS v
+      FROM "PurchaseReturnItem" i JOIN "Product" p ON p."orgId" = i."orgId" AND p."id" = i."productId"
+      WHERE i."orgId" = ${scope.orgId}::uuid GROUP BY 1
     ), docs AS (
       SELECT d."supplierId", d."issuedOn", d."voidedAt",
              (CASE WHEN d."kind" = 'INVOICE' THEN 1 ELSE -1 END)
