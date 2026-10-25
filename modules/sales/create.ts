@@ -5,6 +5,7 @@ import type { TenantContext } from "@/lib/auth/tenant";
 import { getDb, type Db } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import type { QtyUnit } from "@/lib/quantity";
 import { record, type AuditRequestMeta } from "@/modules/audit";
 import { getItemsForHistory, getSellableItems } from "@/modules/catalog";
 import type { SellableItem } from "@/modules/catalog/schemas";
@@ -132,7 +133,7 @@ type SaleSettings = { vatRateBp: number; pricesIncludeVat: boolean; maxCashierDi
 
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
 function priceCart(
-  items: { unitPriceMinor: number; vatApplicable: boolean }[],
+  items: { unitPriceMinor: number; vatApplicable: boolean; unitType: QtyUnit }[],
   lines: MergedLine[],
   saleDiscount: DiscountInput | undefined,
   org: SaleSettings,
@@ -142,6 +143,7 @@ function priceCart(
       unitPriceMinor: item.unitPriceMinor,
       qty: lines[index].qty,
       vatApplicable: item.vatApplicable,
+      unitType: item.unitType,
       discount: lines[index].discount,
     })),
     saleDiscount,
@@ -224,6 +226,17 @@ async function sell(
       ctx.orgId,
       lines.map((line) => line.ref),
     );
+    // The inventory system's quantities are not grams yet: a kg item synced before weighed selling is refused
+    // here until the next sync marks it not sellable (weighed-selling-spec W11).
+    const weighed = items.findIndex((item) => item.unitType === "KG");
+    if (weighed >= 0) {
+      throw new AppError("VALIDATION_FAILED", "This item cannot be sold", {
+        reason: "ITEM_NOT_SELLABLE",
+        index: weighed,
+        cause: "UNIT",
+        productId: items[weighed].productId,
+      });
+    }
     if (parsed.discount || lines.some((line) => line.discount)) {
       const org = await db.organization.findUniqueOrThrow({
         where: { id: ctx.orgId },

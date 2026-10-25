@@ -323,6 +323,7 @@ export const ar: Messages = {
   "catalog.form.category": "التصنيف",
   "catalog.form.unit": "الوحدة",
   "catalog.form.unit.each": "قطعة",
+  "catalog.form.perKg": "لكل كجم",
   "catalog.form.unit.kg": "كيلوجرام",
   "catalog.form.price": "السعر",
   "catalog.form.cost": "التكلفة",
@@ -416,7 +417,7 @@ export const ar: Messages = {
   "catalog.import.link": "استيراد CSV",
   "catalog.import.title": "استيراد المنتجات",
   "catalog.import.help":
-    "ارفع ملف CSV يبدأ بصف العناوين. الأعمدة المطلوبة: name وsku وprice. الاختيارية: nameAr وbarcode وcategory (اسم تصنيف موجود) وvatCategory (STANDARD أو ZERO_RATED أو EXEMPT). حتى 1000 صف.",
+    "ارفع ملف CSV يبدأ بصف العناوين. الأعمدة المطلوبة: name وsku وprice. الاختيارية: nameAr وbarcode وcategory (اسم تصنيف موجود) وvatCategory (STANDARD أو ZERO_RATED أو EXEMPT) وunit (each أو kg، وسعر kg لكل كيلو). حتى 1000 صف.",
   "catalog.import.file": "ملف CSV",
   "catalog.import.checking": "جارٍ فحص الملف…",
   "catalog.import.summary": "{valid} صفوف جاهزة، {errors} بها أخطاء",
@@ -504,6 +505,10 @@ export const ar: Messages = {
     "المبالغ لا تغطي الإجمالي. لا يجوز أن تتجاوزه البطاقة أو المحفظة، والباقي يُعطى من النقدية فقط.",
   "pos.pay.exact": "المبلغ المضبوط (F8)",
   "pos.stock.onHand": "المتوفر: {qty}",
+  "pos.weight.label": "الوزن (كجم)",
+  "pos.weight.add": "إضافة",
+  "pos.weight.invalid": "أدخل الوزن بالكيلو بثلاث خانات عشرية على الأكثر (مثل 0.750).",
+  "pos.weight.kg": "كجم",
   "pos.keys.hint":
     "المفاتيح: F2 البحث · F4 النقدية · F6 خصم السطر · F7 خصم البيع · F8 المبلغ المضبوط · F9 العميل · + / − كمية السطر المحدد · Esc إغلاق · Enter بحث أو تحصيل",
   "pos.receipt.title": "بيع رقم {number}",

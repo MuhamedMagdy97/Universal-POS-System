@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { divideRoundHalfUp } from "@/lib/money";
 import { marginBp } from "./columns";
-import { col, inRange, inScope, localDay, localMidnight, num, type ReportScope } from "./sql";
+import { col, inRange, inScope, lineValueSql, localDay, localMidnight, num, type ReportScope } from "./sql";
 
 /**
  * The eight canned reports (P1). Each is one or two `$queryRaw` statements over stored integer
@@ -227,8 +227,9 @@ export async function categories(scope: ReportScope): Promise<CategoriesRow[]> {
 
 /**
  * `lineFacts` with net-of-VAT revenue and cost (profit-margin-spec.md M1–M5). A sale line's cost
- * is its `unitCostMinor × qty`; a refund line reverses `unitCostMinor × refunded qty` of the sale
- * line it refunds, on the refund's day. `cost` is NULL when the sale line has no cost (M2, M6).
+ * is its `unitCostMinor × qty` (per kg × grams ÷ 1000 for KG, `lineValueSql`); a refund line reverses
+ * the cost of the refunded qty of the sale line it refunds, on the refund's day. `cost` is NULL when
+ * the sale line has no cost (M2, M6).
  * Products and categories skip the local-day conversion they do not group by.
  */
 function profitFacts(scope: ReportScope, byDay: boolean): Prisma.Sql {
@@ -237,14 +238,14 @@ function profitFacts(scope: ReportScope, byDay: boolean): Prisma.Sql {
   return Prisma.sql`
     SELECT si."productId", si."variantId", ${saleDay} AS day, si."qty" AS sq, 0 AS rq,
            (si."lineTotalMinor" - si."vatMinor")::bigint AS net,
-           si."unitCostMinor"::bigint * si."qty" AS cost,
+           ${lineValueSql(col("si", "unitCostMinor"), col("si", "qty"), col("si", "unitType"))} AS cost,
            CASE WHEN si."unitCostMinor" IS NULL THEN 1 ELSE 0 END AS nc
     FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
     WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
     UNION ALL
     SELECT si."productId", si."variantId", ${refundDay}, 0, ri."qty",
            -(ri."amountMinor" - ri."vatMinor")::bigint,
-           -(si."unitCostMinor"::bigint * ri."qty"),
+           -(${lineValueSql(col("si", "unitCostMinor"), col("ri", "qty"), col("si", "unitType"))}),
            0
     FROM "RefundItem" ri
     JOIN "Refund" r ON r."orgId" = ri."orgId" AND r."id" = ri."refundId"

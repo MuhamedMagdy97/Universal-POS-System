@@ -4,7 +4,7 @@
  * in tests/unit/catalog-product-form.test.ts. The server re-validates everything.
  */
 import type { CurrencyCode } from "@/lib/money";
-import type { ProductDetail, VatCategory } from "@/modules/catalog/schemas";
+import type { ProductDetail, UnitType, VatCategory } from "@/modules/catalog/schemas";
 import { minorToInput, parseMoneyField, primaryFirstCodes } from "./form-helpers";
 import type { CreateProductPayload, UpdateProductPayload, VariantDraftPayload } from "./payloads";
 
@@ -27,6 +27,8 @@ export type ProductFormState = {
   name: string;
   nameAr: string;
   categoryId: string;
+  /** Chosen on create only; KG prices are per kg and a KG product has no variants (weighed-selling-spec W2, W4). */
+  unitType: UnitType;
   vatCategory: VatCategory;
   price: string;
   cost: string;
@@ -40,6 +42,7 @@ export function emptyFormState(): ProductFormState {
     name: "",
     nameAr: "",
     categoryId: "",
+    unitType: "EACH",
     vatCategory: "STANDARD",
     price: "",
     cost: "",
@@ -58,6 +61,7 @@ export function formStateFromProduct(product: ProductDetail, currency: CurrencyC
     name: product.name,
     nameAr: product.nameAr ?? "",
     categoryId: product.categoryId ?? "",
+    unitType: product.unitType,
     vatCategory: product.vatCategory,
     price: minorToInput(product.priceMinor, currency),
     cost: minorToInput(product.costMinor, currency),
@@ -131,7 +135,10 @@ function buildCommon(state: ProductFormState, { currency, canSeeCost, messages }
 export function buildCreatePayload(state: ProductFormState, options: Options): BuildResult<CreateProductPayload> {
   const { fields, product, variants } = buildCommon(state, options);
   if (Object.keys(fields).length > 0) return { ok: false, fields };
-  return { ok: true, payload: { product: { ...product, unitType: "EACH" }, barcodes: state.barcodes, variants } };
+  return {
+    ok: true,
+    payload: { product: { ...product, unitType: state.unitType }, barcodes: state.barcodes, variants },
+  };
 }
 
 export function buildUpdatePayload(

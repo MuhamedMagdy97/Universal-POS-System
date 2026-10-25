@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
+import { formatQty } from "@/lib/quantity";
 import type { SaleForReturns } from "@/modules/sales";
 import { plain, safeAction } from "../../inventory/_lib/form";
 import { keepKeyAfter } from "../../pos/_lib/till";
@@ -211,7 +212,8 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
               {sale.lines.map((line) => {
                 const left = refundableOf(line);
                 const raw = qtys[line.saleItemId] ?? "";
-                const qty = parseRefundQty(raw, left);
+                const qty = parseRefundQty(raw, left, line.unitType);
+                const kg = line.unitType === "KG";
                 const name = nameOf(line);
                 return (
                   <tr key={line.saleItemId}>
@@ -230,21 +232,21 @@ export function ReturnPanel({ locale, sale, canRefund, canVoid }: Props) {
                       ) : null}
                     </td>
                     <td dir="ltr" className="text-end">
-                      {line.qty}
+                      {formatQty(line.qty, line.unitType, locale)}
                     </td>
                     <td dir="ltr" className="text-end" data-testid={`refunded-${line.sku}`}>
-                      {line.refundedQty}
+                      {formatQty(line.refundedQty, line.unitType, locale)}
                     </td>
                     {showRefund ? (
                       <td>
                         {left > 0 ? (
                           <input
                             dir="ltr"
-                            inputMode="numeric"
+                            inputMode={kg ? "decimal" : "numeric"}
                             aria-label={tr("returns.lines.qtyFor", { name })}
                             aria-invalid={qty === null}
                             value={raw}
-                            placeholder="0"
+                            placeholder={kg ? "0.000" : "0"}
                             onChange={(e) => setQtys((current) => ({ ...current, [line.saleItemId]: e.target.value }))}
                             className="input min-h-9 w-20 px-2 py-1"
                           />

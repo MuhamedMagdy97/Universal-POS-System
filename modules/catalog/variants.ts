@@ -8,7 +8,7 @@ import type { z } from "zod";
 import { notFound } from "@/lib/errors";
 import type { TenantContext } from "@/lib/auth/tenant";
 import { assertBuiltIn, assertSyncedFieldsUnchanged } from "@/modules/integrations/inventory-sys/source";
-import { assertFresh, conflict } from "./errors";
+import { assertFresh, conflict, invalid } from "./errors";
 import {
   audit,
   canSeeCost,
@@ -71,9 +71,11 @@ export async function insertVariant(
   tx: Tx,
   ctx: TenantContext,
   meta: CatalogMeta,
-  product: Pick<ProductRecord, "id" | "hasVariants" | "priceMinor" | "costMinor">,
+  product: Pick<ProductRecord, "id" | "hasVariants" | "priceMinor" | "costMinor" | "unitType">,
   data: CreateVariantData,
 ): Promise<{ variant: VariantRecord; warnings: CatalogWarning[] }> {
+  // A weighed product is sold by its own weight: no variants (weighed-selling-spec W4).
+  if (product.unitType === "KG") throw invalid("UNIT_NOT_SUPPORTED");
   if (!product.hasVariants) {
     // Lock, then re-read: a sale that was in flight must commit (or not) before we look (R1).
     await lockProducts(tx, ctx.orgId, [product.id]);

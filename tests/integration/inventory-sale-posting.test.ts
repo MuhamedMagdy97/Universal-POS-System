@@ -115,6 +115,16 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
+describe("weighed items on a linked till (weighed-selling-spec W11)", () => {
+  it("refuses a kg item synced before weighed selling, before holding anything in the inventory system", async () => {
+    const shop = await linkedShop("Post Kg", 1);
+    // Synced as KG and sellable before the mapping marked kg items not sellable.
+    await db.product.update({ where: { id: shop.items[0].productId }, data: { unitType: "KG" } });
+    await expectAppError(createSale(shop.cashier, sale(shop, [[0, 750]], 7500), saleKey()), 422, "ITEM_NOT_SELLABLE");
+    expect(reserveCalls()).toBe(0);
+  });
+});
+
 describe("discounts on a linked till (discounts-spec DC16)", () => {
   it("sells at the discounted price and fulfils the full quantity", async () => {
     const shop = await linkedShop("Post Discount");

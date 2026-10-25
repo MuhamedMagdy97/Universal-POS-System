@@ -152,6 +152,7 @@ export function searchSnapshot(items: readonly SnapshotItem[], raw: string, limi
     nameAr: item.nameAr,
     unitPriceMinor: item.unitPriceMinor,
     vatApplicable: item.vatApplicable,
+    unitType: item.unitType,
   }));
 }
 
@@ -176,6 +177,7 @@ export function buildOfflineSale(input: {
       unitPriceMinor: line.unitPriceMinor,
       qty: line.qty,
       vatApplicable: line.vatApplicable,
+      unitType: line.unitType,
       discount: line.discount,
     })),
     input.saleDiscount,
@@ -226,6 +228,8 @@ export function buildOfflineSale(input: {
       name: line.name,
       nameAr: line.nameAr,
       qty: line.qty,
+      unitType: line.unitType,
+      unitPriceMinor: line.unitPriceMinor,
       discountMinor: priced.lines[index].discountMinor,
       lineTotalMinor: priced.lines[index].lineTotalMinor,
     })),

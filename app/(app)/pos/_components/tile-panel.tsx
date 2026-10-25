@@ -119,8 +119,9 @@ export function TilePanel({
               <span className="flex w-full flex-wrap items-baseline justify-between gap-x-2">
                 <span dir="ltr" className="text-sm text-muted tabular-nums">
                   {money(item.unitPriceMinor)}
+                  {item.unitType === "KG" ? `/${tr("pos.weight.kg")}` : ""}
                 </span>
-                <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} />
+                <StockNote locale={locale} onHand={stock[lineKey(item)]} qty={0} unitType={item.unitType} />
               </span>
             </button>
           ))}

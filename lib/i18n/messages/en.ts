@@ -326,6 +326,7 @@ export const en = {
   "catalog.form.category": "Category",
   "catalog.form.unit": "Unit",
   "catalog.form.unit.each": "Each",
+  "catalog.form.perKg": "per kg",
   "catalog.form.unit.kg": "Kilogram",
   "catalog.form.price": "Price",
   "catalog.form.cost": "Cost",
@@ -419,7 +420,7 @@ export const en = {
   "catalog.import.link": "Import CSV",
   "catalog.import.title": "Import products",
   "catalog.import.help":
-    "Upload a CSV file with a header row. Required columns: name, sku, price. Optional: nameAr, barcode, category (an existing category name), vatCategory (STANDARD, ZERO_RATED or EXEMPT). Up to 1000 rows.",
+    "Upload a CSV file with a header row. Required columns: name, sku, price. Optional: nameAr, barcode, category (an existing category name), vatCategory (STANDARD, ZERO_RATED or EXEMPT), unit (each or kg; a kg price is per kg). Up to 1000 rows.",
   "catalog.import.file": "CSV file",
   "catalog.import.checking": "Checking the file…",
   "catalog.import.summary": "{valid} rows ready, {errors} with errors",
@@ -506,6 +507,10 @@ export const en = {
   "pos.pay.splitShort": "The amounts don't cover the total. Card and wallet can't exceed it; only cash gives change.",
   "pos.pay.exact": "Exact cash (F8)",
   "pos.stock.onHand": "On hand: {qty}",
+  "pos.weight.label": "Weight (kg)",
+  "pos.weight.add": "Add",
+  "pos.weight.invalid": "Enter a weight in kg, up to 3 decimals (for example 0.750).",
+  "pos.weight.kg": "kg",
   "pos.keys.hint":
     "Keys: F2 search · F4 cash · F6 line discount · F7 sale discount · F8 exact cash · F9 customer · + / − quantity of the selected line · Esc close · Enter find or charge",
   "pos.receipt.title": "Sale {number}",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { translator, type Locale, type MessageKey } from "@/lib/i18n";
+import { formatQty, parseQtyInput, type QtyUnit } from "@/lib/quantity";
 import type { ReceiptDoc } from "@/modules/sales";
 import type { Discount } from "@/modules/sales/totals";
 import { plain } from "../../inventory/_lib/form";
@@ -14,6 +15,82 @@ import type { useOfflineTill } from "../_lib/use-offline";
 /** Self-contained parts of the till, moved out of till.tsx (business-profiles-spec BP6). */
 
 export type DiscountDraft = { target: string | "SALE"; kind: Discount["kind"]; raw: string; invalid: boolean };
+
+/**
+ * The weight box (weighed-selling-spec W5): a KG item asks for its weight in kg (up to 3 decimals) before it joins the
+ * cart. Enter adds, Esc or Cancel drops it. `onAdd` gets grams.
+ */
+export function WeightBox({
+  locale,
+  name,
+  priceLabel,
+  inputRef,
+  onAdd,
+  onCancel,
+}: {
+  locale: Locale;
+  name: string;
+  priceLabel: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onAdd: (grams: number) => void;
+  onCancel: () => void;
+}) {
+  const tr = translator(locale);
+  const [raw, setRaw] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  function add() {
+    const grams = parseQtyInput(raw, "KG");
+    if (grams === null) setInvalid(true);
+    else onAdd(grams);
+  }
+  return (
+    <div role="group" aria-labelledby="weight-title" className="card flex flex-col gap-2 p-3" data-testid="weight-box">
+      <p id="weight-title" className="font-semibold">
+        {name} <span className="text-sm font-normal text-muted">({priceLabel})</span>
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="field">
+          <span>{tr("pos.weight.label")}</span>
+          <input
+            ref={inputRef}
+            dir="ltr"
+            inputMode="decimal"
+            autoFocus
+            placeholder="0.000"
+            value={raw}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? "weight-invalid" : undefined}
+            onChange={(e) => {
+              setRaw(e.target.value);
+              setInvalid(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                onCancel();
+              }
+            }}
+            className="input w-32 text-lg tabular-nums"
+          />
+        </label>
+        <button type="button" onClick={add} className="btn btn-primary">
+          {tr("pos.weight.add")}
+        </button>
+        <button type="button" onClick={onCancel} className="btn btn-ghost">
+          {tr("pos.discount.cancel")}
+        </button>
+      </div>
+      {invalid ? (
+        <p id="weight-invalid" role="alert" className="notice notice-error">
+          {tr("pos.weight.invalid")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * The discount box (F6 / F7): a number and a percent-or-amount switch. Enter applies, Esc cancels
@@ -126,11 +203,14 @@ export function StockNote({
   onHand,
   qty,
   block,
+  unitType = "EACH",
 }: {
   locale: Locale;
   onHand?: number | null;
   qty: number;
   block?: boolean;
+  /** Grams for KG, shown in kg (weighed-selling-spec W7). */
+  unitType?: QtyUnit;
 }) {
   if (onHand === undefined || onHand === null) return null;
   return (
@@ -138,7 +218,7 @@ export function StockNote({
       data-testid="till-stock"
       className={`text-sm ${block ? "block " : ""}${stockShort(onHand, qty) ? "font-semibold text-danger" : "text-muted"}`}
     >
-      {translator(locale)("pos.stock.onHand", { qty: String(onHand) })}
+      {translator(locale)("pos.stock.onHand", { qty: formatQty(onHand, unitType, locale) })}
     </span>
   );
 }

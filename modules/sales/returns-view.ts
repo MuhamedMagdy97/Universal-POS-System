@@ -17,7 +17,9 @@ export type ReturnLine = {
   sku: string;
   name: string;
   nameAr: string | null;
+  /** Pieces, or grams for a KG line (weighed-selling-spec W8). */
   qty: number;
+  unitType: "EACH" | "KG";
   /** What the line was discounted at the sale; `lineTotalMinor` is already the paid amount (discounts-spec DC13). */
   discountMinor: number;
   lineTotalMinor: number;
@@ -115,6 +117,7 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       name: item.nameSnapshot,
       nameAr: item.nameArSnapshot,
       qty: item.qty,
+      unitType: item.unitType,
       discountMinor: item.discountMinor,
       lineTotalMinor: item.lineTotalMinor,
       refundedQty: refunded.get(item.id)?.qty ?? 0,

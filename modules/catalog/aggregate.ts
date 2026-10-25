@@ -318,7 +318,7 @@ export async function updateProductAggregate(
           tx,
           ctx,
           meta,
-          { id, hasVariants, ...priced },
+          { id, hasVariants, unitType: current.unitType, ...priced },
           {
             sku: row.sku,
             name: row.name,

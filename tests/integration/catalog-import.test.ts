@@ -141,6 +141,21 @@ describe("importProducts", () => {
     expect(theirs.errorCount).toBe(0);
   });
 
+  it("imports weighed products priced per kg (weighed-selling-spec W4)", async () => {
+    const [kg, each] = [`IM-${shortUpper()}`, `IM-${shortUpper()}`];
+    const preview = await catalog.previewProductImport(
+      admin,
+      csv("name,sku,price,unit", `Rice,${kg},45,KG`, `Pen,X-${each},3,litre`),
+    );
+    expect(preview.rows[1]?.errors).toEqual([{ column: "unit", code: "invalid" }]);
+    await catalog.importProducts(admin, csv("name,sku,price,unit", `Rice,${kg},45,kg`, `Pen,${each},3,each`));
+    expect(await db.product.findFirstOrThrow({ where: { orgId, sku: kg } })).toMatchObject({
+      unitType: "KG",
+      priceMinor: 4500,
+    });
+    expect((await db.product.findFirstOrThrow({ where: { orgId, sku: each } })).unitType).toBe("EACH");
+  });
+
   it("refuses the whole file when any row has an error", async () => {
     const good = `IM-${shortUpper()}`;
     await expectAppError(

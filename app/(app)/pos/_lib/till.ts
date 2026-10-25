@@ -6,7 +6,7 @@ import type { ErrorBody } from "@/lib/errors";
 import type { Locale, MessageKey } from "@/lib/i18n";
 import { AppError } from "@/lib/errors";
 import { MoneyError, parseMajor, parsePercentBp, toMajorString, type CurrencyCode } from "@/lib/money";
-import { normalizeQty } from "@/modules/inventory/schemas";
+import { MAX_QTY, parseQtyInput, type QtyUnit } from "@/lib/quantity";
 import { overDiscountLimit, priceSale, type Discount, type PayMethod } from "@/modules/sales/totals";
 
 export type TillSettings = {
@@ -32,11 +32,14 @@ export type TillItem = {
   sku: string;
   name: string;
   nameAr: string | null;
+  /** Per kg for a KG item, whose cart quantity is grams (weighed-selling-spec W1, W2). */
   unitPriceMinor: number;
   vatApplicable: boolean;
+  unitType: QtyUnit;
 };
 
-export type CartLine = TillItem & { qty: number; discount?: Discount | null };
+/** `qty` is pieces, or grams on a KG line; `qtyText` is the kg the cashier is typing on a KG line. */
+export type CartLine = TillItem & { qty: number; qtyText?: string; discount?: Discount | null };
 
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;
@@ -45,19 +48,30 @@ export function displayName(item: { name: string; nameAr: string | null }, local
   return locale === "ar" && item.nameAr ? item.nameAr : item.name;
 }
 
-/** Adds one unit; a second scan of the same item increments its line. */
-export function addToCart(cart: readonly CartLine[], item: TillItem): CartLine[] {
+/**
+ * Adds `qty` (one piece, or the weighed grams of a KG item); the same item again adds to its line (weighed-selling
+ * W5). A line capped at `MAX_QTY` stays there.
+ */
+export function addToCart(cart: readonly CartLine[], item: TillItem, qty = 1): CartLine[] {
   const key = lineKey(item);
   if (cart.some((line) => lineKey(line) === key)) {
-    return cart.map((line) => (lineKey(line) === key ? { ...line, qty: line.qty + 1 } : line));
+    return cart.map((line) =>
+      lineKey(line) === key ? { ...line, qty: Math.min(line.qty + qty, MAX_QTY), qtyText: undefined } : line,
+    );
   }
-  return [...cart, { ...item, qty: 1 }];
+  return [...cart, { ...item, qty }];
 }
 
-/** Typed quantity. Arabic-Indic digits are read; an empty or invalid box counts as 0 and blocks the charge. */
+/**
+ * Typed quantity: whole pieces, or kg with up to 3 decimals for a KG line (stored as grams; the text is kept so
+ * `0.` can be typed). Arabic-Indic digits are read; an empty or invalid box counts as 0 and blocks the charge.
+ */
 export function setLineQty(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
-  const qty = normalizeQty(raw) ?? 0;
-  return cart.map((line) => (lineKey(line) === key ? { ...line, qty } : line));
+  return cart.map((line) =>
+    lineKey(line) === key
+      ? { ...line, qty: parseQtyInput(raw, line.unitType) ?? 0, qtyText: line.unitType === "KG" ? raw : undefined }
+      : line,
+  );
 }
 
 export function removeLine(cart: readonly CartLine[], key: string): CartLine[] {
@@ -96,6 +110,7 @@ export function previewCart(
         unitPriceMinor: line.unitPriceMinor,
         qty: Math.max(line.qty, 0),
         vatApplicable: line.vatApplicable,
+        unitType: line.unitType,
         discount: line.discount,
       })),
       saleDiscount,
@@ -288,9 +303,13 @@ export function stockShort(onHand: number, qty: number): boolean {
   return onHand < Math.max(qty, 1);
 }
 
-/** +/- on the selected line; the quantity never drops below 1 (use × to remove a line). */
+/** `+` / `-`: one piece, or 0.1 kg (100 g) on a KG line; never below the smallest amount (W5). */
 export function bumpQty(cart: readonly CartLine[], key: string, delta: 1 | -1): CartLine[] {
-  return cart.map((line) => (lineKey(line) === key ? { ...line, qty: Math.max(line.qty + delta, 1) } : line));
+  return cart.map((line) => {
+    if (lineKey(line) !== key) return line;
+    const step = line.unitType === "KG" ? 100 : 1;
+    return { ...line, qty: Math.min(Math.max(line.qty + delta * step, 1), MAX_QTY), qtyText: undefined };
+  });
 }
 
 export type TillShortcut =

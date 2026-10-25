@@ -36,6 +36,15 @@ export function inScope(alias: string, scope: ReportScope): Prisma.Sql {
   return Prisma.sql`${col(alias, "orgId")} = ${scope.orgId}::uuid AND ${col(alias, "branchId")} = ANY(${scope.branchIds}::uuid[])`;
 }
 
+/**
+ * The SQL twin of `lineMinor` (lib/quantity.ts, weighed-selling-spec W3): `price × qty` for pieces, `price per kg ×
+ * grams ÷ 1000` rounded half away from zero for KG. NULL price stays NULL. Arguments are column references.
+ */
+export function lineValueSql(price: Prisma.Sql, qty: Prisma.Sql, unitType: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`CASE WHEN ${unitType} = 'KG' THEN ROUND(${price}::numeric * ${qty} / 1000)::bigint
+    ELSE ${price}::bigint * ${qty} END`;
+}
+
 /** SUM and COUNT come back as bigint (or null for no rows). Money stays exact up to 2^53. */
 export function num(value: bigint | number | null | undefined): number {
   if (value === null || value === undefined) return 0;

@@ -86,10 +86,17 @@ describe("create product (C-1)", () => {
     expect(product).toMatchObject({ vatCategory: "ZERO_RATED", vatApplicable: false });
   });
 
-  it("rejects KG (UNIT_NOT_SUPPORTED) and unknown keys such as orgId", async () => {
-    await expect(
-      catalog.createProduct(admin, { sku: sku(), name: "Rice", priceMinor: 100, unitType: "KG" }),
-    ).rejects.toBeInstanceOf(ZodError);
+  it("creates a KG product but refuses variants on it (weighed-selling-spec W4)", async () => {
+    const rice = await catalog.createProduct(admin, { sku: sku(), name: "Rice", priceMinor: 4500, unitType: "KG" });
+    expect(rice).toMatchObject({ unitType: "KG", priceMinor: 4500 });
+    await expectAppError(
+      catalog.createVariant(admin, rice.id, { sku: sku(), name: "1 kg bag" }),
+      422,
+      "UNIT_NOT_SUPPORTED",
+    );
+  });
+
+  it("rejects unknown keys such as orgId", async () => {
     await expect(
       catalog.createProduct(admin, {
         sku: sku(),

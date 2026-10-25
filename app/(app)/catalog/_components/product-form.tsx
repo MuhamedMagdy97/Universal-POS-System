@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { translator, type Locale } from "@/lib/i18n";
 import type { CurrencyCode } from "@/lib/money";
-import { VAT_CATEGORY_VALUES, type ProductDetail, type VatCategory } from "@/modules/catalog/schemas";
+import { VAT_CATEGORY_VALUES, type ProductDetail, type UnitType, type VatCategory } from "@/modules/catalog/schemas";
 import { createProductAction, updateProductAction } from "../actions";
 import { mapErrorBody, NO_ERRORS, type FormErrors } from "../_lib/form-errors";
 import { formShortcut } from "../_lib/form-helpers";
@@ -275,9 +275,16 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         </label>
         <label className="field">
           <span>{tr("catalog.form.unit")}</span>
-          {/* EACH only until the grocery preset (R9 / Q5); immutable after creation. */}
-          <select id="pf-unitType" value="EACH" disabled={isEdit} onChange={() => {}} className={inputClass}>
+          {/* Immutable after creation; a KG product is priced per kg and has no variants (weighed-selling W2, W4). */}
+          <select
+            id="pf-unitType"
+            value={state.unitType}
+            disabled={isEdit || state.variants.length > 0}
+            onChange={(e) => update("unitType", e.target.value as UnitType)}
+            className={inputClass}
+          >
             <option value="EACH">{tr("catalog.form.unit.each")}</option>
+            <option value="KG">{tr("catalog.form.unit.kg")}</option>
           </select>
           {isEdit ? <span className="text-xs text-muted">{tr("catalog.form.unitHint")}</span> : null}
         </label>
@@ -299,7 +306,8 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         </label>
         <label className="field">
           <span>
-            {tr("catalog.form.price")} ({currency})
+            {tr("catalog.form.price")} ({currency}
+            {state.unitType === "KG" ? ` ${tr("catalog.form.perKg")}` : ""})
           </span>
           <input
             id="pf-priceMinor"
@@ -324,7 +332,8 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         {canSeeCost ? (
           <label className="field">
             <span>
-              {tr("catalog.form.cost")} ({currency})
+              {tr("catalog.form.cost")} ({currency}
+              {state.unitType === "KG" ? ` ${tr("catalog.form.perKg")}` : ""})
             </span>
             <input
               id="pf-costMinor"
@@ -361,19 +370,21 @@ export function ProductForm({ locale, currency, categories, canSeeCost, readOnly
         </div>
       </fieldset>
 
-      <VariantRows
-        locale={locale}
-        currency={currency}
-        state={state}
-        errors={errors.fields}
-        canSeeCost={canSeeCost}
-        readOnly={readOnly}
-        disabled={disabled}
-        product={current}
-        onChange={setVariants}
-        onAdd={addVariant}
-        onRecordChanged={onRecordChanged}
-      />
+      {state.unitType === "KG" ? null : (
+        <VariantRows
+          locale={locale}
+          currency={currency}
+          state={state}
+          errors={errors.fields}
+          canSeeCost={canSeeCost}
+          readOnly={readOnly}
+          disabled={disabled}
+          product={current}
+          onChange={setVariants}
+          onAdd={addVariant}
+          onRecordChanged={onRecordChanged}
+        />
+      )}
 
       {readOnly ? null : (
         <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
