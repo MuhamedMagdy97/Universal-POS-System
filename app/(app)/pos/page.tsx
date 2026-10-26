@@ -6,7 +6,7 @@ import { OpenShiftForm } from "./_components/open-shift-form";
 import { Till } from "./_components/till";
 import { CloseShift } from "./_components/close-shift";
 import { CashMovement } from "./_components/cash-movement";
-import { orgBusinessType } from "@/modules/org";
+import { listStaffMembers, orgBusinessType } from "@/modules/org";
 import { profileOf } from "@/modules/presets";
 import { listOpenTickets } from "@/modules/sales";
 
@@ -138,6 +138,14 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
             userId={ctx.userId}
             layout={profile.tillLayout}
             tickets={profile.tickets}
+            staff={
+              profile.appointments
+                ? (await listStaffMembers(ctx, branch.id)).map((member) => ({
+                    id: member.id,
+                    name: (locale === "ar" && member.nameAr) || member.name,
+                  }))
+                : []
+            }
             settings={settings}
             offline={offline}
           />

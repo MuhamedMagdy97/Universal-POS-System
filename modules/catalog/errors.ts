@@ -24,7 +24,8 @@ export type CatalogValidationReason =
   | "VARIANT_PRODUCT_MISMATCH"
   | "VARIANT_REQUIRED"
   | "ITEM_NOT_SELLABLE"
-  | "OPTIONS_NOT_SUPPORTED";
+  | "OPTIONS_NOT_SUPPORTED"
+  | "SERVICE_NOT_SUPPORTED";
 
 const CONFLICT_MESSAGES: Record<CatalogConflictReason, string> = {
   SKU_TAKEN: "This SKU is already used in your catalog",
@@ -48,6 +49,7 @@ const VALIDATION_MESSAGES: Record<CatalogValidationReason, string> = {
   VARIANT_REQUIRED: "This product has variants: choose a variant",
   ITEM_NOT_SELLABLE: "This item cannot be sold",
   OPTIONS_NOT_SUPPORTED: "Options cannot be combined with variants",
+  SERVICE_NOT_SUPPORTED: "A service cannot be sold by weight or have variants",
 };
 
 export function conflict(reason: CatalogConflictReason, details: Record<string, unknown> = {}): AppError {

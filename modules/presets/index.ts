@@ -38,6 +38,8 @@ export type BusinessPreset = {
   dashboardTiles: readonly DashboardTile[];
   /** Tables, open tickets, order types and service charge (restaurant-cafe-spec R1). */
   tickets: boolean;
+  /** Staff on lines, the calendar and the commission report (salon-spec S1). */
+  appointments: boolean;
 };
 
 export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
@@ -50,6 +52,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "products",
     dashboardTiles: ["netSales", "sales", "refunds", "openShifts", "lowStock"],
     tickets: false,
+    appointments: false,
   },
   {
     id: "GROCERY",
@@ -60,6 +63,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "products",
     dashboardTiles: ["netSales", "sales", "lowStock", "refunds", "openShifts"],
     tickets: false,
+    appointments: false,
   },
   {
     id: "FRUIT_VEG",
@@ -70,6 +74,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "items",
     dashboardTiles: ["netSales", "sales", "lowStock", "topItems", "openShifts"],
     tickets: false,
+    appointments: false,
   },
   {
     id: "BAKERY_BUTCHER",
@@ -80,6 +85,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "items",
     dashboardTiles: ["netSales", "sales", "topItems", "lowStock", "openShifts"],
     tickets: false,
+    appointments: false,
   },
   {
     id: "RESTAURANT_CAFE",
@@ -90,6 +96,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "menuItems",
     dashboardTiles: ["netSales", "sales", "averageTicket", "topItems", "openShifts"],
     tickets: true,
+    appointments: false,
   },
   {
     id: "SALON",
@@ -100,6 +107,7 @@ export const BUSINESS_PRESETS: readonly BusinessPreset[] = [
     itemWord: "services",
     dashboardTiles: ["netSales", "sales", "averageTicket", "topItems", "openShifts"],
     tickets: false,
+    appointments: true,
   },
 ];
 

@@ -97,6 +97,8 @@ type ProductRow = {
   vatCategory: ProductSummary["vatCategory"];
   vatApplicable: boolean;
   hasVariants: boolean;
+  isService: boolean;
+  durationMin: number | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -133,6 +135,8 @@ export function toSummary(
     vatCategory: row.vatCategory,
     vatApplicable: row.vatApplicable,
     hasVariants: row.hasVariants,
+    isService: row.isService,
+    durationMin: row.durationMin,
     variantCount,
     primaryBarcode,
     isActive: row.isActive,

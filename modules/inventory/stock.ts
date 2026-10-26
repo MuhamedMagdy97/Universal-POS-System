@@ -106,7 +106,7 @@ export async function listStock(ctx: TenantContext, query: z.input<typeof StockQ
       LEFT JOIN "ProductVariant" v ON p."hasVariants" AND v."orgId" = p."orgId" AND v."productId" = p.id
       LEFT JOIN "StockBalance" b ON b."orgId" = p."orgId" AND b."branchId" = ${parsed.branchId}::uuid
         AND b."productId" = p.id AND b."variantId" IS NOT DISTINCT FROM v.id
-      WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL)
+      WHERE p."orgId" = ${ctx.orgId}::uuid AND (NOT p."hasVariants" OR v.id IS NOT NULL) AND NOT p."isService"
     )
     SELECT "productId", "variantId", name, "nameAr", "unitType", sku, "variantName", active, qty::int AS qty,
            "reorderPoint", "updatedAt", "primaryBarcode", incoming::int AS incoming

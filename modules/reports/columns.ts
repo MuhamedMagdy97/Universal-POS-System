@@ -182,6 +182,14 @@ export const REPORT_COLUMNS: Record<ReportName, readonly Column[]> = {
     ...PROFIT_COLUMNS,
     c("linesNoCost", "reports.col.linesNoCost", "int"),
   ],
+  // Staff commission (salon-spec S8): each line's net after discounts, less refunds, at the percent then.
+  "staff-commission": [
+    c("name", "reports.col.staffMember", "name"),
+    c("lines", "reports.col.lines", "int"),
+    c("netMinor", "reports.col.netRevenue", "money"),
+    c("refundedNetMinor", "reports.col.refunds", "money"),
+    c("commissionMinor", "reports.col.commission", "money"),
+  ],
 };
 
 export const PROFIT_REPORTS = ["profit-products", "profit-categories", "profit-days"] as const satisfies ReportName[];

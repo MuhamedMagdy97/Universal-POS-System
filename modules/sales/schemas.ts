@@ -53,6 +53,8 @@ export const SaleLineInput = z
     /** Chosen option ids (R7). */
     options: z.array(Uuid).max(20).optional(),
     note: LineNote.optional(),
+    /** Who did the line (salon-spec S4). */
+    staffMemberId: Uuid.optional(),
   })
   .strict();
 

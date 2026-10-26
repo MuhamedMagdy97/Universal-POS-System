@@ -331,6 +331,8 @@ model Organization {
   categories                 Category[]
   products                   Product[]
   diningTables               DiningTable[]
+  staffMembers               StaffMember[]
+  staffMemberBranches        StaffMemberBranch[]
   tickets                    Ticket[]
   ticketLines                TicketLine[]
   optionGroups               OptionGroup[]
@@ -448,6 +450,7 @@ model Branch {
   purchaseReturns    PurchaseReturn[]
   sales              Sale[]
   diningTables       DiningTable[]
+  staffMembers       StaffMemberBranch[]
   tickets            Ticket[]
   refunds            Refund[]
   shifts             RegisterShift[]
@@ -579,6 +582,9 @@ model Product {
   vatCategory       VatCategory @default(STANDARD)
   // Set once the product has variants: every stock/sale line must then name a variant.
   hasVariants       Boolean     @default(false)
+  // A service (salon-spec S2): holds no stock, fixed after create; durationMin 5-480 for booking.
+  isService         Boolean     @default(false)
+  durationMin       Int?
   // Deactivate instead of delete once referenced (business rule 8).
   isActive          Boolean     @default(true)
   // Phase 13 (I7, I9): ids in the inventory system (externalVariantId only on a product without
@@ -1256,6 +1262,38 @@ model Sale {
 }
 
 // Snapshot of product data at sale time; later price edits never touch it.
+// The people who do the work (salon-spec S3): not users, though one may be linked to a user. Deactivated, never
+// deleted; sale lines keep their name and commission as they were.
+model StaffMember {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @db.Uuid
+  name         String
+  nameAr       String?
+  commissionBp Int      @default(0)
+  userId       String?  @db.Uuid
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org      Organization        @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  branches StaffMemberBranch[]
+
+  @@unique([orgId, id])
+}
+
+model StaffMemberBranch {
+  orgId         String @db.Uuid
+  staffMemberId String @db.Uuid
+  branchId      String @db.Uuid
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+  staffMember StaffMember  @relation(fields: [orgId, staffMemberId], references: [orgId, id], onDelete: Cascade)
+  branch      Branch       @relation(fields: [orgId, branchId], references: [orgId, id], onDelete: Restrict)
+
+  @@id([orgId, staffMemberId, branchId])
+}
+
 // A branch's tables (restaurant-cafe-spec R3). Deactivated, never deleted, once a ticket used one.
 model DiningTable {
   id        String   @id @default(uuid()) @db.Uuid
@@ -1347,6 +1385,10 @@ model SaleItem {
   // Cost per unit before VAT at the moment of sale (P12 M1). NULL = unknown: cost 0 or a sale
   // made before P12 (M2, M6). Never returned by the sales API or the receipt (M10).
   unitCostMinor  Int?
+  // Who did the line (salon-spec S4, S8): the staff member, their name then, and their commission then (bp).
+  staffMemberId  String?  @db.Uuid
+  staffName      String?
+  commissionBp   Int?
   // Chosen options as sold (restaurant-cafe-spec R7): [{ group, groupAr, name, nameAr, priceDeltaMinor }]; NULL = none.
   // `unitPriceMinor` already includes them. `note` is the line note (R8), up to 140 characters.
   options        Json?

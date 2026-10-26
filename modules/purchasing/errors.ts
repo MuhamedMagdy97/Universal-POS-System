@@ -36,6 +36,7 @@ export function purchasingConflict(
 
 export type PurchasingValidationReason =
   | "NOTHING_TO_RECEIVE"
+  | "ITEM_NOT_STOCKED"
   | "NOTHING_TO_RETURN"
   | "AMOUNT_TOO_LARGE"
   | "PAYMENT_DATE_IN_FUTURE"

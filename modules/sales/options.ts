@@ -53,17 +53,18 @@ export function resolveOptions(
 }
 
 /**
- * One key per distinct line (R9): the item, its options in any order, and its note. An item without options or
- * note keys as `productId|variantId`, as lines always have.
+ * One key per distinct line (R9): the item, its options in any order, its note, and who did it (salon-spec S4). An
+ * item without any of them keys as `productId|variantId`, as lines always have.
  */
 export function lineKeyOf(
   ref: { productId: string; variantId: string | null },
   optionIds: readonly string[],
   note: string | null | undefined,
+  staffMemberId?: string | null,
 ): string {
   const base = `${ref.productId}|${ref.variantId ?? ""}`;
   const options = optionIds.length > 0 ? `|o:${[...optionIds].sort().join(",")}` : "";
-  return `${base}${options}${note ? `|n:${note}` : ""}`;
+  return `${base}${options}${note ? `|n:${note}` : ""}${staffMemberId ? `|s:${staffMemberId}` : ""}`;
 }
 
 type ItemRef = { productId: string; variantId: string | null };

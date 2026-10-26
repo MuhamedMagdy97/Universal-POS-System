@@ -81,6 +81,8 @@ export type SaleDetail = {
     /** Options as sold (restaurant-cafe-spec R7); `unitPriceMinor` includes them. */
     options: OptionSnapshot[];
     note: string | null;
+    /** Who did the line (salon-spec S4); null when no one was chosen. */
+    staff: { id: string; name: string } | null;
   }[];
   payments: { method: string; amountMinor: number; reference: string | null }[];
   /** The service charge with its VAT, inside the totals (R11); 0 when none. */
@@ -119,6 +121,8 @@ type MergedLine = {
   /** Chosen option ids (restaurant-cafe-spec R7) and the line note (R8). */
   options: string[];
   note: string | null;
+  /** Who did the line (salon-spec S4). */
+  staffMemberId: string | null;
   /** Price labels (weighed-selling-spec W6); kept on a repeated item only when every copy has them. */
   labels?: ScaleLabelLine[];
 };
@@ -137,13 +141,16 @@ function mergeLines(
     labels?: ScaleLabelLine[];
     options?: string[];
     note?: string;
+    staffMemberId?: string;
   }[],
   byItemOnly = false,
 ): MergedLine[] {
   const merged = new Map<string, MergedLine>();
   for (const line of lines) {
     const ref = { productId: line.ref.productId, variantId: line.ref.variantId ?? null };
-    const key = byItemOnly ? lineKeyOf(ref, [], null) : lineKeyOf(ref, line.options ?? [], line.note);
+    const key = byItemOnly
+      ? lineKeyOf(ref, [], null)
+      : lineKeyOf(ref, line.options ?? [], line.note, line.staffMemberId);
     const existing = merged.get(key);
     if (existing && (existing.discount || line.discount)) {
       throw new AppError("VALIDATION_FAILED", "An item with a line discount may appear only once", {
@@ -164,6 +171,7 @@ function mergeLines(
         discount: line.discount ?? null,
         options: line.options ?? [],
         note: line.note ?? null,
+        staffMemberId: line.staffMemberId ?? null,
         ...(line.labels ? { labels: line.labels } : {}),
       });
   }
@@ -245,6 +253,29 @@ async function withOptionsAsSold(
     items: items.map((item, index) => ({ ...item, unitPriceMinor: resolved[index].unitPriceMinor })),
     options: resolved.map((result) => result.snapshot),
   };
+}
+
+/**
+ * The staff members on the lines (salon-spec S4): active and working in the sale's branch, else 422 STAFF_INVALID.
+ * An offline sale already happened, so any staff member of the shop is taken as they were.
+ */
+async function staffOf(
+  tx: Tx,
+  orgId: string,
+  branchId: string,
+  lines: readonly MergedLine[],
+  offline: boolean,
+): Promise<Map<string, { name: string; commissionBp: number }>> {
+  const ids = [...new Set(lines.flatMap((line) => (line.staffMemberId ? [line.staffMemberId] : [])))];
+  if (ids.length === 0) return new Map();
+  const rows = await tx.staffMember.findMany({
+    where: { orgId, id: { in: ids }, ...(!offline && { isActive: true, branches: { some: { branchId } } }) },
+    select: { id: true, name: true, commissionBp: true },
+  });
+  if (rows.length !== ids.length) {
+    throw new AppError("VALIDATION_FAILED", "Choose someone who works in this branch", { reason: "STAFF_INVALID" });
+  }
+  return new Map(rows.map((row) => [row.id, { name: row.name, commissionBp: row.commissionBp }]));
 }
 
 /** Prices the merged lines with their discounts and the sale discount (discounts-spec DC3–DC5). */
@@ -533,6 +564,7 @@ async function writeSale(
     requireDiscountAllowed(ctx, totals, org);
   }
   const priced = totals.lines;
+  const staff = await staffOf(tx, ctx.orgId, input.branchId, lines, offline !== null);
   const settlement = settlePayments(totals.totalMinor, input.payments);
 
   const saleId = randomUUID();
@@ -546,7 +578,8 @@ async function writeSale(
       // An offline sale already left the shop: it may take stock below zero (OF13).
       policy: org.blockNegativeStock && !offline ? "block" : "allow",
       allowArchived: offline !== null,
-      lines: stockLinesOf(lines),
+      // Services hold no stock (salon-spec S2).
+      lines: stockLinesOf(lines.filter((_, index) => !items[index].isService)),
     });
     const itemOf = (ref: MergedLine["ref"]) =>
       items[lines.findIndex((line) => lineKeyOf(line.ref, [], null) === lineKeyOf(ref, [], null))];
@@ -619,6 +652,12 @@ async function writeSale(
       // Options as sold and the note (restaurant-cafe-spec R7, R8); `unitPriceMinor` includes the options.
       ...(options[index].length > 0 && { options: options[index] }),
       ...(lines[index].note && { note: lines[index].note }),
+      // Who did it, and their commission then (salon-spec S4, S8).
+      ...(lines[index].staffMemberId && {
+        staffMemberId: lines[index].staffMemberId,
+        staffName: staff.get(lines[index].staffMemberId as string)?.name,
+        commissionBp: staff.get(lines[index].staffMemberId as string)?.commissionBp,
+      }),
     })),
   });
   await tx.payment.createMany({
@@ -724,6 +763,7 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
       lineTotalMinor: item.lineTotalMinor,
       options: (item.options as OptionSnapshot[] | null) ?? [],
       note: item.note,
+      staff: item.staffMemberId ? { id: item.staffMemberId, name: item.staffName ?? "" } : null,
     })),
     payments: sale.payments.map((payment) => ({
       method: payment.method,
