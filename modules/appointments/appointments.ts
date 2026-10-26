@@ -421,3 +421,16 @@ export async function closeAppointment(tx: Tx, appointmentId: string, saleId: st
     data: { status: "DONE", saleId, version: { increment: 1 } },
   });
 }
+
+/** The shop's active services, for the booking form. */
+export async function listServices(
+  ctx: TenantContext,
+): Promise<{ id: string; name: string; nameAr: string | null; durationMin: number; priceMinor: number }[]> {
+  await requirePermission(ctx, "appointment.services");
+  const rows = await getDb().product.findMany({
+    where: { orgId: ctx.orgId, isService: true, isActive: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    select: { id: true, name: true, nameAr: true, durationMin: true, priceMinor: true },
+  });
+  return rows.map((row) => ({ ...row, durationMin: row.durationMin ?? 30 }));
+}

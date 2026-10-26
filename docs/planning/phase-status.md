@@ -145,7 +145,9 @@
   and stored in grams, a weight box at the till, kg on every stock, purchasing and report screen, and Owner-set
   EAN-13 scale labels with weight or price. D, restaurant and café, BUILT (three PRs, [as built](ui-refresh/restaurant-cafe-as-built.md)): options and line
   notes, tables with open tickets paid later, kitchen slips, dine-in/takeaway/delivery orders and an Owner-set
-  dine-in service charge. Next: E, salon.
+  dine-in service charge. E, salon, BUILT (three PRs, [as built](ui-refresh/salon-as-built.md)): service items that hold no stock, a team
+  with commission, staff on every sale line, an appointment calendar per staff member checked out at the till, and a
+  staff commission report. The UI refresh (A-E) is complete.
 
 ## Pending
 Phases 12–13 per roadmap (industry module is evidence-gated; integrations). No deviations accepted yet beyond those recorded in the phase as-built notes. No destructive

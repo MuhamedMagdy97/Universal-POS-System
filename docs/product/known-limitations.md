@@ -54,6 +54,14 @@ Updated 2026-10-19 after the Phase 14 checks. Source in brackets.
 - Options are not available on weighed items or items with variants, nor in a shop linked to the inventory system.
 - Tables and open tickets need the server; offline, the till sells at the counter only.
 
+## Salons
+
+- No online booking, reminders (SMS or WhatsApp), deposits, working hours or rotas, chairs or rooms, packages,
+  tips, commission per service, payroll, recurring appointments or a waitlist. [ui-refresh/salon-spec §3]
+- The booking form takes a typed name and phone; picking an existing customer is API-only for now. Moving an
+  appointment is API-only too: on screen, cancel and book again.
+- Service items are not available in a shop linked to the inventory system.
+
 ## Shifts and cash
 
 - No manager approval or threshold for a cash difference at close (recorded and shown only). A closed shift cannot

@@ -34,3 +34,4 @@ export { getScaleSettings, ScaleSettingsInput, updateScaleSettings } from "./sca
 export { listTables, saveTables, SaveTablesInput, type DiningTableRow } from "./tables";
 export { getServiceCharge, ServiceChargeInput, updateServiceCharge } from "./service-charge";
 export { listStaffMembers, saveStaffMember, StaffMemberInput, type StaffMemberRow } from "./staff-members";
+export { getOpeningHours, OpeningHoursInput, updateOpeningHours, type OpeningHours } from "./opening-hours";

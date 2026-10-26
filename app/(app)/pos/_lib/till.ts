@@ -76,6 +76,15 @@ export type CartLine = TillItem & {
 /** A staff member as the till picks one (salon-spec S4). */
 export type TillStaff = { id: string; name: string };
 
+/** An appointment checked out at the till (salon-spec S7): its services for its staff member, and its customer. */
+export type TillAppointment = {
+  id: string;
+  items: TillItem[];
+  staff: TillStaff | null;
+  customer: TillCustomer | null;
+  customerName: string;
+};
+
 /** The item's key: stock, tiles and search results. */
 export const lineKey = (item: { productId: string; variantId: string | null }) =>
   `${item.productId}|${item.variantId ?? ""}`;

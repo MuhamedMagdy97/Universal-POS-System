@@ -21,6 +21,7 @@ import {
   updateRegister,
   updateScaleSettings,
   updateServiceCharge,
+  updateOpeningHours,
   saveTables,
   saveStaffMember,
   type StaffMemberRow,
@@ -178,6 +179,14 @@ export async function retryInventoryPostingAction(
 export async function saveBusinessTypeAction(businessType: string): Promise<ActionResult<null>> {
   return run("/settings/shop", async (ctx, meta) => {
     await updateBusinessType(ctx, { businessType }, meta);
+    return null;
+  });
+}
+
+/** Settings → Shop (salon-spec S6): the calendar's opening hours. Owner only. */
+export async function saveOpeningHoursAction(input: unknown): Promise<ActionResult<null>> {
+  return run("/settings/shop", async (ctx, meta) => {
+    await updateOpeningHours(ctx, input, meta);
     return null;
   });
 }

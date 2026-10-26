@@ -110,8 +110,11 @@ export const SaleInput = z
     orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).optional(),
     // false: the cashier took the shop's service charge off this dine-in order (R11). Absent = charged.
     serviceCharge: z.boolean().optional(),
+    // The salon appointment this sale checks out (salon-spec S7); it is marked DONE with the sale.
+    appointmentId: Uuid.optional(),
   })
   .strict()
+  .refine((sale) => !sale.offline || !sale.appointmentId, { message: "An offline sale checks out no appointment" })
   .refine((sale) => !sale.offline || !sale.ticket, { message: "An offline sale pays no ticket" })
   // Walk-in only offline (OF3).
   .refine((sale) => !sale.offline || !sale.customerId, { message: "An offline sale has no customer" })

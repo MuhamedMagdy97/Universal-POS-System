@@ -1,6 +1,6 @@
 # Salon (UI Refresh E): Specification
 
-Status: **Draft for the owner's review (2026-10-25).** Every choice below is the recommended one.
+Status: **Approved by the owner (2026-10-25); built 2026-10-26 ([as built](salon-as-built.md)).** Every choice below is the recommended one.
 
 Source: [overview](README.md), [business profiles as built](business-profiles-as-built.md),
 [restaurant and café as built](restaurant-cafe-as-built.md). Today every product holds stock, a sale line has no staff

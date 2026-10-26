@@ -37,6 +37,7 @@ import { IdempotencyKey, SaleInput, type DiscountInput } from "./schemas";
 import { overDiscountLimit, priceSale, settlePayments, type PricedSale, type ScaleLabelLine } from "./totals";
 import { lineKeyOf, resolveOptions, stockLinesOf, type OptionSnapshot } from "./options";
 import { closeTicket, ticketForSale } from "./tickets";
+import { appointmentForSale, closeAppointment } from "@/modules/appointments";
 import { NOTE_MAX } from "./schemas";
 
 /**
@@ -91,6 +92,8 @@ export type SaleDetail = {
   orderType: "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null;
   tableName: string | null;
   ticketId: string | null;
+  /** The salon appointment it checked out (salon-spec S7). */
+  appointmentId: string | null;
   delivery: { address: string | null; note: string | null } | null;
   /** The customer as snapshotted on the sale; null for a walk-in (customers-spec CU8). */
   customer: { id: string; name: string; phone: string; taxNumber: string | null } | null;
@@ -525,6 +528,10 @@ async function writeSale(
 
   const lines = mergeLines(input.lines, org.linked);
   const refs = lines.map((line) => line.ref);
+  // Checking out an appointment (salon-spec S7): locked and still open, so it is never sold twice.
+  const appointment = input.appointmentId
+    ? await appointmentForSale(tx, ctx, input.appointmentId, input.branchId)
+    : null;
   // Paying a ticket (restaurant-cafe-spec R5): locked, OPEN at the version the till saw, and exactly these lines.
   const ticket = input.ticket
     ? await ticketForSale(
@@ -613,6 +620,7 @@ async function writeSale(
         serviceChargeMinor: totals.serviceCharge.lineTotalMinor,
         serviceChargeVatMinor: totals.serviceCharge.vatMinor,
       }),
+      ...(appointment && { appointmentId: appointment.id }),
       ...(ticket
         ? {
             orderType: ticket.orderType,
@@ -724,6 +732,7 @@ async function writeSale(
   }
   if (held) await recordSaleFulfils(tx, held, saleId, saleItemIds);
   if (ticket) await closeTicket(tx, ticket.id, saleId);
+  if (appointment) await closeAppointment(tx, appointment.id, saleId);
 
   return { sale: await loadSale(tx, ctx.orgId, saleId), created: true };
 }
@@ -774,6 +783,7 @@ export async function loadSale(client: Db | Tx, orgId: string, saleId: string): 
     orderType: sale.orderType,
     tableName: sale.tableName,
     ticketId: sale.ticketId,
+    appointmentId: sale.appointmentId,
     delivery: sale.orderType === "DELIVERY" ? { address: sale.deliveryAddress, note: sale.deliveryNote } : null,
     customer:
       sale.customerId && sale.customerName

@@ -33,6 +33,7 @@ import {
   setLineNote,
   setLineStaff,
   type PickedOptions,
+  type TillAppointment,
   type TillStaff,
   bumpQty,
   canCharge,
@@ -82,6 +83,8 @@ type Props = {
   tickets?: boolean;
   /** Who can do a line, for a salon (salon-spec S4); empty elsewhere. */
   staff?: TillStaff[];
+  /** An appointment to check out (salon-spec S7). */
+  appointment?: TillAppointment | null;
   locale: Locale;
   branchId: string;
   registerId: string;
@@ -112,6 +115,7 @@ export function Till({
   layout,
   tickets = false,
   staff = [],
+  appointment = null,
 }: Props) {
   const tr = translator(locale);
   const router = useRouter();
@@ -124,7 +128,12 @@ export function Till({
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TillItem[] | null>(null);
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() =>
+    (appointment?.items ?? []).reduce<CartLine[]>(
+      (lines, item) => addToCart(lines, item, 1, undefined, undefined, appointment?.staff ?? null),
+      [],
+    ),
+  );
   const [method, setMethod] = useState<PayMethod | "SPLIT">("CASH");
   const [cashRaw, setCashRaw] = useState("");
   const [reference, setReference] = useState("");
@@ -158,13 +167,15 @@ export function Till({
   );
   const printer = usePrinter();
   // The staff member new lines are for (salon-spec S4).
-  const [currentStaff, setCurrentStaff] = useState<TillStaff | null>(null);
+  const [currentStaff, setCurrentStaff] = useState<TillStaff | null>(appointment?.staff ?? null);
+  // The appointment being checked out (S7): its services start the cart; it is sold with the sale.
+  const [checkingOut, setCheckingOut] = useState<TillAppointment | null>(appointment);
   const staffById = (id: string) => staff.find((member) => member.id === id) ?? null;
   // The service charge (R11): on a dine-in order unless taken off this one.
   const [serviceOff, setServiceOff] = useState(false);
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
-  const [customer, setCustomer] = useState<TillCustomer | null>(null);
+  const [customer, setCustomer] = useState<TillCustomer | null>(appointment?.customer ?? null);
   // Offline till (offline-till-spec slice 2): the device's state, and the slip of a sale rung up offline.
   const off = useOfflineTill({ branchId, registerId, userId, allowed: offline.allowed });
   const [offlineReceipt, setOfflineReceipt] = useState<ReceiptDoc | null>(null);
@@ -448,6 +459,7 @@ export function Till({
     setOrderType("TAKEAWAY");
     setDeliveryAddress("");
     setServiceOff(false);
+    setCheckingOut(null);
     if (tickets) showFloor("open");
     focusSearch();
   }
@@ -585,6 +597,7 @@ export function Till({
           ? { orderType: sellingOffline ? ("TAKEAWAY" as const) : orderType }
           : {}),
       ...(servicePossible && serviceOff ? { serviceCharge: false } : {}),
+      ...(checkingOut ? { appointmentId: checkingOut.id } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
@@ -935,6 +948,11 @@ export function Till({
           />
         ) : null}
 
+        {checkingOut ? (
+          <p className="notice" data-testid="till-appointment">
+            {tr("pos.appointment.checkingOut", { name: checkingOut.customerName })}
+          </p>
+        ) : null}
         <h2 id="cart-title" className="text-lg font-semibold">
           {tr("pos.cart.title")}
         </h2>

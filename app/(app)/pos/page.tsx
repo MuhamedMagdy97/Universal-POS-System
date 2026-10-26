@@ -9,6 +9,7 @@ import { CashMovement } from "./_components/cash-movement";
 import { listStaffMembers, orgBusinessType } from "@/modules/org";
 import { profileOf } from "@/modules/presets";
 import { listOpenTickets } from "@/modules/sales";
+import { appointmentForTill } from "./_lib/appointment";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -131,13 +132,19 @@ async function PosContent({ searchParams }: { searchParams: SearchParams }) {
             </div>
           </div>
           <Till
-            key={register.id}
+            // A new till per register, and per appointment checked out (salon-spec S7): its services seed the cart.
+            key={`${register.id}:${one(params.appointment) ?? ""}`}
             locale={locale}
             branchId={branch.id}
             registerId={register.id}
             userId={ctx.userId}
             layout={profile.tillLayout}
             tickets={profile.tickets}
+            appointment={
+              profile.appointments && one(params.appointment) && shift
+                ? await appointmentForTill(ctx, one(params.appointment) as string, branch.id, locale)
+                : null
+            }
             staff={
               profile.appointments
                 ? (await listStaffMembers(ctx, branch.id)).map((member) => ({

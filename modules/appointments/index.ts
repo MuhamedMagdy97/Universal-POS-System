@@ -5,6 +5,7 @@ export {
   closeAppointment,
   getAppointment,
   listDay,
+  listServices,
   setAppointmentStatus,
   updateAppointment,
   type AppointmentDay,
