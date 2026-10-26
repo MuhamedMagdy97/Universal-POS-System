@@ -26,6 +26,8 @@ const product: ProductDetail = {
   vatCategory: "STANDARD",
   vatApplicable: true,
   hasVariants: true,
+  isService: false,
+  durationMin: null,
   variantCount: 1,
   primaryBarcode: null,
   isActive: true,

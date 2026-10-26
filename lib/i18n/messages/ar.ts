@@ -7,6 +7,9 @@ export const ar: Messages = {
   "catalog.nav.products": "المنتجات",
   "catalog.nav.categories": "التصنيفات",
   "catalog.nav.options": "الإضافات",
+  "catalog.service.is": "هذه خدمة (بلا مخزون)",
+  "catalog.service.duration": "المدة (بالدقائق)",
+  "catalog.service.badge": "خدمة",
   "catalog.options.title": "الإضافات",
   "catalog.options.intro":
     "اختيارات يحددها الكاشير عند إضافة الصنف، مثل الحجم أو الإضافات. يُضاف سعر الاختيار إلى سعر الصنف. اربط المجموعات بالأصناف من صفحة كل صنف.",

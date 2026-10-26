@@ -159,6 +159,10 @@ export async function prepareLines(tx: Tx, orgId: string, input: readonly PoLine
     orgId,
     lines.map((line) => line.ref),
   );
+  // A service holds no stock, so it is never bought or received (salon-spec S2).
+  if (items.some((item) => item.isService)) {
+    throw purchasingInvalid("ITEM_NOT_STOCKED", "A service holds no stock and cannot be purchased");
+  }
   try {
     poTotals(
       lines.map((line, index) => ({

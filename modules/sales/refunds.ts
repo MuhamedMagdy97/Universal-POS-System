@@ -122,7 +122,7 @@ export async function voidSale(
 
     const items = await tx.saleItem.findMany({
       where: { orgId: ctx.orgId, saleId },
-      select: { productId: true, variantId: true, qty: true },
+      select: { productId: true, variantId: true, qty: true, product: { select: { isService: true } } },
     });
     if ((await inventorySourceOf(ctx.orgId, tx)) === "EXTERNAL") {
       await recordVoidReturn(tx, ctx.orgId, saleId);
@@ -133,8 +133,11 @@ export async function voidSale(
         refType: "Sale",
         refId: saleId,
         policy: "allow",
+        // Services hold no stock (salon-spec S2).
         lines: stockLinesOf(
-          items.map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
+          items
+            .filter((item) => !item.product.isService)
+            .map((item) => ({ ref: { productId: item.productId, variantId: item.variantId }, qty: item.qty })),
         ),
       });
     }
@@ -196,7 +199,15 @@ async function writeRefund(
 
   const items = await tx.saleItem.findMany({
     where: { orgId: ctx.orgId, saleId },
-    select: { id: true, productId: true, variantId: true, qty: true, lineTotalMinor: true, vatMinor: true },
+    select: {
+      id: true,
+      productId: true,
+      variantId: true,
+      qty: true,
+      lineTotalMinor: true,
+      vatMinor: true,
+      product: { select: { isService: true } },
+    },
   });
   const byId = new Map(items.map((item) => [item.id, item]));
   const done = await tx.refundItem.groupBy({
@@ -287,9 +298,12 @@ async function writeRefund(
       refId: refund.id,
       policy: "allow",
       lines: stockLinesOf(
-        lines.map((line) => {
+        lines.flatMap((line) => {
           const item = byId.get(line.saleItemId) as (typeof items)[number];
-          return { ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty };
+          // Services hold no stock (salon-spec S2).
+          return item.product.isService
+            ? []
+            : [{ ref: { productId: item.productId, variantId: item.variantId }, qty: line.qty }];
         }),
       ),
     });

@@ -79,6 +79,12 @@ export async function applyLines(
 ): Promise<{ ref: ItemRef; qty: number }[]> {
   if (input.lines.length === 0) return [];
   assertNoDuplicateRefs(input.lines.map((line) => line.ref));
+  // A service holds no stock (salon-spec S2): every stock write refuses it here, where they all pass.
+  const service = await tx.product.findFirst({
+    where: { orgId: ctx.orgId, id: { in: input.lines.map((line) => line.ref.productId) }, isService: true },
+    select: { sku: true },
+  });
+  if (service) throw invalidInput("ITEM_NOT_STOCKED", `${service.sku} is a service and holds no stock`);
 
   // Product rows before the catalog check, so a concurrent variant switch is seen (checkout R1).
   await lockProducts(

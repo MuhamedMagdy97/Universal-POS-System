@@ -163,6 +163,7 @@ async function ProductsContent({ searchParams }: { searchParams: SearchParams })
                         {tr("catalog.products.variantCount", { count: item.variantCount })}
                       </span>
                     ) : null}
+                    {item.isService ? <span className="badge ms-2">{tr("catalog.service.badge")}</span> : null}
                   </td>
                   <td dir="ltr">
                     <bdi className="font-mono">{item.sku}</bdi>
