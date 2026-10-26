@@ -31,7 +31,10 @@ import {
   cartKey,
   fromScaleLabel,
   setLineNote,
+  setLineStaff,
   type PickedOptions,
+  type TillAppointment,
+  type TillStaff,
   bumpQty,
   canCharge,
   discountRaw,
@@ -78,6 +81,10 @@ type Props = {
   layout: TillLayout;
   /** Tables, open tickets and order types: a café (restaurant-cafe-spec R1). */
   tickets?: boolean;
+  /** Who can do a line, for a salon (salon-spec S4); empty elsewhere. */
+  staff?: TillStaff[];
+  /** An appointment to check out (salon-spec S7). */
+  appointment?: TillAppointment | null;
   locale: Locale;
   branchId: string;
   registerId: string;
@@ -98,7 +105,18 @@ const NO_SPLIT: Record<PayMethod, string> = { CASH: "", CARD_MANUAL: "", WALLET:
  * The till (checkout UX): scan or search, build the cart, take one payment, charge. Totals on
  * screen are a preview; the server prices the sale and the receipt shows its numbers.
  */
-export function Till({ locale, branchId, registerId, userId, settings, offline, layout, tickets = false }: Props) {
+export function Till({
+  locale,
+  branchId,
+  registerId,
+  userId,
+  settings,
+  offline,
+  layout,
+  tickets = false,
+  staff = [],
+  appointment = null,
+}: Props) {
   const tr = translator(locale);
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -110,7 +128,12 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TillItem[] | null>(null);
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() =>
+    (appointment?.items ?? []).reduce<CartLine[]>(
+      (lines, item) => addToCart(lines, item, 1, undefined, undefined, appointment?.staff ?? null),
+      [],
+    ),
+  );
   const [method, setMethod] = useState<PayMethod | "SPLIT">("CASH");
   const [cashRaw, setCashRaw] = useState("");
   const [reference, setReference] = useState("");
@@ -143,11 +166,16 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     tickets ? { mode: "open", n: 0 } : null,
   );
   const printer = usePrinter();
+  // The staff member new lines are for (salon-spec S4).
+  const [currentStaff, setCurrentStaff] = useState<TillStaff | null>(appointment?.staff ?? null);
+  // The appointment being checked out (S7): its services start the cart; it is sold with the sale.
+  const [checkingOut, setCheckingOut] = useState<TillAppointment | null>(appointment);
+  const staffById = (id: string) => staff.find((member) => member.id === id) ?? null;
   // The service charge (R11): on a dine-in order unless taken off this one.
   const [serviceOff, setServiceOff] = useState(false);
   const weightRef = useRef<HTMLInputElement>(null);
   // The sale's customer; null = walk-in (customers-spec CU7, CU12).
-  const [customer, setCustomer] = useState<TillCustomer | null>(null);
+  const [customer, setCustomer] = useState<TillCustomer | null>(appointment?.customer ?? null);
   // Offline till (offline-till-spec slice 2): the device's state, and the slip of a sale rung up offline.
   const off = useOfflineTill({ branchId, registerId, userId, allowed: offline.allowed });
   const [offlineReceipt, setOfflineReceipt] = useState<ReceiptDoc | null>(null);
@@ -191,7 +219,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
   }
 
   /** Loads on-hand for these items; a failure just leaves the stock out. */
-  async function loadStock(items: readonly TillItem[]) {
+  async function loadStock(all: readonly TillItem[]) {
+    // A service holds no stock (salon-spec S2): no on-hand figure, so no stock note under it.
+    const items = all.filter((item) => !item.isService);
     if (items.length === 0 || off.offline) return;
     const result = await safeAction(() =>
       tillStockAction({
@@ -311,8 +341,8 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     }
     setWeighing(null);
     setPicking(null);
-    setCart((current) => addToCart(current, item, grams ?? 1, label, picked));
-    setSelectedKey(cartKey({ ...item, options: picked?.options }));
+    setCart((current) => addToCart(current, item, grams ?? 1, label, picked, currentStaff));
+    setSelectedKey(cartKey({ ...item, options: picked?.options, staffMemberId: currentStaff?.id }));
     setResults(null);
     setQuery("");
     setError(null);
@@ -431,6 +461,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     setOrderType("TAKEAWAY");
     setDeliveryAddress("");
     setServiceOff(false);
+    setCheckingOut(null);
     if (tickets) showFloor("open");
     focusSearch();
   }
@@ -558,6 +589,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
         ...(line.labels ? { labels: line.labels } : {}),
         ...(line.options?.length ? { options: line.options } : {}),
         ...(line.note ? { note: line.note } : {}),
+        ...(line.staffMemberId ? { staffMemberId: line.staffMemberId } : {}),
       })),
       ...(saleDiscount ? { discount: saleDiscount } : {}),
       ...(customer ? { customerId: customer.id } : {}),
@@ -567,6 +599,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           ? { orderType: sellingOffline ? ("TAKEAWAY" as const) : orderType }
           : {}),
       ...(servicePossible && serviceOff ? { serviceCharge: false } : {}),
+      ...(checkingOut ? { appointmentId: checkingOut.id } : {}),
       payments: plan.payments,
     };
     const sent = sellingOffline ? "UNREACHABLE" : await reach(() => createSaleAction(body, saleKey));
@@ -574,6 +607,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
     const queueable = canQueueOffline({
       paysTicket: paying !== null,
       serviceChargeMinor: preview.ok ? preview.serviceChargeMinor : 0,
+      checksOutAppointment: checkingOut !== null,
     });
     if (unreachable(sent) && off.device && !queueable) {
       setPending(false);
@@ -607,6 +641,7 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
       return;
     }
     if (!keepKeyAfter(result.error)) setSaleKey(crypto.randomUUID());
+    if ((result.error.details as { reason?: string } | null)?.reason === "APPOINTMENT_CLOSED") setCheckingOut(null);
     const key = saleErrorKey(result.error);
     if (key === "pos.error.insufficient") {
       const items = shortLines(result.error, cart)
@@ -649,6 +684,9 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                   </span>
                 ) : null}
                 {line.note ? <span className="block text-sm text-muted">“{line.note}”</span> : null}
+                {line.staff ? (
+                  <span className="block text-sm text-muted">{tr("receipt.by", { name: line.staff.name })}</span>
+                ) : null}
               </span>
               <span dir="ltr">{money(line.lineTotalMinor)}</span>
               {line.unitType === "KG" ? (
@@ -779,6 +817,24 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
             />
           </div>
         ) : null}
+        {staff.length > 0 ? (
+          <label className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">{tr("pos.staff.label")}</span>
+            <select
+              className="input min-h-12"
+              value={currentStaff?.id ?? ""}
+              onChange={(e) => setCurrentStaff(staffById(e.target.value))}
+              data-testid="till-staff"
+            >
+              <option value="">{tr("pos.staff.none")}</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <div className="flex gap-2">
           <input
             ref={searchRef}
@@ -896,6 +952,11 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
           />
         ) : null}
 
+        {checkingOut ? (
+          <p className="notice" data-testid="till-appointment">
+            {tr("pos.appointment.checkingOut", { name: checkingOut.customerName })}
+          </p>
+        ) : null}
         <h2 id="cart-title" className="text-lg font-semibold">
           {tr("pos.cart.title")}
         </h2>
@@ -939,6 +1000,23 @@ export function Till({ locale, branchId, registerId, userId, settings, offline, 
                           <span className="badge badge-success ms-1" data-testid="line-sent">
                             {tr("pos.ticket.sent", { qty: line.sentQty })}
                           </span>
+                        ) : null}
+                        {staff.length > 0 ? (
+                          <select
+                            className="input mt-1 min-h-10 w-full"
+                            aria-label={tr("pos.staff.for", { name })}
+                            value={line.staffMemberId ?? ""}
+                            onChange={(e) =>
+                              setCart((current) => setLineStaff(current, key, staffById(e.target.value)))
+                            }
+                          >
+                            <option value="">{tr("pos.staff.none")}</option>
+                            {staff.map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name}
+                              </option>
+                            ))}
+                          </select>
                         ) : null}
                         {line.optionLabels?.length ? (
                           <span className="block text-sm text-muted">

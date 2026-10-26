@@ -14,6 +14,7 @@ import { InventoryNavLink } from "./_components/inventory-nav-link";
 import { PosNavLink } from "./_components/pos-nav-link";
 import { ReturnsNavLink } from "./_components/returns-nav-link";
 import { CustomersNavLink } from "./_components/customers-nav-link";
+import { AppointmentsNavLink } from "./_components/appointments-nav-link";
 import { ReportsNavLink } from "./_components/reports-nav-link";
 import { PurchasingNavLink } from "./_components/purchasing-nav-link";
 import { SettingsNavLink } from "./_components/settings-nav-link";
@@ -27,6 +28,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const links = [
     DashboardNavLink,
     PosNavLink,
+    AppointmentsNavLink,
     ReturnsNavLink,
     CustomersNavLink,
     CatalogNavLink,

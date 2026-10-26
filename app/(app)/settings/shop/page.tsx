@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/permissions";
 import { translator } from "@/lib/i18n";
-import { getBusinessType, getScaleSettings, getServiceCharge } from "@/modules/org";
+import { getBusinessType, getOpeningHours, getScaleSettings, getServiceCharge } from "@/modules/org";
 import { profileOf } from "@/modules/presets";
 import { SettingsDenied } from "../_components/denied";
 import { loadSettingsPage } from "../_lib/context";
 import { ScaleSettingsForm } from "./scale-settings";
 import { ServiceChargeForm } from "./service-charge";
+import { OpeningHoursForm } from "./opening-hours";
 import { ShopSettingsForm } from "./shop-settings";
 
 /**
@@ -38,6 +39,13 @@ async function ShopSettingsContent() {
         <ServiceChargeForm
           locale={page.locale}
           serviceChargeBp={(await getServiceCharge(page.ctx)).serviceChargeBp}
+          canManage={hasPermission(page.ctx.role, "shop.manage")}
+        />
+      ) : null}
+      {profileOf(await getBusinessType(page.ctx)).appointments ? (
+        <OpeningHoursForm
+          locale={page.locale}
+          {...await getOpeningHours(page.ctx)}
           canManage={hasPermission(page.ctx.role, "shop.manage")}
         />
       ) : null}

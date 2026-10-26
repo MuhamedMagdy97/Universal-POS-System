@@ -88,6 +88,8 @@ describe("lookupCode", () => {
       vatCategory: "STANDARD",
       vatApplicable: true,
       categoryId: null,
+      isService: false,
+      durationMin: null,
       sellable: true,
     });
     expect(result).not.toHaveProperty("costMinor");
@@ -268,6 +270,8 @@ describe("getSellableItems", () => {
       vatCategory: "ZERO_RATED",
       vatApplicable: false,
       categoryId: null,
+      isService: false,
+      durationMin: null,
     });
     expect(items[1]).toMatchObject({ sku: simple.sku, name: "Simple Item", unitPriceMinor: 1500, costMinor: 900 });
     expect(items[2]).toMatchObject({ unitPriceMinor: 2500, costMinor: 1300 });

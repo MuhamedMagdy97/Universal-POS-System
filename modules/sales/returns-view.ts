@@ -25,6 +25,8 @@ export type ReturnLine = {
   /** Options as sold and the line note, so two lines of one item can be told apart (restaurant-cafe-spec R9). */
   options: OptionSnapshot[];
   note: string | null;
+  /** Who did the line (salon-spec S4). */
+  staffName: string | null;
   /** What the line was discounted at the sale; `lineTotalMinor` is already the paid amount (discounts-spec DC13). */
   discountMinor: number;
   lineTotalMinor: number;
@@ -127,6 +129,7 @@ export async function getSaleForReturns(ctx: TenantContext, rawNumber: string): 
       unitType: item.unitType,
       options: optionsOf(item.options),
       note: item.note,
+      staffName: item.staffName,
       discountMinor: item.discountMinor,
       lineTotalMinor: item.lineTotalMinor,
       refundedQty: refunded.get(item.id)?.qty ?? 0,

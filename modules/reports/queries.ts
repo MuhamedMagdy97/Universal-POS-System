@@ -1016,3 +1016,49 @@ export async function weighedSaleLines(scope: ReportScope): Promise<Map<string, 
     GROUP BY 1`;
   return new Map(rows.map((row) => [row.productId, num(row.n)]));
 }
+
+// ---------- staff commission (salon-spec S8) ----------
+
+export type StaffCommissionRow = {
+  staffMemberId: string;
+  name: string;
+  nameAr: string | null;
+  lines: number;
+  netMinor: number;
+  refundedNetMinor: number;
+  commissionMinor: number;
+};
+
+/**
+ * Per staff member, the lines they did on completed sales in range: net is the line total less its VAT (after every
+ * discount), less the net of any refund of that line; commission is each line's remaining net at the percent it was
+ * sold at (`SaleItem.commissionBp`), rounded half up per line.
+ */
+export async function staffCommission(scope: ReportScope): Promise<StaffCommissionRow[]> {
+  const rows = await getDb().$queryRaw<
+    { sid: string; name: string; nameAr: string | null; n: Big; net: Big; rnet: Big; commission: Big }[]
+  >`
+    WITH l AS (
+      SELECT si."staffMemberId" AS sid, (si."lineTotalMinor" - si."vatMinor")::bigint AS net,
+             COALESCE(si."commissionBp", 0) AS bp,
+             COALESCE((SELECT SUM(ri."amountMinor" - ri."vatMinor") FROM "RefundItem" ri
+                        WHERE ri."orgId" = si."orgId" AND ri."saleItemId" = si."id"), 0)::bigint AS rnet
+      FROM "SaleItem" si JOIN "Sale" s ON s."orgId" = si."orgId" AND s."id" = si."saleId"
+      WHERE ${inScope("s", scope)} AND s."status" = 'COMPLETED' AND ${inRange(col("s", "createdAt"), scope)}
+        AND si."staffMemberId" IS NOT NULL
+    )
+    SELECT l.sid::text AS sid, m."name", m."nameAr", COUNT(*) AS n, SUM(l.net) AS net, SUM(l.rnet) AS rnet,
+           SUM(ROUND((l.net - l.rnet) * l.bp / 10000.0)) AS commission
+    FROM l JOIN "StaffMember" m ON m."orgId" = ${scope.orgId}::uuid AND m."id" = l.sid
+    GROUP BY l.sid, m."name", m."nameAr"
+    ORDER BY m."name", l.sid`;
+  return rows.map((row) => ({
+    staffMemberId: row.sid,
+    name: row.name,
+    nameAr: row.nameAr,
+    lines: num(row.n),
+    netMinor: num(row.net),
+    refundedNetMinor: num(row.rnet),
+    commissionMinor: num(row.commission),
+  }));
+}

@@ -27,6 +27,8 @@ export type SeamProduct = {
   hasVariants: boolean;
   isActive: boolean;
   categoryId?: string | null;
+  isService?: boolean;
+  durationMin?: number | null;
   /** Linked option groups in order (restaurant-cafe-spec R7); absent where a reader did not load them. */
   optionGroups?: {
     group: Omit<OptionGroupView, "choices"> & { isActive: boolean; choices: OptionGroupView["choices"] };
@@ -125,6 +127,7 @@ export function toSellableSummary(product: SeamProduct, variant: SeamVariant | n
     vatCategory: product.vatCategory,
     vatApplicable: product.vatApplicable,
     ...(product.categoryId !== undefined && { categoryId: product.categoryId }),
+    ...(product.isService !== undefined && { isService: product.isService, durationMin: product.durationMin ?? null }),
     ...optionGroupsOf(product),
   };
 }

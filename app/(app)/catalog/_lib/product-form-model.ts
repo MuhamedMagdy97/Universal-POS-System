@@ -29,6 +29,9 @@ export type ProductFormState = {
   categoryId: string;
   /** Chosen on create only; KG prices are per kg and a KG product has no variants (weighed-selling-spec W2, W4). */
   unitType: UnitType;
+  /** Chosen on create only: a service holds no stock (salon-spec S2); `duration` is minutes, as typed. */
+  isService: boolean;
+  duration: string;
   vatCategory: VatCategory;
   price: string;
   cost: string;
@@ -43,6 +46,8 @@ export function emptyFormState(): ProductFormState {
     nameAr: "",
     categoryId: "",
     unitType: "EACH",
+    isService: false,
+    duration: "30",
     vatCategory: "STANDARD",
     price: "",
     cost: "",
@@ -62,6 +67,8 @@ export function formStateFromProduct(product: ProductDetail, currency: CurrencyC
     nameAr: product.nameAr ?? "",
     categoryId: product.categoryId ?? "",
     unitType: product.unitType,
+    isService: product.isService,
+    duration: String(product.durationMin ?? 30),
     vatCategory: product.vatCategory,
     price: minorToInput(product.priceMinor, currency),
     cost: minorToInput(product.costMinor, currency),
@@ -137,7 +144,15 @@ export function buildCreatePayload(state: ProductFormState, options: Options): B
   if (Object.keys(fields).length > 0) return { ok: false, fields };
   return {
     ok: true,
-    payload: { product: { ...product, unitType: state.unitType }, barcodes: state.barcodes, variants },
+    payload: {
+      product: {
+        ...product,
+        unitType: state.unitType,
+        ...(state.isService && { isService: true, durationMin: durationOf(state.duration) }),
+      },
+      barcodes: state.barcodes,
+      variants,
+    },
   };
 }
 
@@ -148,7 +163,19 @@ export function buildUpdatePayload(
 ): BuildResult<UpdateProductPayload> {
   const { fields, product, variants } = buildCommon(state, options);
   if (Object.keys(fields).length > 0) return { ok: false, fields };
-  return { ok: true, payload: { product: { ...product, expectedUpdatedAt }, barcodes: state.barcodes, variants } };
+  return {
+    ok: true,
+    payload: {
+      product: {
+        ...product,
+        // A service's duration can change; whether it is a service cannot (salon-spec S2).
+        ...(state.isService && { durationMin: durationOf(state.duration) }),
+        expectedUpdatedAt,
+      },
+      barcodes: state.barcodes,
+      variants,
+    },
+  };
 }
 
 /** Live, non-blocking hint: effective price below effective cost (only for users who see cost). */
@@ -173,4 +200,10 @@ export function otherCodesThan(state: ProductFormState, path: string): string[] 
     ...state.variants.map((v, i): [string, string[]] => [`variants.${i}.barcodes`, v.barcodes]),
   ];
   return lists.filter(([p]) => p !== path).flatMap(([, codes]) => codes);
+}
+
+/** Minutes typed for a service (5-480); anything else is 30. */
+export function durationOf(raw: string): number {
+  const minutes = Number(raw.trim());
+  return Number.isInteger(minutes) && minutes >= 5 && minutes <= 480 ? minutes : 30;
 }

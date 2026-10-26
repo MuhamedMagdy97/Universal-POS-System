@@ -63,6 +63,7 @@ const RUNNERS: Record<ReportName, (scope: ReportScope) => Promise<ReportRow[]>> 
   "profit-products": q.profitProducts,
   "profit-categories": q.profitCategories,
   "profit-days": q.profitDays,
+  "staff-commission": q.staffCommission,
 };
 
 function totalsOf(report: ReportName, rows: ReportRow[]): Record<string, number> {

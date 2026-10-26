@@ -119,6 +119,13 @@ export function ReceiptSlip({ doc, locale }: { doc: ReceiptDoc; locale: Locale }
                   </td>
                 </tr>
               ) : null}
+              {line.staffName ? (
+                <tr>
+                  <td className="receipt-indent" colSpan={2}>
+                    {tr("receipt.by", { name: line.staffName })}
+                  </td>
+                </tr>
+              ) : null}
               {line.discountMinor > 0 ? (
                 <tr>
                   <td className="receipt-indent">{tr("receipt.lineDiscount")}</td>

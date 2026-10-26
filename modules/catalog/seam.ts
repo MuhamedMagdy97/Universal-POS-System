@@ -57,6 +57,8 @@ const PRODUCT_SELECT = {
   hasVariants: true,
   isActive: true,
   categoryId: true,
+  isService: true,
+  durationMin: true,
   optionGroups: {
     orderBy: [{ sortOrder: "asc" }, { groupId: "asc" }],
     select: {

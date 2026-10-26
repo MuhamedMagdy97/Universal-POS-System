@@ -15,6 +15,7 @@ import {
   setInventorySource,
 } from "@/modules/integrations/inventory-sys";
 import { reserveSale } from "@/modules/integrations/inventory-sys/postings";
+import { saveStaffMember } from "@/modules/org";
 import { openShift } from "@/modules/registers";
 import { createSale, openTicket, refundSale, saveTicketLines, voidSale } from "@/modules/sales";
 import { POST as runScheduler } from "@/app/api/internal/inventory/run/route";
@@ -148,6 +149,33 @@ describe("a café ticket on a linked till (restaurant-cafe-spec R5, R9)", () => 
     );
     expect(sold.lines).toMatchObject([{ qty: 2, note: "no sugar" }]);
     expect(reserveCalls()).toBe(1);
+  });
+});
+
+describe("staff on a linked till (salon-spec S4, S8)", () => {
+  it("refuses one item done by two staff members, which would pay one of them for both", async () => {
+    const shop = await linkedShop("Post Staff", 1);
+    const sara = await saveStaffMember(shop.owner, { name: "Sara", commissionBp: 4_000, branchIds: [shop.branchA.id] });
+    const ali = await saveStaffMember(shop.owner, { name: "Ali", commissionBp: 4_000, branchIds: [shop.branchA.id] });
+    const ref = { productId: shop.items[0].productId, variantId: null };
+    await expectAppError(
+      createSale(
+        shop.cashier,
+        {
+          branchId: shop.branchA.id,
+          registerId: shop.register.id,
+          lines: [
+            { ref, qty: 1, staffMemberId: sara.id },
+            { ref, qty: 1, staffMemberId: ali.id },
+          ],
+          payments: [{ method: "CASH", amountMinor: 2_000 }],
+        },
+        saleKey(),
+      ),
+      422,
+      "STAFF_MIXED",
+    );
+    expect(reserveCalls()).toBe(0);
   });
 });
 

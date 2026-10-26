@@ -21,7 +21,10 @@ import {
   updateRegister,
   updateScaleSettings,
   updateServiceCharge,
+  updateOpeningHours,
   saveTables,
+  saveStaffMember,
+  type StaffMemberRow,
   type DiningTableRow,
   updateStaff,
   type ReceiptSettings,
@@ -178,6 +181,19 @@ export async function saveBusinessTypeAction(businessType: string): Promise<Acti
     await updateBusinessType(ctx, { businessType }, meta);
     return null;
   });
+}
+
+/** Settings → Shop (salon-spec S6): the calendar's opening hours. Owner only. */
+export async function saveOpeningHoursAction(input: unknown): Promise<ActionResult<null>> {
+  return run("/settings/shop", async (ctx, meta) => {
+    await updateOpeningHours(ctx, input, meta);
+    return null;
+  });
+}
+
+/** Settings → Team (salon-spec S3): one staff member. Owner and Admin. */
+export async function saveStaffMemberAction(input: unknown): Promise<ActionResult<StaffMemberRow>> {
+  return run("/settings/team", (ctx, meta) => saveStaffMember(ctx, input, meta));
 }
 
 /** Settings → Tables (restaurant-cafe-spec R3): one branch's tables. Owner and Admin. */

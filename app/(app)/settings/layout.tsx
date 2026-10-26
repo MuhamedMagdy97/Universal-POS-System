@@ -18,5 +18,6 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
 }
 
 async function ProfileTabs() {
-  return <SettingsTabs tables={(await currentProfile())?.tickets ?? false} />;
+  const profile = await currentProfile();
+  return <SettingsTabs tables={profile?.tickets ?? false} team={profile?.appointments ?? false} />;
 }

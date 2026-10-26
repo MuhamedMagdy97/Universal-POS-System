@@ -121,6 +121,8 @@ describe("CreateProduct", () => {
       costMinor: 0,
       vatCategory: "STANDARD",
       barcodes: [],
+      isService: false,
+      durationMin: null,
     });
   });
 

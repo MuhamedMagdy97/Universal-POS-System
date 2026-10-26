@@ -161,6 +161,17 @@ minutes open. The owner sets the tables up in Settings → Tables.
   order only.
 - Offline, the café till sells at the counter only: no tables or tickets until it is back online.
 
+## Salons
+
+- **Services** (a haircut) hold no stock: selling or refunding them never changes stock.
+- **Staff** [الموظف]: pick who is doing the work above the scan box; new lines are theirs. Each line has its own
+  staff list to change it. The receipt shows "by Sara". Lines without staff earn no commission.
+- **Appointments** [المواعيد]: the day has a column per staff member and one for "Any". Tap an empty slot, type
+  the customer's name and phone, tick the services and press **Book**. A staff member cannot be booked twice at the
+  same time. Tap an appointment for **Arrived**, **No-show**, **Cancel appointment** or **Check out**.
+- **Check out** opens the till with the appointment's services for its staff member. Add products if needed and
+  charge as usual; the appointment is then Done.
+
 ## Receipt and reprint
 
 After the charge you see **Sale {number}** with the lines, totals, what was paid and the change.

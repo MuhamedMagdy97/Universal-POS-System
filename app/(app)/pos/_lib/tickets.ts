@@ -39,11 +39,15 @@ export function mergeIntoTicket(ticketCart: readonly CartLine[], rungUp: readonl
 }
 
 /**
- * Whether a sale may go to the offline queue when the server cannot be reached. Paying a ticket and charging a
- * service charge need the server (R5, R12): queued, they could never be replayed.
+ * Whether a sale may go to the offline queue when the server cannot be reached. Paying a ticket, charging a service
+ * charge (R5, R12) and checking out an appointment (salon-spec S9) need the server: queued, they could never replay.
  */
-export function canQueueOffline(sale: { paysTicket: boolean; serviceChargeMinor: number }): boolean {
-  return !sale.paysTicket && sale.serviceChargeMinor === 0;
+export function canQueueOffline(sale: {
+  paysTicket: boolean;
+  serviceChargeMinor: number;
+  checksOutAppointment?: boolean;
+}): boolean {
+  return !sale.paysTicket && sale.serviceChargeMinor === 0 && !sale.checksOutAppointment;
 }
 
 /** The cart as the ticket save takes it. */

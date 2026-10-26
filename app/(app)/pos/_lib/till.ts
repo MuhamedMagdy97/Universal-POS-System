@@ -52,6 +52,8 @@ export type TillItem = {
   unitType: QtyUnit;
   /** Option groups to pick from (restaurant-cafe-spec R7); absent when the item has none. */
   optionGroups?: OptionGroupView[];
+  /** A service holds no stock (salon-spec S2): the till shows none for it. */
+  isService?: boolean;
 };
 
 /** `qty` is pieces, or grams on a KG line; `qtyText` is the kg the cashier is typing on a KG line. */
@@ -68,6 +70,21 @@ export type CartLine = TillItem & {
   note?: string;
   /** On a ticket: how much of the line went to the kitchen (R10). */
   sentQty?: number;
+  /** Who does the line (salon-spec S4). */
+  staffMemberId?: string;
+  staffName?: string;
+};
+
+/** A staff member as the till picks one (salon-spec S4). */
+export type TillStaff = { id: string; name: string };
+
+/** An appointment checked out at the till (salon-spec S7): its services for its staff member, and its customer. */
+export type TillAppointment = {
+  id: string;
+  items: TillItem[];
+  staff: TillStaff | null;
+  customer: TillCustomer | null;
+  customerName: string;
 };
 
 /** The item's key: stock, tiles and search results. */
@@ -75,8 +92,13 @@ export const lineKey = (item: { productId: string; variantId: string | null }) =
   `${item.productId}|${item.variantId ?? ""}`;
 
 /** A cart line's key: the item, its options and its note (R9). Equal to `lineKey` for a plain line. */
-export const cartKey = (line: { productId: string; variantId: string | null; options?: string[]; note?: string }) =>
-  lineKeyOf(line, line.options ?? [], line.note);
+export const cartKey = (line: {
+  productId: string;
+  variantId: string | null;
+  options?: string[];
+  note?: string;
+  staffMemberId?: string;
+}) => lineKeyOf(line, line.options ?? [], line.note, line.staffMemberId);
 
 /** Options picked at the till for one line (R7). */
 export type PickedOptions = { options: string[]; labels: OptionSnapshot[]; unitPriceMinor: number };
@@ -96,10 +118,14 @@ export function addToCart(
   qty = 1,
   label?: ScaleLabelLine,
   picked?: PickedOptions,
+  staff?: TillStaff | null,
 ): CartLine[] {
-  const fresh: CartLine = picked
-    ? { ...item, qty, unitPriceMinor: picked.unitPriceMinor, options: picked.options, optionLabels: picked.labels }
-    : { ...item, qty };
+  const fresh: CartLine = {
+    ...item,
+    qty,
+    ...(picked && { unitPriceMinor: picked.unitPriceMinor, options: picked.options, optionLabels: picked.labels }),
+    ...(staff && { staffMemberId: staff.id, staffName: staff.name }),
+  };
   const key = cartKey(fresh);
   if (cart.some((line) => cartKey(line) === key)) {
     return cart.map((line) => {
@@ -114,10 +140,22 @@ export function addToCart(
 
 /** Sets or clears one line's note (R8); a line that now matches another one joins it. */
 export function setLineNote(cart: readonly CartLine[], key: string, raw: string): CartLine[] {
-  const note = raw.trim().slice(0, NOTE_MAX) || undefined;
+  return moveLine(cart, key, { note: raw.trim().slice(0, NOTE_MAX) || undefined });
+}
+
+/** Sets or clears (null) who does one line (salon-spec S4); a line that now matches another one joins it. */
+export function setLineStaff(cart: readonly CartLine[], key: string, staff: TillStaff | null): CartLine[] {
+  return moveLine(cart, key, { staffMemberId: staff?.id, staffName: staff?.name });
+}
+
+function moveLine(
+  cart: readonly CartLine[],
+  key: string,
+  patch: Pick<CartLine, "note"> | Pick<CartLine, "staffMemberId" | "staffName">,
+): CartLine[] {
   const line = cart.find((current) => cartKey(current) === key);
   if (!line) return [...cart];
-  const moved = { ...line, note };
+  const moved = { ...line, ...patch };
   const twin = cart.find((current) => current !== line && cartKey(current) === cartKey(moved));
   if (!twin) return cart.map((current) => (current === line ? moved : current));
   return cart.flatMap((current) =>
@@ -355,6 +393,13 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.label.mismatch";
     case "OPTIONS_INVALID":
       return "pos.options.invalid";
+    // Salon (salon-spec S4, S7).
+    case "APPOINTMENT_CLOSED":
+      return "pos.appointment.closed";
+    case "STAFF_INVALID":
+      return "pos.staff.invalid";
+    case "STAFF_MIXED":
+      return "pos.staff.mixed";
     // Paying a ticket (restaurant-cafe-spec R5).
     case "TICKET_CHANGED":
       return "pos.ticket.error.changed";

@@ -172,6 +172,7 @@ describe("receipts (H2, H4)", () => {
         lineTotalMinor: 2000,
         options: [],
         note: null,
+        staffName: null,
       },
     ]);
     expect(doc.staffName).toMatch(/^CASHIER/);
