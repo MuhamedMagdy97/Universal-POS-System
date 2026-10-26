@@ -45,7 +45,22 @@ export function DayCalendar({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const slots = daySlots(data.opensAt, data.closesAt);
-  const columns: Staff[] = [...staff, { id: ANY, name: tr("appointments.any") }];
+  // Someone deactivated or moved since still has their column while they have appointments, so those stay reachable.
+  const departed = [
+    ...new Map(
+      data.appointments.flatMap((row) =>
+        row.staff && !staff.some((member) => member.id === row.staff?.id)
+          ? [
+              [
+                row.staff.id,
+                { id: row.staff.id, name: (locale === "ar" && row.staff.nameAr) || row.staff.name },
+              ] as const,
+            ]
+          : [],
+      ),
+    ).values(),
+  ];
+  const columns: Staff[] = [...staff, ...departed, { id: ANY, name: tr("appointments.any") }];
   const money = (minor: number) => formatMoney(minor, currency, locale);
   const nameOf = (service: { name: string; nameAr: string | null }) =>
     (locale === "ar" && service.nameAr) || service.name;

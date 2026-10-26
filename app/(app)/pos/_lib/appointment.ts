@@ -26,11 +26,18 @@ export async function appointmentForTill(
   }
   if (appointment.branchId !== branchId) return null;
   if (appointment.status !== "BOOKED" && appointment.status !== "ARRIVED") return null;
-  const items = await getSellableItems(
-    getDb(),
-    ctx.orgId,
-    appointment.services.map((service) => ({ productId: service.productId, variantId: null })),
-  );
+  let items;
+  try {
+    items = await getSellableItems(
+      getDb(),
+      ctx.orgId,
+      appointment.services.map((service) => ({ productId: service.productId, variantId: null })),
+    );
+  } catch (err) {
+    // A booked service archived since: the till opens empty, as without an appointment.
+    if (err instanceof AppError) return null;
+    throw err;
+  }
   const customer = appointment.customer.id
     ? await getDb().customer.findFirst({
         where: { id: appointment.customer.id, orgId: ctx.orgId, isActive: true },

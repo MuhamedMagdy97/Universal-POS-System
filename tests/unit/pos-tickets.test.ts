@@ -103,5 +103,7 @@ describe("final review fixes", () => {
     expect(canQueueOffline({ paysTicket: false, serviceChargeMinor: 0 })).toBe(true);
     expect(canQueueOffline({ paysTicket: true, serviceChargeMinor: 0 })).toBe(false);
     expect(canQueueOffline({ paysTicket: false, serviceChargeMinor: 324 })).toBe(false);
+    // An appointment checkout needs the server too (salon-spec S9).
+    expect(canQueueOffline({ paysTicket: false, serviceChargeMinor: 0, checksOutAppointment: true })).toBe(false);
   });
 });

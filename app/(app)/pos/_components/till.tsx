@@ -219,7 +219,9 @@ export function Till({
   }
 
   /** Loads on-hand for these items; a failure just leaves the stock out. */
-  async function loadStock(items: readonly TillItem[]) {
+  async function loadStock(all: readonly TillItem[]) {
+    // A service holds no stock (salon-spec S2): no on-hand figure, so no stock note under it.
+    const items = all.filter((item) => !item.isService);
     if (items.length === 0 || off.offline) return;
     const result = await safeAction(() =>
       tillStockAction({
@@ -605,6 +607,7 @@ export function Till({
     const queueable = canQueueOffline({
       paysTicket: paying !== null,
       serviceChargeMinor: preview.ok ? preview.serviceChargeMinor : 0,
+      checksOutAppointment: checkingOut !== null,
     });
     if (unreachable(sent) && off.device && !queueable) {
       setPending(false);
@@ -638,6 +641,7 @@ export function Till({
       return;
     }
     if (!keepKeyAfter(result.error)) setSaleKey(crypto.randomUUID());
+    if ((result.error.details as { reason?: string } | null)?.reason === "APPOINTMENT_CLOSED") setCheckingOut(null);
     const key = saleErrorKey(result.error);
     if (key === "pos.error.insufficient") {
       const items = shortLines(result.error, cart)

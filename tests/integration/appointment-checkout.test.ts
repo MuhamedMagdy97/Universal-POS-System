@@ -90,4 +90,19 @@ describe("checking out an appointment", () => {
     expect(await getAppointment(cashier, appointment.id)).toMatchObject({ status: "DONE", saleId: sale.id });
     await expectAppError(createSale(cashier, body, KEY()), 409, "APPOINTMENT_CLOSED");
   });
+
+  it("opens no till for an appointment whose service was archived since", async () => {
+    const appointment = await bookAppointment(cashier, {
+      branchId,
+      day: "2026-11-06",
+      startMin: 600,
+      staffMemberId: saraId,
+      customerName: "Laila",
+      customerPhone: "01009876543",
+      serviceIds: [haircut],
+    });
+    await db.product.update({ where: { id: haircut }, data: { isActive: false } });
+    expect(await appointmentForTill(cashier, appointment.id, branchId, "en")).toBeNull();
+    await db.product.update({ where: { id: haircut }, data: { isActive: true } });
+  });
 });

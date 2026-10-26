@@ -161,6 +161,13 @@ function mergeLines(
         productId: line.ref.productId,
       });
     }
+    // A linked shop sends one line per item: two staff members on it would pay one of them for both (salon-spec S8).
+    if (existing && byItemOnly && (existing.staffMemberId ?? null) !== (line.staffMemberId ?? null)) {
+      throw new AppError("VALIDATION_FAILED", "One item can be done by one staff member in this shop", {
+        reason: "STAFF_MIXED",
+        productId: line.ref.productId,
+      });
+    }
     if (existing) {
       existing.qty += line.qty;
       existing.labels = existing.labels && line.labels ? [...existing.labels, ...line.labels] : undefined;

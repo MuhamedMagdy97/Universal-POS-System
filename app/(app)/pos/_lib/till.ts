@@ -52,6 +52,8 @@ export type TillItem = {
   unitType: QtyUnit;
   /** Option groups to pick from (restaurant-cafe-spec R7); absent when the item has none. */
   optionGroups?: OptionGroupView[];
+  /** A service holds no stock (salon-spec S2): the till shows none for it. */
+  isService?: boolean;
 };
 
 /** `qty` is pieces, or grams on a KG line; `qtyText` is the kg the cashier is typing on a KG line. */
@@ -391,6 +393,13 @@ export function saleErrorKey(error: ErrorBody): MessageKey {
       return "pos.label.mismatch";
     case "OPTIONS_INVALID":
       return "pos.options.invalid";
+    // Salon (salon-spec S4, S7).
+    case "APPOINTMENT_CLOSED":
+      return "pos.appointment.closed";
+    case "STAFF_INVALID":
+      return "pos.staff.invalid";
+    case "STAFF_MIXED":
+      return "pos.staff.mixed";
     // Paying a ticket (restaurant-cafe-spec R5).
     case "TICKET_CHANGED":
       return "pos.ticket.error.changed";

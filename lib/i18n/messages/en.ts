@@ -628,6 +628,10 @@ export const en = {
   "settings.hours.invalid": "Closing must be after opening.",
   "pos.staff.label": "Staff",
   "pos.appointment.checkingOut": "Checking out {name}'s appointment",
+  "pos.appointment.closed":
+    "This appointment is already checked out or cancelled. Charge again to sell the cart without it.",
+  "pos.staff.mixed": "In this shop one item is done by one staff member. Put the same person on both lines.",
+  "pos.staff.invalid": "Someone on a line no longer works in this branch. Choose another staff member.",
   "pos.staff.none": "No one",
   "pos.staff.for": "Staff for {name}",
   "reports.col.serviceCharge": "Service charge",
